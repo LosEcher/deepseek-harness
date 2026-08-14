@@ -28,6 +28,20 @@ describe('interruptedTurnClosers', () => {
     expect(interruptedTurnClosers([])).toEqual([])
   })
 
+  it('keeps a turn/pending tail resumable even when chunks follow the marker (方案 C)', () => {
+    // The fast-exit marker is written mid-drain, but the model stream keeps
+    // appending chunks until the OS stops the process — the marker is NOT the
+    // last event. Repair must still treat the open turn as resumable.
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      { type: 'assistant/chunk', seq: 2, time: 2, data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'a' } } },
+      { type: 'turn/pending', seq: 3, time: 3, data: { turn: 1 } },
+      { type: 'assistant/chunk', seq: 4, time: 4, data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'b' } } },
+    ]
+    expect(interruptedTurnClosers(events)).toEqual([])
+  })
+
   it('closes an open turn with no open step (turn/end {interrupted} only)', () => {
     const events: SessionEvent[] = [userTurnStart(1, 0)]
     const closers = interruptedTurnClosers(events)
