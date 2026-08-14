@@ -18,7 +18,13 @@
     persona: >-
       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
 
-# TODO: Re-enable shared HMR for Web after its reload lifecycle is tested.
+# Module-source HMR stays off on Web: its reload lifecycle is untested, and a
+# non-empty `root` is a common FSEvents storm (Syncthing trees, node_modules
+# symlink farms). Config-only watching still runs — profile-boot mounts HMR
+# with `root: []` so cordis.patch.yml edits stay live. Client UI hot reload is
+# `dsh-client-hmr` + `pnpm run dev:web`. Host plugin code changes: restart.
+# TODO: Re-enable shared module HMR for Web only after that lifecycle is tested
+# and roots are guarded (narrow trees, followSymlinks false, rate limits).
 - id: hmr
   disabled: true
 

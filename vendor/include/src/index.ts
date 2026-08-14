@@ -127,6 +127,47 @@ export function applyEntryPatches(
   return data
 }
 
+/** Object key js-yaml stores when a mapping key was a `!!js` expression node. */
+const COLLAPSED_JS_EXPR_KEY = '[object Object]'
+
+/**
+ * Reject a composed entry list where a `!!js` tag collapsed into a YAML mapping.
+ * An unquoted ternary (`!!js a ? b : c`) is YAML mapping syntax; js-yaml then
+ * stores the expression node as the key `[object Object]`, and interpolation
+ * never runs. Quote the whole expression (`!!js "a ? b : c"`). Walks the
+ * composed tree only — a later overlay may replace a bad bundle row.
+ * @param value - parsed entry list or any nested config value.
+ * @param path - diagnostic path; defaults to the tree root.
+ * @returns nothing.
+ * @throws when any mapping uses `[object Object]` as a key.
+ */
+export function assertJsExprTree(value: unknown, path = 'config'): void {
+  if (value === null || typeof value !== 'object') return
+  if (isJsExpr(value)) return
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      const label = isNamedEntry(item) ? `entry ${item.id}` : `${path}[${index}]`
+      assertJsExprTree(item, label)
+    })
+    return
+  }
+  const record = value as Record<string, unknown>
+  if (Object.prototype.hasOwnProperty.call(record, COLLAPSED_JS_EXPR_KEY)) {
+    throw new Error(
+      `${path}: !!js expression was parsed as a YAML mapping. `
+      + 'Quote the whole expression (e.g. key: !!js "cond ? a : b"); '
+      + "an unquoted '?' or ':' is YAML mapping syntax, not JavaScript",
+    )
+  }
+  for (const [key, item] of Object.entries(record)) {
+    assertJsExprTree(item, `${path}.${key}`)
+  }
+}
+
+function isNamedEntry(value: unknown): value is { id: string } {
+  return typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string'
+}
+
 type ConfigUpdateStage = 'read' | 'parse' | 'validate'
 
 interface ReadCandidate {
@@ -314,6 +355,7 @@ export class Include extends EntryTree {
 
   private async _apply(candidate: ReadCandidate) {
     const data = this.applyPatches(candidate.data, this.config.patches)
+    assertJsExprTree(data)
     await this.root.update(data)
     this.content = candidate.content
     this.data = candidate.data

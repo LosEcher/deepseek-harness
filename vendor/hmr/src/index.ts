@@ -3,7 +3,7 @@ import type { Dict } from '@deepseek-ai/cosmokit'
 import { ModuleLoader, type ModuleJob, type ResolveResult } from '@deepseek-ai/cordis-plugin-loader'
 import type { Include } from '@deepseek-ai/cordis-plugin-include'
 import { FSWatcher, watch, type ChokidarOptions } from 'chokidar'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { realpath, stat } from 'node:fs/promises'
 import { handleError } from './error.ts'
 import type {} from '@deepseek-ai/cordis-plugin-timer'
@@ -139,17 +139,35 @@ class Hmr extends Service {
     if (this.configs.has(watchFilename)) throw new Error(`config path already registered: ${filename}`)
 
     const { root, depth } = target
+    // Exact-path watch: admit only the target file and its missing ancestors
+    // (depth > 0). Clearing `ignored` used to admit every sibling under
+    // $DSH_HOME / a profile dir; on macOS FSEvents still delivers the whole
+    // subtree and user-space filtering burned CPU for no benefit.
+    // Paths from Chokidar may be absolute or root-relative (`cwd` is unset).
+    const resolveWatched = (path: string): string => isAbsolute(path) ? resolve(path) : resolve(root, path)
+    const isConfigWatchPath = (path: string): boolean => {
+      const observed = resolveWatched(path)
+      if (observed === root) return true
+      for (const goal of [filename, watchFilename]) {
+        if (observed === goal) return true
+        // `observed` is a missing intermediate directory on the way to goal.
+        const rel = relative(observed, goal)
+        if (rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)) return true
+      }
+      return false
+    }
     const watcher = watch(root, {
       ...this.config,
       cwd: undefined,
       depth,
-      ignored: undefined,
+      ignored: (path: string) => !isConfigWatchPath(path),
       ignoreInitial: false,
+      followSymlinks: false,
     })
     const registration = { watcher }
     this.configs.set(watchFilename, registration)
     const onChange = (path: string) => {
-      const observed = resolve(path)
+      const observed = resolveWatched(path)
       if (observed !== filename && observed !== watchFilename) return
       this.refreshConfig(registration, filename, refresh)
     }
@@ -225,10 +243,22 @@ class Hmr extends Service {
       this.externals = new Set()
     }
 
+    if (root.length > 0) {
+      this.ctx.logger.info(
+        'module HMR roots %o (followSymlinks=%s); prefer narrow source trees and never Syncthing/iCloud/node_modules',
+        root,
+        String(this.config.followSymlinks ?? false),
+      )
+    }
+
     this.watcher = watch(root, {
       ...this.config,
       cwd: watchBaseDir,
       ignored: path => match(relative(watchBaseDir, path)),
+      // Never follow package symlinks into monorepos: a single node_modules
+      // link under an out-of-tree plugin can otherwise pull the whole install
+      // into the FSEvents subscription.
+      followSymlinks: this.config.followSymlinks ?? false,
       // The initial scan re-announces files the boot just consumed: an `add`
       // for a config file refreshes an include whose initial apply may still
       // be in flight, and a failing apply then rolls this plugin back while
@@ -555,6 +585,8 @@ namespace Hmr {
     root: string[]
     debounce: number
     ignored: string[]
+    /** When true, Chokidar walks symlink targets (expensive; off by default). */
+    followSymlinks?: boolean
   }
 
   export const Config: z<Config> = z.object({
@@ -562,15 +594,30 @@ namespace Hmr {
     root: z.array(String).role('table').default(['.']),
     ignored: z.array(String).role('table').default([
       '**/node_modules',
+      '**/node_modules/**',
+      '**/.git',
+      '**/.git/**',
+      '**/dist',
+      '**/dist/**',
+      '**/lib',
+      '**/lib/**',
+      '**/.stversions',
+      '**/.stversions/**',
+      '**/.syncthing.*',
       '**/.*',
       'cache',
       'data',
     ]),
     debounce: z.natural().role('ms').default(100),
+    // Default false: following package-manager symlinks into a monorepo is the
+    // usual way a "small" plugin root becomes a whole-tree FSEvents storm.
+    followSymlinks: z.boolean().default(false),
   })
   // [deepseek-harness] vendored modification: removed `.i18n({ 'en-US': enUS, 'zh-CN': zhCN })`
   // and the corresponding `./locales/*.yml` imports, to avoid a runtime YAML import hook
   // (@cordisjs/unyaml) that we don't vendor. See vendor/README.md.
+  // [deepseek-harness] also: safer watch defaults (followSymlinks false, broader ignored,
+  // exact-path registerConfig ignore) after module-HMR FSEvents storms on web profiles.
 }
 
 export default Hmr

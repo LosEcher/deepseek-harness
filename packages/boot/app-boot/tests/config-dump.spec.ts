@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import * as yaml from 'js-yaml'
-import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { assertJsExprTree, entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { loadOverlayPatches, renderConfigDump } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
@@ -33,6 +33,16 @@ function writeBase(dir: string): string {
   ].join('\n'))
   return base
 }
+
+describe('assertJsExprTree', () => {
+  it('accepts quoted !!js nodes and rejects a collapsed mapping key', () => {
+    expect(() => assertJsExprTree([
+      { id: 'ok', config: { value: { __jsExpr: 'cond ? a : b' } } },
+    ])).not.toThrow()
+    expect(() => assertJsExprTree({ headers: { '[object Object]': 'undefined' } }))
+      .toThrow(/!!js expression was parsed as a YAML mapping/)
+  })
+})
 
 describe('renderConfigDump', () => {
   it('composes overlay layers in order, prints !!js verbatim, and labels each section with its source and patches', () => {
@@ -183,5 +193,51 @@ describe('renderConfigDump', () => {
     writeFileSync(scalar, 'id: not-a-list\n')
     expect(() => renderConfigDump(NAME, scalar, [], () => {}))
       .toThrow('must be a top-level YAML array of entries')
+  })
+
+  it('rejects a composed tree whose !!js ternary collapsed into a YAML mapping', () => {
+    const dir = tmp()
+    const base = join(dir, 'base.yml')
+    writeFileSync(base, [
+      '- id: mcp',
+      '  name: ./noop.mjs',
+      '  config:',
+      '    headers:',
+      '      Authorization: !!js process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined',
+      '',
+    ].join('\n'))
+    expect(() => renderConfigDump(NAME, base, [], () => {}))
+      .toThrow(/entry mcp.*!!js expression was parsed as a YAML mapping/)
+  })
+
+  it('keeps a later overlay that replaces the collapsed !!js row', () => {
+    const dir = tmp()
+    const base = join(dir, 'base.yml')
+    writeFileSync(base, [
+      '- id: mcp',
+      '  name: ./noop.mjs',
+      '  config:',
+      '    headers:',
+      '      Authorization: !!js process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined',
+      '',
+    ].join('\n'))
+    const overlay = join(dir, 'overlay.yml')
+    writeFileSync(overlay, [
+      '- id: mcp',
+      '  config:',
+      '    headers:',
+      '      Authorization: !!js "process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined"',
+      '',
+    ].join('\n'))
+    const dump = renderConfigDump(
+      NAME, base,
+      [{ label: 'overlay.yml', patches: loadOverlayPatches(NAME, overlay) }],
+      () => {},
+    )
+    const parsed = yaml.load(dump, { schema: entryListSchema }) as {
+      config?: { headers?: { Authorization?: { __jsExpr?: string } } }
+    }[]
+    expect(parsed[0]?.config?.headers?.Authorization?.__jsExpr)
+      .toBe('process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined')
   })
 })

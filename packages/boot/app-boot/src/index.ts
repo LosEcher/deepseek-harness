@@ -13,7 +13,7 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 import { Context, type FiberState } from '@deepseek-ai/cordis'
 import Loader, { type Entry, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
-import Include, { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
+import Include, { applyEntryPatches, assertJsExprTree, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
@@ -353,7 +353,10 @@ export interface ConfigDumpLayer {
  * even patch-visibility corner cases (a later layer targeting a group child a
  * plain config replacement introduced, which the single-pass id index never
  * sees) compose identically — then render the result as YAML in the same
- * dialect (`!!js` expressions print verbatim, unevaluated).
+ * dialect (`!!js` expressions print verbatim, unevaluated). A composed tree
+ * whose `!!js` tag collapsed into a YAML mapping (an unquoted ternary) throws
+ * the same diagnostic Include uses at mount, so `--dump-config` preflight
+ * matches boot.
  *
  * Every run of rows from the same file and patch layers is preceded by a `# ==` comment
  * naming the file that contributed the rows and any layers that patched them,
@@ -437,6 +440,11 @@ export function renderConfigDump(
     }
     previous = composed
     previousWarnings = warnings
+  }
+  try {
+    assertJsExprTree(composed)
+  } catch (error) {
+    throw new Error(`${binName}: ${error instanceof Error ? error.message : String(error)}`)
   }
   return groupedDump(composed, provenance)
 }

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-14-quoted-js-expr-ternaries.md
+2026-08-14-quoted-js-expr-ternaries.md: ed155690d2edf544de90688bf6127e6f4b72a3a7
+2026-08-14-quoted-js-expr-ternaries.zh.md: 8c882db8e9bb7895b64e28477e19e227deba3b44

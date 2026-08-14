@@ -268,6 +268,26 @@ describe('Loader entry disabled interpolation', () => {
 })
 
 describe('boot with user patches', () => {
+  it('rejects an unquoted !!js ternary that YAML parsed as a mapping', async () => {
+    const dir = tmp()
+    writeFileSync(join(dir, 'noop.mjs'), [
+      'export const name = "noop"',
+      'export function apply() {}',
+      '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'cordis.yml'), [
+      '- id: mcp',
+      '  name: ./noop.mjs',
+      '  config:',
+      '    headers:',
+      '      Authorization: !!js process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined',
+      '',
+    ].join('\n'))
+    await expect(boot(NAME, join(dir, 'cordis.yml'))).rejects.toThrow(
+      /entry mcp.*!!js expression was parsed as a YAML mapping/,
+    )
+  })
+
   it('applies id-targeted overrides, inserts, and interpolates !!js from the environment', async () => {
     const dir = tmp()
     const userDir = tmp()
