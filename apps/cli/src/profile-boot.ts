@@ -50,6 +50,15 @@ const NAME = 'dsh'
 export const TOOL_DRAIN_GRACE_MS = 10_000
 
 /**
+ * Grace for draining live agent turns to a clean turn boundary on shutdown
+ * (see agent-loop `Config.drainGraceMs`). The process force-exit timer is
+ * widened by this amount so the turn drain (model round trip + tool calls)
+ * is never cut short. Keep in sync with the agent-loop default; raise this
+ * if a deployment configures a larger `agentLoop.drainGraceMs`.
+ */
+export const AGENT_DRAIN_GRACE_MS = 30_000
+
+/**
  * Append one drain-outcome line to `$DSH_HOME/logs/dsh-drain.log`, so an
  * external observer (Orca terminal, tail -f, the drain-watch script) sees the
  * shutdown timeline in real time without parsing the app logger.
@@ -276,7 +285,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     },
     undefined,
     undefined,
-    PROCESS_SHUTDOWN_TIMEOUT_MS + TOOL_DRAIN_GRACE_MS,
+    PROCESS_SHUTDOWN_TIMEOUT_MS + TOOL_DRAIN_GRACE_MS + AGENT_DRAIN_GRACE_MS,
   )
   const signalShutdown = new AbortController()
   const interrupt = (code: number): void => {

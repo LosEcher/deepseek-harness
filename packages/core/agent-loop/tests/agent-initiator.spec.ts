@@ -24,7 +24,7 @@ async function harness(adapter: LlmAdapter): Promise<Harness> {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   const agentsFiber = await ctx.plugin(AgentRegistry)
-  const loopFiber = await ctx.plugin(AgentLoop, { agents: [] })
+  const loopFiber = await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
   ctx.llm.registerAdapter(['mock'], adapter)
   return { ctx, agentsFiber, loopFiber }
 }
@@ -124,7 +124,7 @@ describe('AgentLoop initiator scope', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     ctx.llm.registerAdapter(['mock'], adapter)
 
     const a = ctx.agentLoop.create(SessionId('a'), { provider: 'mock', model: 'mock' })
@@ -383,7 +383,7 @@ describe('AgentLoop initiator scope', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     ctx.llm.registerAdapter(['mock'], adapter)
     const service = ctx.agents
     adapter.agents = service

@@ -33,7 +33,7 @@ async function harness(adapter: MockAdapter) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
   ctx.llm.registerAdapter(['mock'], adapter)
   return ctx
 }
@@ -528,7 +528,7 @@ describe('turn numbering continues across seeded sessions', () => {
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
-    await ctx2.plugin(AgentLoop, { agents: [] })
+    await ctx2.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     ctx2.llm.registerAdapter(['mock'], second)
 
     const seeded = ctx2.sessions.create(SessionId('forked'), { seed: [...agent.session.events] })
@@ -679,7 +679,7 @@ describe('turn and step boundary recovery', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
     return ctx
@@ -1111,7 +1111,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
 
@@ -1161,7 +1161,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
 
@@ -1211,7 +1211,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
 
@@ -1257,7 +1257,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
 
@@ -1305,7 +1305,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     await mountInvariants(ctx)
     ctx.llm.registerAdapter(['mock'], adapter)
 

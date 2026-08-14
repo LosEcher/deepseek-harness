@@ -27,7 +27,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import { ReactLoopAgent } from './agent.ts'
-import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
+import { DEFAULT_AGENT_DRAIN_GRACE_MS, DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 
 /** Fiber states that cannot own or serve a new lifecycle. */
 const INACTIVE_STATES: ReadonlySet<FiberState> = new Set([
@@ -184,7 +184,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-export { DEFAULT_MAX_PARALLEL_TOOL_CALLS }
+export { DEFAULT_AGENT_DRAIN_GRACE_MS, DEFAULT_MAX_PARALLEL_TOOL_CALLS }
 
 /**
  * One launcher-selected session identity for a configured agent. `resume`
@@ -299,6 +299,7 @@ export class AgentLoop extends Service implements AgentFactory {
   /** Runtime schema for declarative agents. */
   static Config = z.object({
     maxParallelToolCalls: z.number().step(1).min(1).default(DEFAULT_MAX_PARALLEL_TOOL_CALLS),
+    drainGraceMs: z.number().step(1).min(1000).default(DEFAULT_AGENT_DRAIN_GRACE_MS),
     agents: z.array(z.object({
       id: z.string().required(),
       sessionId: z.string().min(1),
@@ -494,7 +495,7 @@ export class AgentLoop extends Service implements AgentFactory {
     // Reverse teardown, memoized so every racing owner awaits one quiescence:
     // stop the machine, leave the registries, unwind the scope, release
     // bookkeeping.
-    const dispose = (ownerTriggered = false): Promise<void> => (disposing ??= (async () => {
+    const dispose = (ownerTriggered = false, drainFirst = !ownerTriggered): Promise<void> => (disposing ??= (async () => {
       abort.abort(new Error(`agent "${id}" lifecycle disposed`))
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
@@ -504,6 +505,17 @@ export class AgentLoop extends Service implements AgentFactory {
         // to drop the agent, so nothing should still hold it.
         if (machine === undefined) await machineReady.promise
         if (machine !== undefined) {
+          if (drainFirst) {
+            // Supervisor/factory teardown (process shutdown, profile reload,
+            // owner fiber teardown): drain the live turn to a clean turn
+            // boundary first — the model request in flight and its tool calls
+            // run to completion and `turn/end` persists as completed, so a
+            // graceful restart resumes with no interrupted turn. Timeout
+            // falls through to the disposed cancel below. Explicit session
+            // closes (handle.dispose) skip the wait: the user asked to stop
+            // this session now.
+            await machine.drainToIdle(this.config.drainGraceMs)
+          }
           machine.cancel({ kind: 'disposed' })
           await machine.whenIdle()
           await machine.scope.dispose()
@@ -526,7 +538,9 @@ export class AgentLoop extends Service implements AgentFactory {
         // unregistering this already-running owner effect from inside itself.
         if (disposing !== undefined) return
         abort.abort(new Error(`agent "${id}" setup aborted: owner disposed during setup`))
-        return dispose(true)
+        // Owner-fiber teardown is a lifecycle boundary (app/profile shutdown),
+        // not an explicit close: drain the live turn like factory teardown.
+        return dispose(true, true)
       }, `agentLoop.lifecycle(${id})`)
       /* v8 ignore start -- ctx.effect throws only on an inactive fiber, which assertActive() above already rejected */
     } catch (error: unknown) {
@@ -566,7 +580,10 @@ export class AgentLoop extends Service implements AgentFactory {
           // session-start extension point), so only the liveness recheck is owed.
           emitAgentEvent(loopCtx, agent, 'agent/session-start', { source })
           assertLive()
-          return { agent, dispose }
+          // Explicit closes (handle.dispose) mean "stop now": no turn drain,
+          // but the caller-owned lifecycle effect still retires (unfollowOwner
+          // runs on the non-ownerTriggered path).
+          return { agent, dispose: () => dispose(false, false) }
         },
         dispose,
       }

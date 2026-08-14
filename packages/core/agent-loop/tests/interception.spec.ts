@@ -34,7 +34,7 @@ async function harness(adapter: MockAdapter) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
   ctx.llm.registerAdapter(['mock'], adapter)
   return ctx
 }

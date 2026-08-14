@@ -67,7 +67,7 @@ export class MockAdapter extends LlmAdapter {
   requests: GenerateOptions[] = []
 
   constructor(
-    private script: (StreamChunk[] | ((options: GenerateOptions) => StreamChunk[]) | 'hang' | 'hang-slow')[],
+    private script: (StreamChunk[] | ((options: GenerateOptions) => StreamChunk[] | AsyncIterable<StreamChunk>) | 'hang' | 'hang-slow')[],
     private readonly reasoning?: LlmModelReasoningInfo,
     private readonly defaultMaxTokens?: number,
   ) {
@@ -111,7 +111,9 @@ export class MockAdapter extends LlmAdapter {
       return
     }
     const chunks = typeof entry === 'function' ? entry(options) : entry
-    for (const chunk of chunks) {
+    // `for await` consumes sync and async iterables alike, so scripted entries
+    // may be plain arrays or async generators (delayed/streaming models).
+    for await (const chunk of chunks) {
       if (options.signal?.aborted) throw new Error('aborted')
       yield chunk
     }

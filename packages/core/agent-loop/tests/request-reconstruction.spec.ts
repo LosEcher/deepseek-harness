@@ -31,7 +31,7 @@ async function harnessRoutes(
   await ctx.plugin(SystemPrompt, { persona })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
   for (const [provider, adapter] of adapters) ctx.llm.registerAdapter([provider], adapter)
   return ctx
 }
@@ -258,7 +258,7 @@ describe('request stability across the loop', () => {
     await ctx.plugin(SystemPrompt, { persona: 'stable base' })
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     const started = Promise.withResolvers<undefined>()
     const reasoning = Promise.withResolvers<LlmModelReasoningInfo>()
     const first = new class extends MockAdapter {
@@ -376,7 +376,7 @@ describe('request stability across the loop', () => {
     await ctx.plugin(SystemPrompt, { persona: 'stable base' })
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(AgentLoop, { agents: [], drainGraceMs: 1000 })
     let observed: GenerateOptions | undefined
     ctx.on('llm/stream', (options) => {
       observed = options

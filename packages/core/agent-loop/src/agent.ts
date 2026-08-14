@@ -65,6 +65,8 @@ export class ReactLoopAgent implements Agent {
   readonly inbox: Inbox
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
+  /** Drain gate: when true, no new turn may start; in-flight work settles first. */
+  private draining = false
 
   /** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
   readonly scope: Scope
@@ -180,6 +182,7 @@ export class ReactLoopAgent implements Agent {
       }
       return
     }
+    if (this.draining) return
     const driver = Promise.withResolvers<void>()
     this.activityDone = driver.promise
     this.setPhase({
@@ -197,6 +200,45 @@ export class ReactLoopAgent implements Agent {
     do {
       await (activity = this.activityDone)
     } while (activity !== this.activityDone)
+  }
+
+  /**
+   * Close the turn gate and wait for the in-flight activity to settle at a
+   * turn boundary, bounded by `timeoutMs`. Draining does NOT abort the live
+   * turn: the model request in flight and its tool calls run to completion
+   * and `turn/end` persists as `completed`, so a supervisor restart resumes
+   * at a clean boundary instead of an interrupted one. Waking input that
+   * arrives during the drain stays in the durable inbox and is handled after
+   * resume. A timeout falls back to the caller's abort path.
+   * @param timeoutMs - maximum wait before giving up on the live activity.
+   * @returns true when the loop reached idle within the bound; false on timeout.
+   */
+  async drainToIdle(timeoutMs: number): Promise<boolean> {
+    this.draining = true
+    if (this.phase.kind === 'idle') return true
+    if (this.phase.kind === 'running' && this.phase.step === 0) {
+      // Still inside the first pre-step: no model request has been issued, so
+      // there is no in-flight work to drain. Return immediately and let the
+      // caller's cancel own the abort (the pre-drain no-step-turn contract).
+      return false
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const settled = await Promise.race([
+        this.activityDone.then(() => true),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), timeoutMs)
+        }),
+      ])
+      if (settled) {
+        // One macrotask tick so the driver's finally-block phase transition
+        // lands before the caller proceeds to cancel/dispose.
+        await new Promise<void>((resolve) => { setImmediate(resolve) })
+      }
+      return settled && this.phase.kind === 'idle'
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+    }
   }
 
   /** Report one failure at its live boundary, then preserve it for driver containment. */
@@ -217,7 +259,7 @@ export class ReactLoopAgent implements Agent {
       if (this.phase.kind === 'running') {
         const { turn, wakeRequested } = this.phase
         this.setPhase({ kind: 'idle', lastTurn: turn })
-        if (wakeRequested && this.inbox.hasPending) this.wakeDriver()
+        if (!this.draining && wakeRequested && this.inbox.hasPending) this.wakeDriver()
       }
     }
   }
@@ -304,6 +346,13 @@ export class ReactLoopAgent implements Agent {
         turnEnds = { kind: 'aborted', reason: signal.reason as AgentCancelCause }
         throw error
       }
+      if (this.draining) {
+        // A failure inside the lifecycle drain window (supervisor teardown is
+        // already closing the turn gate) is attributed to the shutdown, not
+        // the business error: the restart must resume at a clean boundary.
+        turnEnds = { kind: 'aborted', reason: { kind: 'disposed' } }
+        throw error
+      }
       // Every failure is structured: an `LlmError` keeps its facts, anything
       // else flattens to `errorChain` text under the `UNKNOWN` code.
       turnEnds = {
@@ -321,7 +370,7 @@ export class ReactLoopAgent implements Agent {
         this.throwError(error)
       }
     }
-    if (!this.inbox.hasPending) return false
+    if (this.draining || !this.inbox.hasPending) return false
     phase.abort = new AbortController()
     // A fresh controller makes a latch set on the old one stale: the live driver claims the queue itself.
     phase.wakeRequested = false
