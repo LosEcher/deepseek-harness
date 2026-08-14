@@ -18,6 +18,7 @@ import type { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime — see `serviceAsk`.
 import type {} from '@deepseek-ai/dsh-user-approval'
+import { DispatchDrain } from './drain.ts'
 import type { ToolCallView, ToolResultView } from './presentation.ts'
 import { assertSupportedJsonSchema, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode } from './json-schema.ts'
@@ -822,6 +823,8 @@ export class ToolRuntime extends Service {
    * transport is stateless beyond its closures over `this`.
    */
   private codeTransport: ToolDefinition | undefined
+  /** Graceful-shutdown gate: closes to new work and drains the in-flight set. */
+  private readonly drain = new DispatchDrain()
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'tools')
@@ -1340,7 +1343,20 @@ export class ToolRuntime extends Service {
    * @returns the materialized final result.
    */
   async execute(exec: ToolExecutionInput): Promise<ToolExecutionResult> {
-    return this.prepareExecution(exec, prepared => this.completeScheduledExecution(prepared))
+    if (!this.drain.accepting) return toolAbortedBeforeDispatchResult()
+    return this.drain.track(this.prepareExecution(exec, prepared => this.completeScheduledExecution(prepared)))
+  }
+
+  /**
+   * Begin graceful-shutdown draining: close the gate for new executions and
+   * wait for in-flight top-level executions to settle, bounded by `timeoutMs`.
+   * Idempotent — repeated calls during an ongoing drain re-observe whatever
+   * is still in flight.
+   * @param timeoutMs - maximum wait for in-flight work before giving up.
+   * @returns true when idle within the bound; false when timed out.
+   */
+  async shutdownDrain(timeoutMs: number): Promise<boolean> {
+    return this.drain.closeAndWait(timeoutMs)
   }
 
   private async completeScheduledExecution(prepared: ScheduledToolPreparation): Promise<ToolExecutionResult> {

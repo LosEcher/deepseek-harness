@@ -36,9 +36,30 @@ const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../config/agent-presets/', im
 
 import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
-import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
+import { createProcessShutdown, PROCESS_SHUTDOWN_TIMEOUT_MS, type ProcessShutdown } from './process-shutdown.ts'
 
 const NAME = 'dsh'
+
+/**
+ * Grace period for in-flight top-level tool calls to settle before the
+ * application tree is disposed on shutdown. Inside this window a supervisor
+ * restart (SIGTERM) lets the current tool finish and persist its result
+ * instead of aborting it mid-execution. The process-shutdown force-exit
+ * timeout is widened by this same amount so the drain is never cut short.
+ */
+export const TOOL_DRAIN_GRACE_MS = 10_000
+
+/** Drain in-flight top-level tool executions when the tools service is mounted. */
+async function drainInFlightTools(app: { current?: Context | undefined }): Promise<void> {
+  const tools = (app.current as unknown as
+    | { tools?: { shutdownDrain?(timeoutMs: number): Promise<boolean> } }
+    | undefined)?.tools
+  if (tools?.shutdownDrain === undefined) return
+  const idle = await tools.shutdownDrain(TOOL_DRAIN_GRACE_MS)
+  if (!idle) {
+    app.current?.logger.warn(`dsh: shutdown drain timed out after ${TOOL_DRAIN_GRACE_MS}ms; exiting with in-flight tool calls`)
+  }
+}
 
 /**
  * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
@@ -199,6 +220,27 @@ function suppressShutdownError(ctx: Context, signal: AbortSignal, error: unknown
 }
 
 /**
+ * Log once when the composed tree enables Cordis module HMR with non-empty
+ * source roots. Config-only watching uses `root: []` and stays quiet.
+ * @param row - the composed `hmr` entry, when present.
+ */
+export function warnModuleHmrRoots(row: EntryOptions | undefined): void {
+  if (row === undefined || row.disabled === true) return
+  const config = row.config as { root?: unknown } | undefined
+  const roots = config?.root
+  if (!Array.isArray(roots) || roots.length === 0) return
+  const list = roots.map(root => typeof root === 'string' ? root : JSON.stringify(root))
+  console.warn(
+    `${NAME}: module HMR is watching source roots:\n`
+    + list.map(root => `  - ${root}`).join('\n')
+    + '\n'
+    + `${NAME}: keep roots to small local source trees (never Syncthing/iCloud/node_modules); `
+    + 'web host-plugin code changes still need a process restart because Node ESM caches stick. '
+    + 'Prefer config-only HMR (hmr disabled or root: []) plus `pnpm run dev:web` for client plugins.',
+  )
+}
+
+/**
  * Boot one profile invocation end to end and leave process lifetime to the
  * mounted plugins (or to a one-shot runner the composition mounts).
  * @param options - environment snapshot, profile name, overlays, and the booted app's own arguments.
@@ -207,7 +249,15 @@ function suppressShutdownError(ctx: Context, signal: AbortSignal, error: unknown
 export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Context; shutdown: ProcessShutdown }> {
   const composed = composeProfile(options.profile, options.patchFiles)
   const app: { current?: Context } = {}
-  const shutdown = createProcessShutdown(async () => { await app.current?.fiber.dispose() })
+  const shutdown = createProcessShutdown(
+    async () => {
+      await drainInFlightTools(app)
+      await app.current?.fiber.dispose()
+    },
+    undefined,
+    undefined,
+    PROCESS_SHUTDOWN_TIMEOUT_MS + TOOL_DRAIN_GRACE_MS,
+  )
   const signalShutdown = new AbortController()
   const interrupt = (code: number): void => {
     signalShutdown.abort()
@@ -281,6 +331,11 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
           await ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-timer' })
         }
         await ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-hmr', config: { root: [] } })
+      } else {
+        // A user/overlay re-enabled module HMR with source roots. That path is
+        // powerful and easy to misconfigure (Syncthing trees, node_modules
+        // symlink farms) into an FSEvents storm — surface it once at boot.
+        warnModuleHmrRoots(composed.rows.get('hmr'))
       }
       await watchUserPatches(ctx, {
         binName: NAME,
