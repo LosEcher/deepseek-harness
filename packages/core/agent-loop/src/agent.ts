@@ -79,6 +79,8 @@ export class ReactLoopAgent implements Agent {
   private activityDone: Promise<void> = Promise.resolve()
   /** Drain gate: when true, no new turn may start; in-flight work settles first. */
   private draining = false
+  /** Turn already marked `turn/pending`, so the marker is written at most once. */
+  private pendingMarkedTurn: number | null = null
   /**
    * Fine-grained stage of the live turn, used by phase-aware draining to
    * decide fast-exit (no side effects) vs wait (tool in flight). Set at the
@@ -272,9 +274,11 @@ export class ReactLoopAgent implements Agent {
     }
   }
 
-  /** Append the resumable-tail marker for the open turn (best-effort). */
+  /** Append the resumable-tail marker for the open turn (best-effort, idempotent). */
   private markPending(): void {
     if (this.phase.kind !== 'running') return
+    if (this.pendingMarkedTurn === this.phase.turn) return
+    this.pendingMarkedTurn = this.phase.turn
     try {
       this.session.append('turn/pending', { turn: this.phase.turn })
     } catch {
