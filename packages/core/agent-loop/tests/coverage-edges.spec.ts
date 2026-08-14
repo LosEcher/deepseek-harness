@@ -190,7 +190,7 @@ describe('durable error rendering', () => {
 })
 
 describe('disposed vs aborted branching', () => {
-  it('handles dispose during model streaming producing reason "disposed"', async () => {
+  it('dispose during model streaming still closes the turn inside a live process (方案 C: pending only on process exit)', async () => {
     const adapter = new MockAdapter(['hang'])
     const ctx = await harness(adapter)
     let agent!: Agent
@@ -203,11 +203,12 @@ describe('disposed vs aborted branching', () => {
 
     send(agent, 'go')
     await new Promise(r => setTimeout(r, 30))
-    await fiber.dispose() // dispose during hang
-    await driverDone(agent)
+    await fiber.dispose() // dispose during hang (model-wait), process stays alive
 
-    // Disposal wins abort classification because the error path checks it first.
-    expect(reasons).toContainEqual({ kind: 'aborted', reason: { kind: 'disposed' } })
+    // Without markProcessExiting() the teardown cancels the pending turn so
+    // the driver cannot hang; the turn closes balanced with reason disposed.
+    expect(reasons).toEqual([{ kind: 'aborted', reason: { kind: 'disposed' } }])
+    await driverDone(agent)
   })
 })
 

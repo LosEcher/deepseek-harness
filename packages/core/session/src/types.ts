@@ -250,6 +250,14 @@ export interface SessionEventMap {
    * reported live and does not prevent later work.
    */
   'turn/end': { turn: number; reason: TurnEndReason }
+  /**
+   * Marks turn `turn` as intentionally left open by a fast shutdown (方案 C:
+   * event-sourced turn switching). The process exits without closing the
+   * turn; a later resume may rebuild and continue it from the event stream.
+   * Crash repair treats a `turn/pending` tail as resumable and does NOT
+   * synthesize an `interrupted` `turn/end` for it.
+   */
+  'turn/pending': { turn: number }
   /** Opens step `step` of turn `turn` — one model call plus the tool executions it requested. */
   'step/start': { turn: number; step: number }
   /** Closes step `step` of turn `turn`. */

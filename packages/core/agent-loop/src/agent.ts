@@ -51,6 +51,18 @@ type PreparedStep =
   | { kind: 'reject' }
   | { kind: 'enter'; messages: UserMessage[]; assembly: PromptAssembly }
 
+/**
+ * Where the live turn currently sits, for phase-aware draining:
+ * - `pre-step` — inbox claim / prompt assembly / dispatch, no model request issued
+ * - `model-wait` — a model stream is in flight (no side effects)
+ * - `tool-in-flight` — tool executions are running (external side effects)
+ * - `idle` — no activity (driver exited or not started)
+ */
+export type TurnActivity = 'idle' | 'pre-step' | 'model-wait' | 'tool-in-flight'
+
+/** Outcome of a phase-aware drain: fast-exit, clean boundary, or grace exceeded. */
+export type DrainOutcome = 'idle' | 'pending' | 'timed-out'
+
 /** Remove adapter-derived values before plugins propose the next request config. */
 function requestProposal(header: EpochHeader): LlmCallConfig {
   if (header.adapterDefaults === undefined) return header.config
@@ -67,6 +79,13 @@ export class ReactLoopAgent implements Agent {
   private activityDone: Promise<void> = Promise.resolve()
   /** Drain gate: when true, no new turn may start; in-flight work settles first. */
   private draining = false
+  /**
+   * Fine-grained stage of the live turn, used by phase-aware draining to
+   * decide fast-exit (no side effects) vs wait (tool in flight). Set at the
+   * stage boundaries inside {@link turn}/{@link step}; reset to `idle` when
+   * the driver exits.
+   */
+  private activity: TurnActivity = 'idle'
 
   /** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
   readonly scope: Scope
@@ -203,24 +222,33 @@ export class ReactLoopAgent implements Agent {
   }
 
   /**
-   * Close the turn gate and wait for the in-flight activity to settle at a
-   * turn boundary, bounded by `timeoutMs`. Draining does NOT abort the live
-   * turn: the model request in flight and its tool calls run to completion
-   * and `turn/end` persists as `completed`, so a supervisor restart resumes
-   * at a clean boundary instead of an interrupted one. Waking input that
-   * arrives during the drain stays in the durable inbox and is handled after
-   * resume. A timeout falls back to the caller's abort path.
-   * @param timeoutMs - maximum wait before giving up on the live activity.
-   * @returns true when the loop reached idle within the bound; false on timeout.
+   * Phase-aware drain (方案 C, step 1). The decision depends on where the live
+   * turn currently sits, not on a fixed grace:
+   *
+   * - `idle` / `pre-step` / `model-wait` — no side effects in flight: return
+   *   `'pending'` immediately (fast exit) and mark the turn `turn/pending` so
+   *   crash repair keeps it resumable instead of synthesizing `interrupted`.
+   * - `tool-in-flight` — a tool's external side effects are at stake: wait for
+   *   the activity to settle at a `completed` turn/end, bounded by `timeoutMs`
+   *   (the caller then aborts on timeout).
+   *
+   * Waking input during the drain stays in the durable inbox and is handled
+   * after resume.
    */
-  async drainToIdle(timeoutMs: number): Promise<boolean> {
+  async drainToIdle(timeoutMs: number): Promise<DrainOutcome> {
     this.draining = true
-    if (this.phase.kind === 'idle') return true
-    if (this.phase.kind === 'running' && this.phase.step === 0) {
-      // Still inside the first pre-step: no model request has been issued, so
-      // there is no in-flight work to drain. Return immediately and let the
-      // caller's cancel own the abort (the pre-drain no-step-turn contract).
-      return false
+    if (this.phase.kind === 'idle') return 'idle'
+    if (this.activity === 'model-wait') {
+      // A model stream in flight has no side effects: fast-exit and keep the
+      // turn open (turn/pending) for post-resume rebuild.
+      this.markPending()
+      return 'pending'
+    }
+    if (this.activity === 'pre-step') {
+      // No model request issued yet: nothing worth resuming (the claimed
+      // input stays in the durable inbox). Keep the old no-step contract —
+      // the caller's cancel closes the turn.
+      return 'idle'
     }
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
@@ -238,9 +266,19 @@ export class ReactLoopAgent implements Agent {
       // activityDone settles exactly when the driver (or maintenance job) has
       // run its finally block, which re-enters the idle phase — so `settled`
       // alone is the phase guarantee.
-      return settled
+      return settled ? 'idle' : 'timed-out'
     } finally {
       if (timer !== undefined) clearTimeout(timer)
+    }
+  }
+
+  /** Append the resumable-tail marker for the open turn (best-effort). */
+  private markPending(): void {
+    if (this.phase.kind !== 'running') return
+    try {
+      this.session.append('turn/pending', { turn: this.phase.turn })
+    } catch {
+      // Best-effort: the session may already be tearing down.
     }
   }
 
@@ -262,6 +300,7 @@ export class ReactLoopAgent implements Agent {
       if (this.phase.kind === 'running') {
         const { turn, wakeRequested } = this.phase
         this.setPhase({ kind: 'idle', lastTurn: turn })
+        this.activity = 'idle'
         if (!this.draining && wakeRequested && this.inbox.hasPending) this.wakeDriver()
       }
     }
@@ -308,6 +347,7 @@ export class ReactLoopAgent implements Agent {
       while (true) {
         signal.throwIfAborted()
         const step = phase.step + 1
+        this.activity = 'pre-step'
         const decision = await this.preStep(target, { turn, step })
         if (decision.kind === 'reject') {
           turnEnds = { kind: 'blocked' }
@@ -396,12 +436,14 @@ export class ReactLoopAgent implements Agent {
       const chunkSeqs: number[] = []
       const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request)
       signal.throwIfAborted()
+      this.activity = 'model-wait'
       for await (const chunk of stream) {
         signal.throwIfAborted()
         chunkSeqs.push(this.session.append('assistant/chunk', { turn, step, chunk }).seq)
         assembler.push(chunk)
       }
       signal.throwIfAborted()
+      this.activity = 'pre-step'
       const finish = assembler.finish
       if (finish.kind === 'error' || finish.kind === 'aborted') {
         const action = await this.dispatch.waterfall(
@@ -444,10 +486,12 @@ export class ReactLoopAgent implements Agent {
 
       const toolCalls = message.content.filter(block => block.type === 'tool-call')
       if (toolCalls.length === 0) return { kind: 'completed' }
+      this.activity = 'tool-in-flight'
       const { concluded } = await executeToolCalls(
         this.loopCtx, turn, step, toolCalls, signal,
         context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),
       )
+      this.activity = 'pre-step'
       return concluded ? { kind: 'completed' } : null
     }
   }

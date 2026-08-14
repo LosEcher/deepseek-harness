@@ -30,7 +30,7 @@ import type { Session, SessionHeader } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
-import { ReactLoopAgent } from './agent.ts'
+import { ReactLoopAgent, type DrainOutcome } from './agent.ts'
 import { DEFAULT_AGENT_DRAIN_GRACE_MS, DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 
 /** Fiber states that cannot own or serve a new lifecycle. */
@@ -125,7 +125,6 @@ async function raceAbortCall<T>(
   try {
     return await raceAbort(pending, signal, id)
   } catch (error: unknown) {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the operation is awaited.
     if (signal.aborted && releaseAbandoned !== undefined) {
       void pending.then(releaseAbandoned, () => undefined)
     }
@@ -149,12 +148,12 @@ function resolveMaxParallelToolCalls(value: number | undefined): number {
  * for how long, and whether the bound was hit. Best-effort: never fail a
  * teardown over observability.
  */
-function recordAgentDrain(id: SessionId, drained: boolean, elapsedMs: number, status: AgentStatus): void {
+function recordAgentDrain(id: SessionId, drained: DrainOutcome, elapsedMs: number, status: AgentStatus): void {
   try {
     const home = process.env.DSH_HOME ?? join(homedir(), '.dsh')
     appendFileSync(
       join(home, 'logs/dsh-drain.log'),
-      `[${new Date().toISOString()}] agent drain ${id} ${drained ? 'idle' : 'timed out'} after ${elapsedMs}ms (status=${status})\n`,
+      `[${new Date().toISOString()}] agent drain ${id} ${drained} after ${elapsedMs}ms (status=${status})\n`,
     )
   } catch {
     // Observability is best-effort.
@@ -345,6 +344,14 @@ export class AgentLoop extends Service implements AgentFactory {
   private readonly ownership: FactoryOwnership
   /** Live machines reachable for pre-teardown draining (see {@link shutdownDrain}). */
   private readonly liveMachines = new Set<ReactLoopAgent>()
+  /**
+   * Set by the CLI shutdown path right before {@link shutdownDrain}: the
+   * process is about to exit, so a 'pending' drain may leave its turn open
+   * (the OS terminating the process stops the driver). Without this flag,
+   * teardown inside a live process (plugin reload, fiber restart) still
+   * cancels pending turns so no driver is left hanging.
+   */
+  private processExiting = false
   /** Plain holder prevents Cordis from re-tracing the factory's dependency context through a caller shadow. */
   private readonly runtime: { ctx: Context }
 
@@ -537,21 +544,29 @@ export class AgentLoop extends Service implements AgentFactory {
         // to drop the agent, so nothing should still hold it.
         if (machine === undefined) await machineReady.promise
         if (machine !== undefined) {
+          let drained: DrainOutcome = 'idle'
           if (drainFirst) {
             // Supervisor/factory teardown (process shutdown, profile reload,
-            // owner fiber teardown): drain the live turn to a clean turn
-            // boundary first — the model request in flight and its tool calls
-            // run to completion and `turn/end` persists as completed, so a
-            // graceful restart resumes with no interrupted turn. Timeout
-            // falls through to the disposed cancel below. Explicit session
-            // closes (handle.dispose) skip the wait: the user asked to stop
-            // this session now.
+            // owner fiber teardown): drain the live turn first — model-wait /
+            // pre-step fast-exit as 'pending' (turn/pending marker, resumable),
+            // tool-in-flight waits for a completed turn/end, and a grace
+            // timeout falls through to the disposed cancel below. Explicit
+            // session closes (handle.dispose) skip the wait: the user asked
+            // to stop this session now.
             const drainStarted = Date.now()
-            const drained = await machine.drainToIdle(this.config.drainGraceMs)
+            drained = await machine.drainToIdle(this.config.drainGraceMs)
             recordAgentDrain(id, drained, Date.now() - drainStarted, machine.status)
           }
-          machine.cancel({ kind: 'disposed' })
-          await machine.whenIdle()
+          // 方案 C fast-exit: a 'pending' drain left the turn open with a
+          // turn/pending marker (no side effects in flight). During process
+          // exit (markProcessExiting) we skip the cancel so the turn stays
+          // resumable and the OS stop terminates the driver. Inside a live
+          // process (plugin reload, fiber restart) the driver must not hang:
+          // cancel closes the turn as before.
+          if (drained !== 'pending' || !this.processExiting) {
+            machine.cancel({ kind: 'disposed' })
+            await machine.whenIdle()
+          }
           await machine.scope.dispose()
         }
       } finally {
@@ -644,7 +659,19 @@ export class AgentLoop extends Service implements AgentFactory {
     const machines = [...this.liveMachines]
     if (machines.length === 0) return true
     const results = await Promise.allSettled(machines.map(machine => machine.drainToIdle(timeoutMs)))
-    return results.every(result => result.status === 'fulfilled' && result.value)
+    // 'pending' (fast exit, resumable) and 'idle' are both safe; only a
+    // grace-exceeded drain is a failure (the teardown path then aborts).
+    return results.every(result => result.status === 'fulfilled' && result.value !== 'timed-out')
+  }
+
+  /**
+   * Declare that the process is about to exit: a 'pending' drain may leave
+   * its turn open (the OS stop terminates the driver). Called by the CLI
+   * shutdown path before {@link shutdownDrain}; without it, teardown inside
+   * a live process cancels pending turns to avoid hanging drivers.
+   */
+  markProcessExiting(): void {
+    this.processExiting = true
   }
 
   /**

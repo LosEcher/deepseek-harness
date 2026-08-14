@@ -79,6 +79,12 @@ export function interruptedTurnClosers(events: readonly SessionEvent[]): Session
   const last = events.at(-1)
   if (openTurn === null || last === undefined) return []
 
+  // 方案 C: a turn the shutdown explicitly left open (turn/pending) is a
+  // resumable tail, not a crash — do not synthesize `interrupted` closers.
+  // The pending marker is appended by the fast-shutdown drain after the last
+  // real event, so it sits at the tail of the log.
+  if (last.type === 'turn/pending' && last.data.turn === openTurn) return []
+
   // The last real event supplies the seq base and the timestamp for the
   // synthetic closers (reusing the last timestamp keeps them deterministic and
   // never invents a "future" time).

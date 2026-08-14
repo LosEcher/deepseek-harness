@@ -10,7 +10,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
 
 interface Drainable {
-  drainToIdle(timeoutMs: number): Promise<boolean>
+  drainToIdle(timeoutMs: number): Promise<'idle' | 'pending' | 'timed-out'>
 }
 
 /** A script entry that answers after `delayMs`, so the turn sits in a model wait. */
@@ -52,61 +52,55 @@ function send(agent: Agent, text: string) {
   agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
-function lastTurnEndReason(agent: Agent): string | undefined {
-  const end = agent.session.events.findLast(e => e.type === 'turn/end')
-  return end?.type === 'turn/end' ? end.data.reason.kind : undefined
-}
-
 describe('agent drain to turn boundary', () => {
-  it('lets the in-flight turn finish (model wait included) and closes the turn gate', async () => {
+  it('fast-exits a model-wait turn as pending with a resumable marker (方案 C)', async () => {
     const adapter = new MockAdapter([])
     const ctx = await harness(adapter)
     adapter.script.push(delayedTextResponse(60, 'done'))
-    const agent = await ctx.agentLoop.create(SessionId('drain-completes'), { provider: 'mock', model: 'mock' })
+    const agent = await ctx.agentLoop.create(SessionId('drain-pending-model'), { provider: 'mock', model: 'mock' })
     const running = waitForStatus(ctx, agent, 'running')
     send(agent, 'hello')
     await running
-    // Wait until the model request is actually in flight (step >= 1), which is
-    // the drainable window: a drain at step 0 (pre-step) must not run work.
     await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
 
-    // The turn is inside its model wait; drain must wait it out, not abort it.
-    const idle = await (agent as unknown as Drainable).drainToIdle(5_000)
-    expect(idle).toBe(true)
-    expect(agent.status).toBe('idle')
-    const endEvent = agent.session.events.findLast(e => e.type === 'turn/end')
-    console.error('TURN END DETAIL:', JSON.stringify(endEvent?.data, null, 1))
-    expect(lastTurnEndReason(agent)).toBe('completed')
-
+    // Model wait = no side effects: drain returns 'pending' immediately and
+    // marks the open turn resumable instead of waiting or aborting it.
+    const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
+    expect(outcome).toBe('pending')
+    const pending = agent.session.events.findLast(e => e.type === 'turn/pending')
+    expect(pending?.type === 'turn/pending' ? pending.data.turn : undefined).toBe(1)
+    // No turn/end was written: the turn stays open for post-resume rebuild.
+    expect(agent.session.events.filter(e => e.type === 'turn/end')).toHaveLength(0)
     // The drain gate stays closed: waking input after draining must not open
     // a new turn; the message stays pending for post-resume handling.
     send(agent, 'after-drain')
     await new Promise<void>((resolve) => { setTimeout(resolve, 40) })
     expect(agent.session.events.filter(e => e.type === 'turn/start')).toHaveLength(1)
-    expect(agent.status).toBe('idle')
   })
 
-  it('times out on a hanging turn and leaves the abort path intact', async () => {
+  it('fast-exits a hanging model stream as pending (no 30s wait for a stuck model)', async () => {
     const adapter = new MockAdapter([])
     const ctx = await harness(adapter)
     adapter.script.push('hang')
-    const agent = await ctx.agentLoop.create(SessionId('drain-timeout'), { provider: 'mock', model: 'mock' })
+    const agent = await ctx.agentLoop.create(SessionId('drain-pending-hang'), { provider: 'mock', model: 'mock' })
     const running = waitForStatus(ctx, agent, 'running')
     send(agent, 'hello')
     await running
+    // The model request is in flight (activity = model-wait) before draining.
+    await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
 
-    const idle = await (agent as unknown as Drainable).drainToIdle(100)
-    expect(idle).toBe(false)
-    // The hanging turn was NOT aborted by the drain: the caller's cancel path
-    // still owns that decision.
+    const outcome = await (agent as unknown as Drainable).drainToIdle(100)
+    expect(outcome).toBe('pending')
+    // The hanging turn was NOT aborted by the drain: it stays open and
+    // resumable; the caller skips the cancel path for pending.
     expect(agent.status).toBe('running')
   })
 
-  it('shutdownDrain waits every live agent to a clean boundary before teardown', async () => {
+  it('shutdownDrain fast-exits every model-wait agent as pending (方案 C)', async () => {
     const adapter = new MockAdapter([])
     const ctx = await harness(adapter)
-    adapter.script.push(delayedTextResponse(40, 'done-a'))
-    adapter.script.push(delayedTextResponse(40, 'done-b'))
+    adapter.script.push(delayedTextResponse(500, 'done-a'))
+    adapter.script.push(delayedTextResponse(500, 'done-b'))
     const a = await ctx.agentLoop.create(SessionId('drain-all-a'), { provider: 'mock', model: 'mock' })
     const b = await ctx.agentLoop.create(SessionId('drain-all-b'), { provider: 'mock', model: 'mock' })
     const aRunning = waitForStatus(ctx, a, 'running')
@@ -117,11 +111,20 @@ describe('agent drain to turn boundary', () => {
     // Both turns sit in their model wait.
     await vi.waitFor(() => expect(adapter.requests).toHaveLength(2))
 
+    // Model waits have no side effects: both drain as 'pending' (safe). The
+    // turn stays open for post-resume rebuild — or, if the model response
+    // lands during teardown, it completes naturally (turn/end completed),
+    // which is even better. Either way no interrupted synthesis applies.
     const ok = await ctx.agentLoop.shutdownDrain(5_000)
     expect(ok).toBe(true)
-    expect(lastTurnEndReason(a)).toBe('completed')
-    expect(lastTurnEndReason(b)).toBe('completed')
-    expect(a.status).toBe('idle')
-    expect(b.status).toBe('idle')
+    for (const agent of [a, b]) {
+      const ends = agent.session.events.filter(e => e.type === 'turn/end')
+      if (ends.length > 0) {
+        const last = ends.at(-1)
+        expect(last?.type === 'turn/end' ? last.data.reason.kind : undefined).toBe('completed')
+      }
+      const pending = agent.session.events.findLast(e => e.type === 'turn/pending')
+      expect(pending?.type === 'turn/pending' ? pending.data.turn : undefined).toBe(1)
+    }
   })
 })

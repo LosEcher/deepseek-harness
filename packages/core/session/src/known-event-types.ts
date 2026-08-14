@@ -58,6 +58,7 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'tool/code-dispatch-start',
   'tool/result',
   'turn/end',
+  'turn/pending',
   'turn/start',
   'user/message',
   'web/deepseek-search-llm-request',
