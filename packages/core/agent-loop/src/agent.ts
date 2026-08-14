@@ -235,7 +235,10 @@ export class ReactLoopAgent implements Agent {
         // lands before the caller proceeds to cancel/dispose.
         await new Promise<void>((resolve) => { setImmediate(resolve) })
       }
-      return settled && this.phase.kind === 'idle'
+      // activityDone settles exactly when the driver (or maintenance job) has
+      // run its finally block, which re-enters the idle phase — so `settled`
+      // alone is the phase guarantee.
+      return settled
     } finally {
       if (timer !== undefined) clearTimeout(timer)
     }

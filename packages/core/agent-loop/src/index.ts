@@ -7,6 +7,9 @@
 
 import { Context, FiberState, Service } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
+import { appendFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
 import type {
@@ -15,6 +18,7 @@ import type {
   AgentHandle,
   AgentOptions,
   AgentSetup,
+  AgentStatus,
   CreateAgentOptions,
   ResumeAgentOptions,
   SessionStartSource,
@@ -138,6 +142,25 @@ function resolveMaxParallelToolCalls(value: number | undefined): number {
   return maxParallelToolCalls
 }
 
+/**
+ * Append one agent turn-drain outcome line to `$DSH_HOME/logs/dsh-drain.log`
+ * (same sink as the CLI tool drain), so an external observer sees the full
+ * graceful-restart timeline: which sessions drained to a clean turn boundary,
+ * for how long, and whether the bound was hit. Best-effort: never fail a
+ * teardown over observability.
+ */
+function recordAgentDrain(id: SessionId, drained: boolean, elapsedMs: number, status: AgentStatus): void {
+  try {
+    const home = process.env.DSH_HOME ?? join(homedir(), '.dsh')
+    appendFileSync(
+      join(home, 'logs/dsh-drain.log'),
+      `[${new Date().toISOString()}] agent drain ${id} ${drained ? 'idle' : 'timed out'} after ${elapsedMs}ms (status=${status})\n`,
+    )
+  } catch {
+    // Observability is best-effort.
+  }
+}
+
 /** Reject an output-token cap that cannot be represented exactly on the request wire. */
 function assertAgentOptions(options: AgentOptions): void {
   if (options.maxTokens !== undefined
@@ -258,6 +281,12 @@ export interface Config {
    * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
    */
   maxParallelToolCalls?: number
+  /**
+   * Grace for draining one live agent to a clean turn boundary on
+   * supervisor/factory teardown; omission defaults to
+   * {@link DEFAULT_AGENT_DRAIN_GRACE_MS}.
+   */
+  drainGraceMs?: number
   /** Agents created or resumed at plugin startup. */
   agents: (AgentOptions & {
     /** Stable config label used in logs and as the fresh combined-id prefix. */
@@ -272,7 +301,7 @@ export interface Config {
 }
 
 /** Agent-loop configuration after defaults and load-time validation. */
-type ResolvedConfig = Config & { maxParallelToolCalls: number }
+type ResolvedConfig = Config & { maxParallelToolCalls: number; drainGraceMs: number }
 
 /** Reject self-contained identity conflicts before any configured agent starts. */
 function validateConfiguredAgents(agents: Config['agents']): void {
@@ -325,6 +354,7 @@ export class AgentLoop extends Service implements AgentFactory {
     let source: () => AgentLoopSettings = () => entry
     this.config = {
       ...config,
+      drainGraceMs: config.drainGraceMs ?? DEFAULT_AGENT_DRAIN_GRACE_MS,
       agents: applyLauncherIdentities(config.agents, ctx.get(CONFIGURED_AGENT_IDENTITIES_KEY)),
       // Read through on every scheduler decision: `tool-calls.ts` destructures
       // this at the start of each group, so a committed change caps the next
@@ -514,7 +544,9 @@ export class AgentLoop extends Service implements AgentFactory {
             // falls through to the disposed cancel below. Explicit session
             // closes (handle.dispose) skip the wait: the user asked to stop
             // this session now.
-            await machine.drainToIdle(this.config.drainGraceMs)
+            const drainStarted = Date.now()
+            const drained = await machine.drainToIdle(this.config.drainGraceMs)
+            recordAgentDrain(id, drained, Date.now() - drainStarted, machine.status)
           }
           machine.cancel({ kind: 'disposed' })
           await machine.whenIdle()
