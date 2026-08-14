@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '../src/index.ts'
+import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER } from '../src/index.ts'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import { DispatchDrain } from '../src/drain.ts'
 
@@ -82,6 +82,9 @@ describe('ToolRuntime shutdown drain', () => {
       async execute() { return [{ type: 'text', text: await gate.promise }] },
     }))
     const pending = ctx.tools.execute({ signal: testSignal, callId: CallId('drain-c2'), name: 'slow', arguments: {} })
+    // Let prepare + dispatch admit the call (body started) before the drain closes,
+    // mirroring a tool call that is genuinely in flight when the signal lands.
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
     let idle: boolean | undefined
     const waiting = ctx.tools.shutdownDrain(1000).then((value) => { idle = value })
     await Promise.resolve()
@@ -91,5 +94,45 @@ describe('ToolRuntime shutdown drain', () => {
     expect(idle).toBe(true)
     const result = await pending
     expect(result.isError).toBe(false)
+  })
+
+  it('gates scheduler-path dispatches (the agent-loop funnel) once closed', async () => {
+    const ctx = await setup()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'probe', description: 'p', parameters: {},
+      async execute() { return [] },
+    }))
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    const prepared = await scheduler.prepare({ signal: testSignal, callId: CallId('drain-c3'), name: 'probe', arguments: {} })
+    expect(prepared.kind).toBe('dispatch')
+    await ctx.tools.shutdownDrain(100)
+    if (prepared.kind !== 'dispatch') throw new Error('expected dispatch preparation')
+    const outcome = await scheduler.dispatch(prepared.exec)
+    expect(outcome.kind).toBe('post-result')
+    if (outcome.kind !== 'post-result') throw new Error('expected post-result dispatch')
+    expect(outcome.result.isError).toBe(true)
+    expect(outcome.result.error?.info).toMatchObject({ code: TOOL_ABORTED_BEFORE_DISPATCH })
+  })
+
+  it('drains an in-flight scheduler-path dispatch before reporting idle', async () => {
+    const ctx = await setup()
+    const gate = deferred<string>()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'slow', description: 's', parameters: {},
+      async execute() { return [{ type: 'text', text: await gate.promise }] },
+    }))
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    const prepared = await scheduler.prepare({ signal: testSignal, callId: CallId('drain-c4'), name: 'slow', arguments: {} })
+    if (prepared.kind !== 'dispatch') throw new Error('expected dispatch preparation')
+    const pending = scheduler.dispatch(prepared.exec)
+    let idle: boolean | undefined
+    const waiting = ctx.tools.shutdownDrain(1000).then((value) => { idle = value })
+    await Promise.resolve()
+    expect(idle).toBeUndefined()
+    gate.resolve('settled')
+    await waiting
+    expect(idle).toBe(true)
+    const outcome = await pending
+    expect(outcome.kind).toBe('post-result')
   })
 })

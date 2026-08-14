@@ -1576,13 +1576,19 @@ export class ToolRuntime extends Service {
   }
 
   /**
-   * Run around-dispatch and the tool body. Tool and unknown-tool failures still
-   * receive post-execute; pipeline failures are already final.
+   * Run around-dispatch and the tool body, gated and tracked by the shutdown
+   * drain. Tool and unknown-tool failures still receive post-execute; pipeline
+   * failures are already final.
    * @param exec - the prepared execution.
    * @returns whether the result still needs post-execute.
    * @internal
    */
   private async dispatchScheduledExecution(exec: ToolRunContext): Promise<ScheduledToolDispatch> {
+    if (!this.drain.accepting) return { kind: 'post-result', result: toolAbortedBeforeDispatchResult() }
+    return this.drain.track(this.dispatchScheduledExecutionBody(exec))
+  }
+
+  private async dispatchScheduledExecutionBody(exec: ToolRunContext): Promise<ScheduledToolDispatch> {
     try {
       const mutableExec = exec as MutableToolRunContext
       const carrier = scopeTarget(this, exec.agent)

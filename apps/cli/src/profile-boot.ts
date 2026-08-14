@@ -56,6 +56,7 @@ async function drainInFlightTools(app: { current?: Context | undefined }): Promi
     | undefined)?.tools
   if (tools?.shutdownDrain === undefined) return
   const idle = await tools.shutdownDrain(TOOL_DRAIN_GRACE_MS)
+  app.current?.logger.info(`dsh: shutdown drain ${idle ? 'idle' : 'timed out'} after ${TOOL_DRAIN_GRACE_MS}ms`)
   if (!idle) {
     app.current?.logger.warn(`dsh: shutdown drain timed out after ${TOOL_DRAIN_GRACE_MS}ms; exiting with in-flight tool calls`)
   }
