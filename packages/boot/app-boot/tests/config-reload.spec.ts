@@ -4,7 +4,7 @@
  * previous generation has been retained or restored.
  */
 
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -428,4 +428,36 @@ describe('shipped builtins', () => {
       await ctx.fiber.dispose()
     }
   })
+
+  describe('P1 core-seam hot-reload guard (integration)', () => {
+    it('rejects a refresh that changes a core-seam config and requests a restart', async () => {
+      const dshHome = mkdtempSync(join(tmpdir(), 'dsh-p1-home-'))
+      const prev = process.env.DSH_HOME
+      process.env.DSH_HOME = dshHome
+      try {
+        const { ctx, include, dir } = await bootTree([
+          '- id: llm\n  name: \'./noop.mjs\'\n  config: { timeout: 30 }',
+          '- id: ui\n  name: \'./noop.mjs\'',
+        ].join('\n'), {})
+        // First refresh with the same content: no seam change, no guard.
+        await include.refresh()
+        expect(existsSync(join(dshHome, 'restart-request'))).toBe(false)
+        // Change a core-seam config (llm.timeout): refresh must be rejected and
+        // a graceful restart requested.
+        writeFileSync(join(dir, 'cordis.yml'), [
+          '- id: llm\n  name: \'./noop.mjs\'\n  config: { timeout: 60 }',
+          '- id: ui\n  name: \'./noop.mjs\'',
+        ].join('\n'))
+        await expect(include.refresh()).rejects.toThrow('core seam')
+        expect(existsSync(join(dshHome, 'restart-request'))).toBe(true)
+        // The old tree stays live: llm entry still carries the old config.
+        expect(entryConfig(ctx, 'llm')).toEqual({ timeout: 30 })
+      } finally {
+        if (prev === undefined) delete process.env.DSH_HOME
+        else process.env.DSH_HOME = prev
+      }
+    })
+  })
+
+
 })
