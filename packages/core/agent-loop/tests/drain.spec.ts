@@ -108,12 +108,19 @@ describe('agent drain to turn boundary', () => {
     // Both turns sit in their model wait.
     await vi.waitFor(() => expect(adapter.requests).toHaveLength(2))
 
+    // P0 flush 栅栏: shutdownDrain must flush every live session's
+    // write-behind buffer (turn/pending included) before teardown, so the
+    // next boot's crash repair sees the resumable marker.
+    const flushed: string[] = []
+    ctx.on('session/flush', (session: { id: string }) => void flushed.push(session.id))
+
     // Model waits have no side effects: both drain as 'pending' (safe). The
     // turn stays open for post-resume rebuild — or, if the model response
     // lands during teardown, it completes naturally (turn/end completed),
     // which is even better. Either way no interrupted synthesis applies.
     const ok = await ctx.agentLoop.shutdownDrain(5_000)
     expect(ok).toBe(true)
+    expect(flushed).toEqual(expect.arrayContaining(['drain-all-a', 'drain-all-b']))
     for (const agent of [a, b]) {
       const ends = agent.session.events.filter(e => e.type === 'turn/end')
       if (ends.length > 0) {

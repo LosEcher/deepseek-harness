@@ -563,7 +563,13 @@ export class AgentLoop extends Service implements AgentFactory {
           // resumable and the OS stop terminates the driver. Inside a live
           // process (plugin reload, fiber restart) the driver must not hang:
           // cancel closes the turn as before.
-          if (drained !== 'pending' || !this.processExiting) {
+          if (drained === 'pending' && this.processExiting) {
+            // P0 flush 栅栏 (fallback path): make sure the pending marker
+            // reaches durable storage before the process exits; best-effort —
+            // the shutdownDrain pre-teardown flush already covered the normal
+            // path, and the tree may already be tearing down here.
+            await Promise.allSettled([machine.session].map(s => this.runtime.ctx.sessions.flush(s)))
+          } else {
             machine.cancel({ kind: 'disposed' })
             await machine.whenIdle()
           }
@@ -659,6 +665,14 @@ export class AgentLoop extends Service implements AgentFactory {
     const machines = [...this.liveMachines]
     if (machines.length === 0) return true
     const results = await Promise.allSettled(machines.map(machine => machine.drainToIdle(timeoutMs)))
+    // P0 flush 栅栏: appends are write-behind (persistence plugins buffer
+    // asynchronously). A 'turn/pending' marker (or the final 'turn/end') that
+    // never reaches durable storage makes the next boot's crash repair treat
+    // the open turn as a crash and synthesize 'interrupted'. Flush every live
+    // session BEFORE the fiber tears down, while persistence is still writable
+    // — the session store's documented teardown-drain entry point.
+    const sessions = [...new Set(machines.map(machine => machine.session))]
+    await Promise.allSettled(sessions.map(session => this.runtime.ctx.sessions.flush(session)))
     // 'pending' (fast exit, resumable) and 'idle' are both safe; only a
     // grace-exceeded drain is a failure (the teardown path then aborts).
     return results.every(result => result.status === 'fulfilled' && result.value !== 'timed-out')
