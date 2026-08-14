@@ -101,4 +101,27 @@ describe('agent drain to turn boundary', () => {
     // still owns that decision.
     expect(agent.status).toBe('running')
   })
+
+  it('shutdownDrain waits every live agent to a clean boundary before teardown', async () => {
+    const adapter = new MockAdapter([])
+    const ctx = await harness(adapter)
+    adapter.script.push(delayedTextResponse(40, 'done-a'))
+    adapter.script.push(delayedTextResponse(40, 'done-b'))
+    const a = await ctx.agentLoop.create(SessionId('drain-all-a'), { provider: 'mock', model: 'mock' })
+    const b = await ctx.agentLoop.create(SessionId('drain-all-b'), { provider: 'mock', model: 'mock' })
+    const aRunning = waitForStatus(ctx, a, 'running')
+    const bRunning = waitForStatus(ctx, b, 'running')
+    send(a, 'hello a')
+    send(b, 'hello b')
+    await Promise.all([aRunning, bRunning])
+    // Both turns sit in their model wait.
+    await vi.waitFor(() => expect(adapter.requests).toHaveLength(2))
+
+    const ok = await ctx.agentLoop.shutdownDrain(5_000)
+    expect(ok).toBe(true)
+    expect(lastTurnEndReason(a)).toBe('completed')
+    expect(lastTurnEndReason(b)).toBe('completed')
+    expect(a.status).toBe('idle')
+    expect(b.status).toBe('idle')
+  })
 })

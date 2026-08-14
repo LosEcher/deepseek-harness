@@ -343,6 +343,8 @@ export class AgentLoop extends Service implements AgentFactory {
   /** Validated configuration owned by the agent-loop service. */
   readonly config: ResolvedConfig
   private readonly ownership: FactoryOwnership
+  /** Live machines reachable for pre-teardown draining (see {@link shutdownDrain}). */
+  private readonly liveMachines = new Set<ReactLoopAgent>()
   /** Plain holder prevents Cordis from re-tracing the factory's dependency context through a caller shadow. */
   private readonly runtime: { ctx: Context }
 
@@ -558,6 +560,7 @@ export class AgentLoop extends Service implements AgentFactory {
           detachSession?.()
         } finally {
           untrack()
+          if (machine !== undefined) this.liveMachines.delete(machine)
           if (!ownerTriggered) await unfollowOwner()
         }
       }
@@ -593,6 +596,7 @@ export class AgentLoop extends Service implements AgentFactory {
     }
     try {
       const agent = machine = new ReactLoopAgent(loopCtx, id, options, session)
+      this.liveMachines.add(machine)
       machineReady.resolve()
       assertLive()
 
@@ -624,6 +628,23 @@ export class AgentLoop extends Service implements AgentFactory {
       void dispose()
       throw error
     }
+  }
+
+  /**
+   * Drain every live agent to a clean turn boundary. Called by the CLI
+   * shutdown path BEFORE the fiber tears down, while session persistence is
+   * still writable: a mid-teardown stream abort or session dispose can
+   * otherwise swallow the final `turn/end`, which crash-repair then marks
+   * `interrupted` on the next boot. Per-agent timeout falls through to the
+   * teardown-path drain (which then aborts the turn).
+   * @param timeoutMs - grace per agent; see {@link Config.drainGraceMs}.
+   * @returns true when every live agent reached idle within the bound.
+   */
+  async shutdownDrain(timeoutMs: number): Promise<boolean> {
+    const machines = [...this.liveMachines]
+    if (machines.length === 0) return true
+    const results = await Promise.allSettled(machines.map(machine => machine.drainToIdle(timeoutMs)))
+    return results.every(result => result.status === 'fulfilled' && result.value)
   }
 
   /**

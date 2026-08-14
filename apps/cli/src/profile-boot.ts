@@ -281,6 +281,18 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   const shutdown = createProcessShutdown(
     async () => {
       await drainInFlightTools(app)
+      // Drain live agent turns BEFORE the fiber tears down: session
+      // persistence must still be writable so the in-flight turn's final
+      // `turn/end` lands as completed, not as a crash-repair 'interrupted'
+      // (a mid-teardown stream abort or session dispose can otherwise swallow
+      // the last append). The teardown-path drain in agent-loop stays as the
+      // fallback for non-signal teardown.
+      const agentLoop = (app.current as unknown as
+        | { agentLoop?: { shutdownDrain?(timeoutMs: number): Promise<boolean> } }
+        | undefined)?.agentLoop
+      if (agentLoop?.shutdownDrain !== undefined) {
+        await agentLoop.shutdownDrain(AGENT_DRAIN_GRACE_MS)
+      }
       await app.current?.fiber.dispose()
     },
     undefined,
