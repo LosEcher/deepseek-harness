@@ -7,12 +7,12 @@
  * shared overlay whose row exists only on another surface.
  */
 
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import * as yaml from 'js-yaml'
-import { assertJsExprTree, entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { assertJsExprTree, coreSeamFingerprint, entryListSchema, requestGracefulRestart } from '@deepseek-ai/cordis-plugin-include'
 import { loadOverlayPatches, renderConfigDump } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
@@ -239,5 +239,35 @@ describe('renderConfigDump', () => {
     }[]
     expect(parsed[0]?.config?.headers?.Authorization?.__jsExpr)
       .toBe('process.env.TOKEN ? `Bearer ${process.env.TOKEN}` : undefined')
+  })
+})
+
+describe('P1 core-seam hot-reload guard', () => {
+  it('coreSeamFingerprint tracks only the six core-seam configs', () => {
+    const seam = (id: string, config: unknown) => ({ id, name: id, config })
+    // Same seam config, different composition order / non-seam entries: equal.
+    expect(coreSeamFingerprint([seam('llm', { timeout: 30 }), seam('ui', { x: 1 })]))
+      .toBe(coreSeamFingerprint([seam('ui', { x: 2 }), seam('llm', { timeout: 30 })]))
+    // A core-seam config change flips the fingerprint.
+    expect(coreSeamFingerprint([seam('llm', { timeout: 30 })]))
+      .not.toBe(coreSeamFingerprint([seam('llm', { timeout: 60 })]))
+    expect(coreSeamFingerprint([seam('agent-loop', { agents: [] })]))
+      .not.toBe(coreSeamFingerprint([seam('agent-loop', { agents: [{ id: 'x' }] })]))
+    // Non-seam config changes do not flip it.
+    expect(coreSeamFingerprint([seam('tools', {}), seam('ui-settings', { a: 1 })]))
+      .toBe(coreSeamFingerprint([seam('tools', {}), seam('ui-settings', { a: 2 })]))
+  })
+
+  it('requestGracefulRestart writes the restart-request marker under DSH_HOME', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = dir
+    try {
+      requestGracefulRestart('test-reason')
+      expect(existsSync(join(dir, 'restart-request'))).toBe(true)
+    } finally {
+      if (prev === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = prev
+    }
   })
 })

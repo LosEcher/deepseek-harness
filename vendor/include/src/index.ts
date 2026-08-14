@@ -1,6 +1,8 @@
 import { EntryGroup, EntryTree, isJsExpr, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { extname } from 'node:path'
+import { extname, join } from 'node:path'
+import { writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { access, constants, readFile, rename, writeFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -141,6 +143,32 @@ const COLLAPSED_JS_EXPR_KEY = '[object Object]'
  * @returns nothing.
  * @throws when any mapping uses `[object Object]` as a key.
  */
+
+/**
+ * [deepseek-harness] P1: entries whose config must never hot-apply (their
+ * update cascade-unloads every live agent through AgentLoop.inject).
+ */
+const CORE_SEAM_IDS = new Set(['llm', 'session', 'agent', 'tools', 'system-prompt', 'agent-loop'])
+
+/** Stable fingerprint of the core-seam configs in a composed entry list. */
+export function coreSeamFingerprint(entries: EntryOptions[]): string {
+  const seams: Record<string, unknown> = {}
+  for (const entry of entries) {
+    if (CORE_SEAM_IDS.has(entry.id)) seams[entry.id] = entry.config
+  }
+  return JSON.stringify(seams)
+}
+
+/** Ask the supervisor (dsh-web-daemon) for a graceful, drained restart. */
+export function requestGracefulRestart(reason: string): void {
+  try {
+    const home = process.env.DSH_HOME ?? join(homedir(), '.dsh')
+    writeFileSync(join(home, 'restart-request'), `${new Date().toISOString()} ${reason}\n`)
+  } catch {
+    // Best-effort: never fail a config load over the restart request.
+  }
+}
+
 export function assertJsExprTree(value: unknown, path = 'config'): void {
   if (value === null || typeof value !== 'object') return
   if (isJsExpr(value)) return
@@ -356,6 +384,19 @@ export class Include extends EntryTree {
   private async _apply(candidate: ReadCandidate) {
     const data = this.applyPatches(candidate.data, this.config.patches)
     assertJsExprTree(data)
+    // [deepseek-harness] P1: core-seam config changes must NOT hot-apply.
+    // AgentLoop.inject = ['agents','sessions','llm','tools','systemPrompt']:
+    // updating any of those entries (or agent-loop itself) cascade-unloads
+    // every live agent and cancels in-flight turns — worse than a restart.
+    // Defer such edits to a graceful restart instead (daemon watches
+    // $DSH_HOME/restart-request and drains with pending protection).
+    if (this.data !== undefined && coreSeamFingerprint(this.data) !== coreSeamFingerprint(data)) {
+      requestGracefulRestart('core-seam config change')
+      throw new Error(
+        'core seam (llm/session/agent/tools/system-prompt/agent-loop) config changed; '
+        + 'hot reload deferred to a graceful restart',
+      )
+    }
     await this.root.update(data)
     this.content = candidate.content
     this.data = candidate.data

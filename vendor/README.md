@@ -59,3 +59,4 @@ To update a vendored package from upstream:
 3. Re-apply the local modifications listed above (or drop them if upstream made them unnecessary — update the log either way).
 4. Update the version and commit hash in the manifest table.
 5. Run `pnpm install && pnpm run test && pnpm run build` at the repo root.
+19. **`include/src/index.ts` core-seam hot-reload guard (P1)**: config HMR that would change any of the six core-seam entries (`llm`/`session`/`agent`/`tools`/`system-prompt`/`agent-loop`) is rejected before `root.update` — updating those entries cascade-unloads every live agent through `AgentLoop.inject` and cancels in-flight turns, worse than a restart. `Include._apply` fingerprints the seam configs (`coreSeamFingerprint`) and, on change, keeps the old tree live, throws (HMR reports the failure), and writes `$DSH_HOME/restart-request` so the supervisor performs a graceful drained restart instead. Covered by `packages/boot/app-boot/tests/config-dump.spec.ts`.
