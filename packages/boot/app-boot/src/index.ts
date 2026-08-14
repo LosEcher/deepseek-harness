@@ -251,6 +251,12 @@ export async function watchUserPatches(
         patches,
       },
     })
+    // entry.update only patch-contexts the Include's config (internal/update
+    // re-mounts the subtree without re-reading the file). Re-apply through
+    // Include.refresh so the composed tree — including the P1 core-seam guard
+    // in _apply — sees the new patches before anything mounts.
+    const subtree = entry.subtree as Include | undefined
+    if (subtree !== undefined) await subtree.refresh()
   })
   try {
     return await register
