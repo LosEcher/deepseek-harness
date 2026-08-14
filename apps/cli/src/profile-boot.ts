@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh/profile-boot
  */
 
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
@@ -49,6 +49,23 @@ const NAME = 'dsh'
  */
 export const TOOL_DRAIN_GRACE_MS = 10_000
 
+/**
+ * Append one drain-outcome line to `$DSH_HOME/logs/dsh-drain.log`, so an
+ * external observer (Orca terminal, tail -f, the drain-watch script) sees the
+ * shutdown timeline in real time without parsing the app logger.
+ * Best-effort: never fail a shutdown over observability.
+ */
+function recordDrainOutcome(message: string): void {
+  try {
+    appendFileSync(
+      join(resolveDshHome(), 'logs/dsh-drain.log'),
+      `[${new Date().toISOString()}] ${message}\n`,
+    )
+  } catch {
+    // Observability is best-effort.
+  }
+}
+
 /** Drain in-flight top-level tool executions when the tools service is mounted. */
 async function drainInFlightTools(app: { current?: Context | undefined }): Promise<void> {
   const tools = (app.current as unknown as
@@ -56,7 +73,9 @@ async function drainInFlightTools(app: { current?: Context | undefined }): Promi
     | undefined)?.tools
   if (tools?.shutdownDrain === undefined) return
   const idle = await tools.shutdownDrain(TOOL_DRAIN_GRACE_MS)
-  app.current?.logger.info(`dsh: shutdown drain ${idle ? 'idle' : 'timed out'} after ${TOOL_DRAIN_GRACE_MS}ms`)
+  const outcome = `shutdown drain ${idle ? 'idle' : 'timed out'} after ${TOOL_DRAIN_GRACE_MS}ms`
+  recordDrainOutcome(outcome)
+  app.current?.logger.info(`dsh: ${outcome}`)
   if (!idle) {
     app.current?.logger.warn(`dsh: shutdown drain timed out after ${TOOL_DRAIN_GRACE_MS}ms; exiting with in-flight tool calls`)
   }
