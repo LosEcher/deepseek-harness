@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId, type Agent } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
@@ -54,9 +55,8 @@ function send(agent: Agent, text: string) {
 
 describe('agent drain to turn boundary', () => {
   it('fast-exits a model-wait turn as pending with a resumable marker (方案 C)', async () => {
-    const adapter = new MockAdapter([])
+    const adapter = new MockAdapter([delayedTextResponse(60, 'done')])
     const ctx = await harness(adapter)
-    adapter.script.push(delayedTextResponse(60, 'done'))
     const agent = await ctx.agentLoop.create(SessionId('drain-pending-model'), { provider: 'mock', model: 'mock' })
     const running = waitForStatus(ctx, agent, 'running')
     send(agent, 'hello')
@@ -79,9 +79,8 @@ describe('agent drain to turn boundary', () => {
   })
 
   it('fast-exits a hanging model stream as pending (no 30s wait for a stuck model)', async () => {
-    const adapter = new MockAdapter([])
+    const adapter = new MockAdapter(['hang'])
     const ctx = await harness(adapter)
-    adapter.script.push('hang')
     const agent = await ctx.agentLoop.create(SessionId('drain-pending-hang'), { provider: 'mock', model: 'mock' })
     const running = waitForStatus(ctx, agent, 'running')
     send(agent, 'hello')
@@ -97,10 +96,8 @@ describe('agent drain to turn boundary', () => {
   })
 
   it('shutdownDrain fast-exits every model-wait agent as pending (方案 C)', async () => {
-    const adapter = new MockAdapter([])
+    const adapter = new MockAdapter([delayedTextResponse(500, 'done-a'), delayedTextResponse(500, 'done-b')])
     const ctx = await harness(adapter)
-    adapter.script.push(delayedTextResponse(500, 'done-a'))
-    adapter.script.push(delayedTextResponse(500, 'done-b'))
     const a = await ctx.agentLoop.create(SessionId('drain-all-a'), { provider: 'mock', model: 'mock' })
     const b = await ctx.agentLoop.create(SessionId('drain-all-b'), { provider: 'mock', model: 'mock' })
     const aRunning = waitForStatus(ctx, a, 'running')

@@ -26,9 +26,9 @@ describe('warnModuleHmrRoots', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       warnModuleHmrRoots(undefined)
-      warnModuleHmrRoots({ id: 'hmr', disabled: true, config: { root: ['/tmp/x'] } })
-      warnModuleHmrRoots({ id: 'hmr', config: { root: [] } })
-      warnModuleHmrRoots({ id: 'hmr', config: {} })
+      warnModuleHmrRoots({ id: 'hmr', name: 'hmr', disabled: true, config: { root: ['/tmp/x'] } })
+      warnModuleHmrRoots({ id: 'hmr', name: 'hmr', config: { root: [] } })
+      warnModuleHmrRoots({ id: 'hmr', name: 'hmr', config: {} })
       expect(warn).not.toHaveBeenCalled()
     } finally {
       warn.mockRestore()
@@ -38,7 +38,7 @@ describe('warnModuleHmrRoots', () => {
   it('warns once when module HMR watches non-empty source roots', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      warnModuleHmrRoots({ id: 'hmr', config: { root: ['/tmp/plugin'] } })
+      warnModuleHmrRoots({ id: 'hmr', name: 'hmr', config: { root: ['/tmp/plugin'] } })
       expect(warn).toHaveBeenCalledOnce()
       expect(String(warn.mock.calls[0]?.[0])).toContain('/tmp/plugin')
       expect(String(warn.mock.calls[0]?.[0])).toContain('module HMR')
