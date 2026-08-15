@@ -255,6 +255,8 @@ export class Include extends EntryTree {
   private readonly: boolean
   private content?: string
   private data?: EntryOptions[]
+  /** Last composed (post-patch) entry list; the P1 core-seam guard compares against it. */
+  private composed?: EntryOptions[]
   private writeTask?: NodeJS.Timeout | undefined
   private pendingWrite?: EntryOptions[]
   private writeQueue: Promise<void> = Promise.resolve()
@@ -367,11 +369,18 @@ export class Include extends EntryTree {
    * @returns a promise resolving after the new tree commits, or immediately when unchanged.
    * @throws when reading, parsing, validation, application, or rollback fails; the last good tree remains active when rollback succeeds.
    */
-  async refresh() {
+  /**
+   * Re-read the config file and re-apply it. `forced` bypasses the
+   * changed-content short-circuit: the composed result also depends on
+   * `config.patches`, which a caller may have updated without touching the
+   * file (the config-watch refresh path) — the P1 core-seam guard in `_apply`
+   * must see the new combination even when the file bytes are unchanged.
+   */
+  async refresh(forced = false) {
     // Read inside the queue so the changed-content check compares against the
     // predecessor's committed state, not a mid-apply snapshot.
     await this.enqueue(async () => {
-      const candidate = await this.read()
+      const candidate = await this.read(forced)
       if (!candidate) return
       await this._apply(candidate)
     })
@@ -390,7 +399,9 @@ export class Include extends EntryTree {
     // every live agent and cancels in-flight turns — worse than a restart.
     // Defer such edits to a graceful restart instead (daemon watches
     // $DSH_HOME/restart-request and drains with pending protection).
-    if (this.data !== undefined && coreSeamFingerprint(this.data) !== coreSeamFingerprint(data)) {
+    // Compare composed-vs-composed: `data` is post-patch; the previous
+    // composed result is tracked separately from the raw candidate.
+    if (this.composed !== undefined && coreSeamFingerprint(this.composed) !== coreSeamFingerprint(data)) {
       requestGracefulRestart('core-seam config change')
       throw new Error(
         'core seam (llm/session/agent/tools/system-prompt/agent-loop) config changed; '
@@ -400,6 +411,7 @@ export class Include extends EntryTree {
     await this.root.update(data)
     this.content = candidate.content
     this.data = candidate.data
+    this.composed = data
     await this.checkAccess()
   }
 
