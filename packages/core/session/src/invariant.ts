@@ -91,6 +91,12 @@ function validateEvent(
       nextTurn += 1
       break
     }
+    case 'turn/pending': {
+      if (trace.openTurn !== event.data.turn) {
+        fail(`turn/pending ${event.data.turn} does not match open turn ${trace.openTurn}`)
+      }
+      break
+    }
     case 'step/start': {
       if (trace.openTurn !== event.data.turn) {
         fail(`step/start in turn ${event.data.turn} but open turn is ${trace.openTurn}`)

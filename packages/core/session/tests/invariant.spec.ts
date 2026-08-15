@@ -124,6 +124,9 @@ describe('session-log invariants', () => {
       .toThrow(/turn 1 is still open/)
     expect(() => open.append('turn/end', { turn: 2, reason: { kind: 'completed' } }))
       .toThrow(/does not match open turn 1/)
+    expect(() => open.append('turn/pending', { turn: 2 }))
+      .toThrow(/turn\/pending 2 does not match open turn 1/)
+    expect(() => open.append('turn/pending', { turn: 1 })).not.toThrow()
 
     const second = (await setup()).ctx.sessions.create()
     second.append('turn/start', { turn: 1 })

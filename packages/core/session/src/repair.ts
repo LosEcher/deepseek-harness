@@ -24,6 +24,62 @@ export const TOOL_OUTCOME_UNKNOWN = 'TOOL_OUTCOME_UNKNOWN'
  * @param events - the loaded durable log to scan (a valid committed prefix, possibly with a crash tail).
  * @returns the synthetic closer events to append after `events`, in order; empty when the log is already balanced.
  */
+/** Open `turn/pending` tail a resumed driver continues instead of starting a new turn. */
+export interface ResumablePendingTurn {
+  turn: number
+  openStep: number | null
+  /** Step the driver opens after closing {@link openStep}, if any. */
+  nextStep: number
+}
+
+/**
+ * Return the open `turn/pending` tail when resume should continue that turn.
+ * A balanced log, a crash tail without the marker, or a pending marker that
+ * does not name the open turn yields `undefined` — crash repair then owns the log.
+ * @param events - the loaded durable log (a valid committed prefix).
+ * @returns the open pending turn, or `undefined` when resume must not continue one.
+ */
+export function resumablePendingTurn(events: readonly SessionEvent[]): ResumablePendingTurn | undefined {
+  let openTurn: number | null = null
+  let openStep: number | null = null
+  let pendingTurn: number | null = null
+  let nextStep = 1
+  for (const event of events) {
+    switch (event.type) {
+      case 'turn/start':
+        openTurn = event.data.turn
+        openStep = null
+        pendingTurn = null
+        nextStep = 1
+        break
+      case 'turn/pending':
+        pendingTurn = event.data.turn
+        break
+      case 'turn/end':
+        openTurn = null
+        openStep = null
+        pendingTurn = null
+        nextStep = 1
+        break
+      case 'step/start':
+        openStep = event.data.step
+        break
+      case 'step/end':
+        openStep = null
+        nextStep = event.data.step + 1
+        break
+      default:
+        break
+    }
+  }
+  if (openTurn === null || pendingTurn !== openTurn) return undefined
+  return {
+    turn: openTurn,
+    openStep,
+    nextStep: openStep !== null ? openStep + 1 : nextStep,
+  }
+}
+
 export function interruptedTurnClosers(events: readonly SessionEvent[]): SessionEvent[] {
   let openTurn: number | null = null
   let openStep: number | null = null

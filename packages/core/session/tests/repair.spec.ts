@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
-import { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '../src/index.ts'
+import { interruptedTurnClosers, resumablePendingTurn, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '../src/index.ts'
 import type { SessionEvent, SurfaceEvent } from '../src/index.ts'
 
 /**
@@ -40,6 +40,27 @@ describe('interruptedTurnClosers', () => {
       { type: 'assistant/chunk', seq: 4, time: 4, data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'b' } } },
     ]
     expect(interruptedTurnClosers(events)).toEqual([])
+    expect(resumablePendingTurn(events)).toEqual({ turn: 1, openStep: 1, nextStep: 2 })
+  })
+
+  it('resumablePendingTurn is undefined for a crash tail or a closed turn', () => {
+    expect(resumablePendingTurn([])).toBeUndefined()
+    expect(resumablePendingTurn([userTurnStart(1, 0)])).toBeUndefined()
+    expect(resumablePendingTurn([
+      userTurnStart(1, 0),
+      { type: 'turn/end', seq: 1, time: 1, data: { turn: 1, reason: { kind: 'completed' } } },
+    ])).toBeUndefined()
+    expect(resumablePendingTurn([
+      userTurnStart(1, 0),
+      { type: 'turn/pending', seq: 1, time: 1, data: { turn: 1 } },
+      { type: 'turn/end', seq: 2, time: 2, data: { turn: 1, reason: { kind: 'completed' } } },
+    ])).toBeUndefined()
+    expect(resumablePendingTurn([
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      { type: 'step/end', seq: 2, time: 2, data: { turn: 1, step: 1 } },
+      { type: 'turn/pending', seq: 3, time: 3, data: { turn: 1 } },
+    ])).toEqual({ turn: 1, openStep: null, nextStep: 2 })
   })
 
   it('closes an open turn with no open step (turn/end {interrupted} only)', () => {

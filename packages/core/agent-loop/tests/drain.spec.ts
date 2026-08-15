@@ -4,11 +4,11 @@ import LlmRuntime, { createUserMessage, type StreamChunk } from '@deepseek-ai/ds
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { MockAdapter, textResponse } from './mock-adapter.ts'
+import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 interface Drainable {
   drainToIdle(timeoutMs: number): Promise<'idle' | 'pending' | 'timed-out'>
@@ -134,6 +134,17 @@ describe('agent drain to turn boundary', () => {
 })
 
 describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
+  it('resumeOpenTurn is a no-op without a pending tail', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('hi')]))
+    const agent = ctx.agentLoop.create(SessionId('s-noop-resume'), { provider: 'mock', model: 'mock' }) as Agent & {
+      resumeOpenTurn(): void
+      hasPendingResume(): boolean
+    }
+    expect(agent.hasPendingResume()).toBe(false)
+    agent.resumeOpenTurn()
+    expect(agent.status).toBe('idle')
+  })
+
   it('hasLiveActivity is false at idle and true while a turn is live', async () => {
     const ctx = await harness(new MockAdapter([textResponse('hi')]))
     const loop = ctx.agentLoop as unknown as { create(...args: unknown[]): Agent }
@@ -145,6 +156,135 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     expect(gated.hasLiveActivity()).toBe(true)
     await waitForStatus(ctx, agent, 'idle')
     expect(gated.hasLiveActivity()).toBe(false)
+  })
+
+  it('markDraining is loop-level: agents created after it inherit the wake gate', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('should-not-run')]))
+    const loop = ctx.agentLoop as unknown as {
+      markDraining(): void
+      create(...args: unknown[]): Agent & { hasLiveActivity(): boolean }
+    }
+    loop.markDraining()
+    const agent = loop.create(SessionId('s-after-drain'), { provider: 'mock', model: 'mock' })
+    send(agent, 'hello')
+    await new Promise<void>((resolve) => { setTimeout(resolve, 80) })
+    expect(agent.hasLiveActivity()).toBe(false)
+    expect(agent.session.events.filter(e => e.type === 'turn/start')).toHaveLength(0)
+  })
+
+  it('hasBlockingActivity is true only while a tool is in flight', async () => {
+    const ctx = await harness(new MockAdapter([
+      toolCallResponse('c-block', 'slow', {}),
+      textResponse('after-tool'),
+    ]))
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'slow',
+      description: 'blocks until released',
+      parameters: {},
+      async execute() {
+        await blocked
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    const loop = ctx.agentLoop as unknown as {
+      hasBlockingActivity(): boolean
+      create(...args: unknown[]): Agent
+    }
+    const agent = loop.create(SessionId('s-block'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await vi.waitFor(() => expect(loop.hasBlockingActivity()).toBe(true))
+    release()
+    await waitForStatus(ctx, agent, 'idle')
+    expect(loop.hasBlockingActivity()).toBe(false)
+  })
+
+  it('shutdownDrain logs a rejected session flush and still returns', async () => {
+    const adapter = new MockAdapter([delayedTextResponse(60, 'done')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('drain-flush-fail'), { provider: 'mock', model: 'mock' })
+    const running = waitForStatus(ctx, agent, 'running')
+    send(agent, 'hello')
+    await running
+    await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
+    ctx.on('session/flush', () => {
+      throw new Error('flush-denied')
+    })
+    const ok = await ctx.agentLoop.shutdownDrain(5_000)
+    expect(ok).toBe(true)
+  })
+
+  it('resume reports an error when closing the open step fails', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('unused')]))
+    const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    ctx.on('agent/session-start', ({ agent }) => {
+      const original = agent.session.append.bind(agent.session)
+      agent.session.append = ((type: string, data: unknown, extra?: unknown) => {
+        if (type === 'step/end') throw new Error('step-end-denied')
+        return original(type as never, data as never, extra as never)
+      }) as typeof agent.session.append
+    })
+    const { agent } = await ctx.agents.create({
+      sessionId: SessionId('pending-step-end-fail'),
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: user, surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        { type: 'turn/pending', seq: 3, time: 4, data: { turn: 1 } },
+      ],
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await agent.whenIdle()
+    expect(agent.status).toBe('idle')
+    expect(agent.session.events.filter(event => event.type === 'step/end')).toHaveLength(0)
+    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
+  })
+
+  it('create on a turn/pending seed with no open step continues that turn', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('retried')]))
+    const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    const { agent } = await ctx.agents.create({
+      sessionId: SessionId('pending-closed-step'),
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: user, surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        { type: 'step/end', seq: 3, time: 4, data: { turn: 1, step: 1 } },
+        { type: 'turn/pending', seq: 4, time: 5, data: { turn: 1 } },
+      ],
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await agent.whenIdle()
+    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
+    expect(
+      agent.session.events
+        .filter(event => event.type === 'step/start')
+        .map(event => event.type === 'step/start' ? event.data.step : undefined),
+    ).toEqual([1, 2])
+    const end = agent.session.events.findLast(event => event.type === 'turn/end')
+    expect(end?.type === 'turn/end' ? end.data : undefined).toMatchObject({
+      turn: 1,
+      reason: { kind: 'completed' },
+    })
+  })
+
+  it('markPending warns when the session refuses the marker', async () => {
+    const adapter = new MockAdapter([delayedTextResponse(60, 'done')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('drain-pending-warn'), { provider: 'mock', model: 'mock' })
+    const running = waitForStatus(ctx, agent, 'running')
+    send(agent, 'hello')
+    await running
+    await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
+    const original = agent.session.append.bind(agent.session)
+    agent.session.append = ((type: string, data: unknown, extra?: unknown) => {
+      if (type === 'turn/pending') throw new Error('append-denied')
+      return original(type as never, data as never, extra as never)
+    }) as typeof agent.session.append
+    const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
+    expect(outcome).toBe('pending')
+    expect(agent.session.events.some(event => event.type === 'turn/pending')).toBe(false)
   })
 
   it('markDraining refuses new turns after the in-flight one settles (wake gate)', async () => {

@@ -636,6 +636,49 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     await ctx1.fiber.dispose()
   })
 
+  it('resume continues a turn/pending tail on the same turn without a new turn/start', async () => {
+    const sessionId = SessionId('pending-resume')
+    const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    const { ctx: ctx1, root } = await persistentHarness(new MockAdapter([]))
+    const session = ctx1.sessions.create(sessionId, {
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: user, surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        {
+          type: 'assistant/chunk',
+          seq: 3,
+          time: 4,
+          data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'partial' } },
+        },
+        { type: 'turn/pending', seq: 4, time: 5, data: { turn: 1 } },
+      ],
+    })
+    await ctx1.sessions.flush(session)
+    await ctx1.fiber.dispose()
+
+    const adapter2 = new MockAdapter([textResponse('continued')])
+    const ctx2 = await mountPersistentHarness(root, adapter2)
+    const a2 = (await ctx2.agents.resume({
+      resumeSessionId: sessionId,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })).agent
+    await a2.whenIdle()
+    expect(a2.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
+    expect(
+      a2.session.events
+        .filter(event => event.type === 'step/start')
+        .map(event => event.type === 'step/start' ? event.data.step : undefined),
+    ).toEqual([1, 2])
+    const end = a2.session.events.findLast(event => event.type === 'turn/end')
+    expect(end?.type === 'turn/end' ? end.data : undefined).toMatchObject({
+      turn: 1,
+      reason: { kind: 'completed' },
+    })
+    expect(adapter2.requests).toHaveLength(1)
+    await ctx2.fiber.dispose()
+  })
+
   it('resume reloads a persisted session: history + turn numbering continue, no duplicate seqs', async () => {
     // Lifecycle 1: run one full turn, persisting it.
     const adapter1 = new MockAdapter([textResponse('first answer')])

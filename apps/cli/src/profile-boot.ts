@@ -307,7 +307,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     },
     undefined,
     undefined,
-    PROCESS_SHUTDOWN_TIMEOUT_MS + TOOL_DRAIN_GRACE_MS + AGENT_DRAIN_GRACE_MS,
+    PROCESS_SHUTDOWN_TIMEOUT_MS + Math.max(TOOL_DRAIN_GRACE_MS, AGENT_DRAIN_GRACE_MS),
   )
   const signalShutdown = new AbortController()
   const interrupt = (code: number): void => {
@@ -416,18 +416,16 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       suppressShutdownError(ctx, signalShutdown.signal, error)
     }
   }
-  // Restart coordination (执行面自决退出): an external `restart-request`
-  // file (touched by dsh-web-restart.sh, or by the daemon on plugin-manifest /
-  // git-head reloads) asks the process to exit at the next natural quiescence
-  // instead of being TERM'd mid-turn. The supervisor waits for our own exit
-  // (with a force-kill backstop), so a busy live turn finishes before the
-  // reload — the restart point is the last active turn's natural completion,
-  // not a timer. The agent loop is resolved lazily because it mounts during
-  // boot; surfaces without one (one-shots) exit immediately on request.
+  // Restart coordination: an external `restart-request` file (touched by
+  // dsh-web-restart.sh, or by the daemon on plugin-manifest / git-head
+  // reloads) asks the process to exit once in-flight tools settle. Model wait
+  // and pre-step do not block; the ordinary shutdown path marks them
+  // `turn/pending`. The agent loop is resolved lazily because it mounts
+  // during boot; surfaces without one (one-shots) exit immediately on request.
   const stopRestartCoordinator = startRestartCoordinator({
     dshHome: resolveDshHome(),
     getAgentLoop: () => (app.current as unknown as
-      | { agentLoop?: { markDraining(): void; hasLiveActivity(): boolean } }
+      | { agentLoop?: { markDraining(): void; hasBlockingActivity(): boolean } }
       | undefined)?.agentLoop,
     interrupt,
     isShuttingDown: () => signalShutdown.signal.aborted,

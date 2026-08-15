@@ -251,11 +251,11 @@ export interface SessionEventMap {
    */
   'turn/end': { turn: number; reason: TurnEndReason }
   /**
-   * Marks turn `turn` as intentionally left open by a fast shutdown (方案 C:
-   * event-sourced turn switching). The process exits without closing the
-   * turn; a later resume may rebuild and continue it from the event stream.
-   * Crash repair treats a `turn/pending` tail as resumable and does NOT
-   * synthesize an `interrupted` `turn/end` for it.
+   * Marks turn `turn` as intentionally left open by a fast shutdown. Crash
+   * repair does not synthesize an `interrupted` `turn/end` for it. Resume
+   * continues the same turn: it closes any open step, opens the next step,
+   * and re-issues the model request from `deriveMessages()` (orphan chunks
+   * are not model-visible).
    */
   'turn/pending': { turn: number }
   /** Opens step `step` of turn `turn` — one model call plus the tool executions it requested. */

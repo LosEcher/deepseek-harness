@@ -28,7 +28,7 @@ import {
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, resumablePendingTurn, type ResumablePendingTurn } from '@deepseek-ai/dsh-session'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type { Context } from '@deepseek-ai/cordis'
@@ -79,6 +79,8 @@ export class ReactLoopAgent implements Agent {
   private activityDone: Promise<void> = Promise.resolve()
   /** Drain gate: when true, no new turn may start; in-flight work settles first. */
   private draining = false
+  /** Open `turn/pending` tail this driver continues on first wake, if any. */
+  private pendingResume: ResumablePendingTurn | undefined
   /** Turn already marked `turn/pending`, so the marker is written at most once. */
   private pendingMarkedTurn: number | null = null
   /**
@@ -114,6 +116,7 @@ export class ReactLoopAgent implements Agent {
     })
     const lastTurn = session.events.findLast(event => event.type === 'turn/start')?.data.turn ?? 0
     this.phase = { kind: 'idle', lastTurn }
+    this.pendingResume = resumablePendingTurn(session.events)
     this.scope = createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
@@ -224,10 +227,8 @@ export class ReactLoopAgent implements Agent {
   }
 
   /**
-   * Restart-coordination gate: when armed, no new turn may start (wake is
-   * refused) and the in-flight turn settles naturally before the driver exits
-   * to idle. Unlike {@link drainToIdle} this never waits — the restart
-   * coordinator polls {@link hasLiveActivity} until it flips to false.
+   * Close the turn gate: wake is refused. Unlike {@link drainToIdle} this
+   * never waits. A coordinated restart polls {@link hasBlockingActivity}.
    */
   markDraining(): void {
     this.draining = true
@@ -236,6 +237,29 @@ export class ReactLoopAgent implements Agent {
   /** True while a turn is live (pre-step / model-wait / tool-in-flight). */
   hasLiveActivity(): boolean {
     return this.phase.kind !== 'idle'
+  }
+
+  /**
+   * True while a tool's external side effects are in flight. Model wait and
+   * pre-step are not blocking: a coordinated restart may fast-exit them.
+   */
+  hasBlockingActivity(): boolean {
+    return this.activity === 'tool-in-flight'
+  }
+
+  /** True when the loaded log has an open `turn/pending` tail to continue. */
+  hasPendingResume(): boolean {
+    return this.pendingResume !== undefined
+  }
+
+  /**
+   * Start the driver so an open `turn/pending` tail continues after publication.
+   * No-op when there is no pending tail, the driver is already live, or the
+   * drain gate is closed.
+   */
+  resumeOpenTurn(): void {
+    if (this.pendingResume === undefined || this.phase.kind !== 'idle') return
+    this.wakeDriver()
   }
 
   /**
@@ -296,8 +320,10 @@ export class ReactLoopAgent implements Agent {
     this.pendingMarkedTurn = this.phase.turn
     try {
       this.session.append('turn/pending', { turn: this.phase.turn })
-    } catch {
-      // Best-effort: the session may already be tearing down.
+    } catch (error: unknown) {
+      this.loopCtx.logger.warn(
+        `agent "${this.id}": turn/pending marker not appended: ${errorChain(error)}`,
+      )
     }
   }
 
@@ -353,15 +379,31 @@ export class ReactLoopAgent implements Agent {
     const phase = this.phase
     const { signal } = phase.abort
     signal.throwIfAborted()
-    const turn = phase.turn + 1
-    try {
-      this.session.append('turn/start', { turn })
-    } catch (error: unknown) {
-      this.throwError(error)
+    const resuming = this.pendingResume
+    let turn: number
+    if (resuming !== undefined) {
+      if (resuming.openStep !== null) {
+        try {
+          this.session.append('step/end', { turn: resuming.turn, step: resuming.openStep })
+        } catch (error: unknown) {
+          this.throwError(error)
+        }
+      }
+      this.pendingResume = undefined
+      turn = resuming.turn
+      phase.turn = turn
+      phase.step = resuming.nextStep - 1
+    } else {
+      turn = phase.turn + 1
+      try {
+        this.session.append('turn/start', { turn })
+      } catch (error: unknown) {
+        this.throwError(error)
+      }
+      phase.turn = turn
     }
-    phase.turn = turn
     let turnEnds: TurnEndReason | null = null
-    let target: InboxTarget = 'next-turn'
+    let target: InboxTarget = resuming !== undefined ? 'next-step' : 'next-turn'
     try {
       while (true) {
         signal.throwIfAborted()

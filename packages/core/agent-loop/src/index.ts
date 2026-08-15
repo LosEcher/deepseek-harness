@@ -160,6 +160,18 @@ function recordAgentDrain(id: SessionId, drained: DrainOutcome, elapsedMs: numbe
   }
 }
 
+function recordFlushFailure(id: string, detail: string): void {
+  try {
+    const home = process.env.DSH_HOME ?? join(homedir(), '.dsh')
+    appendFileSync(
+      join(home, 'logs/dsh-drain.log'),
+      `[${new Date().toISOString()}] session flush ${id} failed: ${detail}\n`,
+    )
+  } catch {
+    // Observability is best-effort.
+  }
+}
+
 /** Reject an output-token cap that cannot be represented exactly on the request wire. */
 function assertAgentOptions(options: AgentOptions): void {
   if (options.maxTokens !== undefined
@@ -344,6 +356,11 @@ export class AgentLoop extends Service implements AgentFactory {
   private readonly ownership: FactoryOwnership
   /** Live machines reachable for pre-teardown draining (see {@link shutdownDrain}). */
   private readonly liveMachines = new Set<ReactLoopAgent>()
+  /**
+   * Loop-level drain gate: new machines inherit it so a coordinated restart
+   * cannot open a turn on an agent created after {@link markDraining}.
+   */
+  private draining = false
   /**
    * Set by the CLI shutdown path right before {@link shutdownDrain}: the
    * process is about to exit, so a 'pending' drain may leave its turn open
@@ -618,6 +635,7 @@ export class AgentLoop extends Service implements AgentFactory {
     try {
       const agent = machine = new ReactLoopAgent(loopCtx, id, options, session)
       this.liveMachines.add(machine)
+      if (this.draining) machine.markDraining()
       machineReady.resolve()
       assertLive()
 
@@ -637,6 +655,7 @@ export class AgentLoop extends Service implements AgentFactory {
           // session-start extension point), so only the liveness recheck is owed.
           emitAgentEvent(loopCtx, agent, 'agent/session-start', { source })
           assertLive()
+          if (machine.hasPendingResume()) machine.resumeOpenTurn()
           // Explicit closes (handle.dispose) mean "stop now": no turn drain,
           // but the caller-owned lifecycle effect still retires (unfollowOwner
           // runs on the non-ownerTriggered path).
@@ -672,7 +691,19 @@ export class AgentLoop extends Service implements AgentFactory {
     // session BEFORE the fiber tears down, while persistence is still writable
     // — the session store's documented teardown-drain entry point.
     const sessions = [...new Set(machines.map(machine => machine.session))]
-    await Promise.allSettled(sessions.map(session => this.runtime.ctx.sessions.flush(session)))
+    const flushes = await Promise.allSettled(sessions.map(session => this.runtime.ctx.sessions.flush(session)))
+    for (const [index, flush] of flushes.entries()) {
+      if (flush.status !== 'rejected') continue
+      const session = sessions[index]
+      /* v8 ignore next -- flushes is zipped to the unique session list */
+      if (session === undefined) continue
+      const detail = errorChain(flush.reason)
+      const sessionId = session.id
+      this.runtime.ctx.logger.warn(
+        `dsh: session flush during shutdownDrain failed (${sessionId}): ${detail}`,
+      )
+      recordFlushFailure(sessionId, detail)
+    }
     // 'pending' (fast exit, resumable) and 'idle' are both safe; only a
     // grace-exceeded drain is a failure (the teardown path then aborts).
     return results.every(result => result.status === 'fulfilled' && result.value !== 'timed-out')
@@ -689,17 +720,22 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
-   * Restart-coordination gate (see {@link startRestartCoordinator}): arm every
-   * live machine so no new turn may start; in-flight turns settle naturally.
+   * Restart-coordination gate (see {@link startRestartCoordinator}): close the
+   * loop-level turn gate and arm every live machine. Agents created after this
+   * call inherit the gate and cannot start a new turn.
    */
   markDraining(): void {
+    this.draining = true
     for (const machine of this.liveMachines) machine.markDraining()
   }
 
-  /** True while any live machine still has a turn in flight. */
-  hasLiveActivity(): boolean {
+  /**
+   * True while any live machine has a tool's external side effects in flight.
+   * Model wait and pre-step do not block a coordinated restart.
+   */
+  hasBlockingActivity(): boolean {
     for (const machine of this.liveMachines) {
-      if (machine.hasLiveActivity()) return true
+      if (machine.hasBlockingActivity()) return true
     }
     return false
   }
