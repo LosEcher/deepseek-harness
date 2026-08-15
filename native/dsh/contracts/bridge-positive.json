@@ -1,0 +1,67 @@
+{
+  "format_version": 1,
+  "source_digest": "sha256:bf6f760c6aba76fcc0f0382b05051172841c12b5aee4c4f2be2ed32fac1d882c",
+  "cases": [
+    {
+      "name": "node-root-hello",
+      "message": {
+        "kind": "hello",
+        "payload": {
+          "bridge_version": 1,
+          "generation": 17,
+          "role": "node_root",
+          "build": "fixture-node",
+          "schema_digest": "sha256:fixture",
+          "capabilities": ["call", "stream"]
+        }
+      }
+    },
+    {
+      "name": "filesystem-call",
+      "message": {
+        "kind": "call",
+        "payload": {
+          "generation": 17,
+          "id": "call-1",
+          "service": "fs",
+          "method": "readText",
+          "args": {"path": "/fixture/readme.txt"}
+        }
+      }
+    },
+    {
+      "name": "binary-stream-chunk",
+      "message": {
+        "kind": "stream_chunk",
+        "payload": {
+          "generation": 17,
+          "id": "stream-1",
+          "sequence": 0,
+          "data": "AAEC/f7/"
+        }
+      }
+    },
+    {
+      "name": "stream-credit",
+      "message": {
+        "kind": "stream_credit",
+        "payload": {
+          "generation": 17,
+          "id": "stream-1",
+          "credit_bytes": 4096
+        }
+      }
+    },
+    {
+      "name": "waterfall-continuation",
+      "message": {
+        "kind": "continuation_call",
+        "payload": {
+          "generation": 17,
+          "id": "next-1",
+          "payload": {"value": "before"}
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"owner":"typescript-build-plane","artifact":"dsh-bridge-protocol","protocol_version":1,"carrier":"content_length_json_stdio","payload_encoding":"base64_bytes","roles":["node_root","rust_sidecar","rust_root","js_guest"],"features":["full_duplex_call","cancel","resource_ownership","stream_credit","contribution","event_dispatch","waterfall_continuation","dispose_quiescence"]}

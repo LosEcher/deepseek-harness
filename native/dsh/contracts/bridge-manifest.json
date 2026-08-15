@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "source_digest": "sha256:bf6f760c6aba76fcc0f0382b05051172841c12b5aee4c4f2be2ed32fac1d882c",
+  "artifact": "dsh-bridge-protocol",
+  "protocol_version": 1,
+  "carrier": "content_length_json_stdio",
+  "payload_encoding": "base64_bytes",
+  "fixtures": ["bridge-positive.json", "bridge-negative.json"],
+  "roles": ["node_root", "rust_sidecar", "rust_root", "js_guest"],
+  "features": [
+    "full_duplex_call",
+    "cancel",
+    "resource_ownership",
+    "stream_credit",
+    "contribution",
+    "event_dispatch",
+    "waterfall_continuation",
+    "dispose_quiescence"
+  ]
+}

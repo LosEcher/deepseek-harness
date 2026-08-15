@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "source_digest": "sha256:bf6f760c6aba76fcc0f0382b05051172841c12b5aee4c4f2be2ed32fac1d882c",
+  "cases": [
+    {
+      "name": "empty-opaque-id",
+      "expected_error": "bridge identifiers must not be empty",
+      "message": {
+        "kind": "cancel",
+        "payload": {"generation": 17, "id": " "}
+      }
+    },
+    {
+      "name": "unknown-message-kind",
+      "expected_error": "unknown variant",
+      "message": {"kind": "fallback", "payload": {}}
+    },
+    {
+      "name": "binary-chunk-must-be-base64",
+      "expected_error": "invalid type",
+      "message": {
+        "kind": "stream_chunk",
+        "payload": {
+          "generation": 17,
+          "id": "stream-1",
+          "sequence": 0,
+          "data": [0, 1, 2]
+        }
+      }
+    }
+  ]
+}
