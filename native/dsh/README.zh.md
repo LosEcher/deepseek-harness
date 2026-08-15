@@ -9,7 +9,7 @@
 - `contracts/` 包含带版本的 bridge manifest 以及 JSON 正向和负向 fixture。
 - `crates/dsh-bridge-protocol/` 负责 bridge 消息、Content-Length framing、握手校验、类型化远端错误、stream credit、按 generation 管理的资源与 continuation，以及 dispose/quiescence 状态检查。
 - `crates/dsh-bridge-runtime/` 是对称连接运行时：stdio 上的 frame 读写、握手交换、服务注册表、按请求取消，以及 dispose/quiescence 序列。
-- `crates/dsh-sidecar/` 是第一方 sidecar 可执行文件，带 P1 执行世界原型：`fs.resolve` / `fs.readText` / `fs.writeTextAtomic`（alias identity、目标不存在、取消、隔离目录中的原子 mutation）、`subprocess.runCollect` / `subprocess.spawn`（带 spill 的 collect、受 credit 约束的 piped stream、进程树终止）、`pty.open` / `pty.write` / `pty.resize` / `pty.signal`（有序 I/O、resize、signal、session 停稳），以及 `test.sleep` 取消探针。
+- `crates/dsh-sidecar/` 是第一方 sidecar 可执行文件，带 P1 执行世界原型：`fs.resolve` / `fs.readText` / `fs.writeTextAtomic`（alias identity、目标不存在、取消、隔离目录中的原子 mutation）、`subprocess.runCollect` / `subprocess.spawn`（带 spill 的 collect、受 credit 约束的 piped stream、进程树终止）、`pty.open` / `pty.write` / `pty.resize` / `pty.signal`（有序 I/O、resize、signal、session 停稳）、`test.waterfall`（contribution 往返、next()/包装/短路、迟到 continuation 拒绝），以及 `test.sleep`。设置 `DSH_BRIDGE_ROLE=rust_root` 让 sidecar 以 RustRoot 运行，同一批 fixture 在 Node-root 与倒置的 JsGuest 两种配对下都通过。
 
 ## 检查
 
