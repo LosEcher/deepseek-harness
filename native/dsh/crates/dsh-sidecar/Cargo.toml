@@ -1,0 +1,19 @@
+[package]
+name = "dsh-sidecar"
+description = "Rust migration-bridge sidecar executable with first-party capability services"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "dsh-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+dsh-bridge-protocol = { path = "../dsh-bridge-protocol" }
+dsh-bridge-runtime = { path = "../dsh-bridge-runtime" }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

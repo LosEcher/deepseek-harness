@@ -1,0 +1,11 @@
+[package]
+name = "dsh-bridge-runtime"
+description = "Symmetric bridge connection runtime: service dispatch, cancel, dispose/quiescence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+dsh-bridge-protocol = { path = "../dsh-bridge-protocol" }
+serde_json = "1"
+thiserror = "2"

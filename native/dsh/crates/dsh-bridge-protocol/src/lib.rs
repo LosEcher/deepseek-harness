@@ -10,7 +10,7 @@ mod lifecycle;
 mod manifest;
 mod message;
 
-pub use framing::{encode_frame, write_frame, FrameDecoder, FrameError};
+pub use framing::{encode_frame, write_frame, FrameDecoder, FrameError, DEFAULT_MAX_FRAME_SIZE};
 pub use handshake::{BridgeRole, HandshakeError, Hello, PROTOCOL_VERSION};
 pub use lifecycle::{
     BridgeLifecycle, ContinuationRegistry, LifecycleError, ResourceRegistry, StreamState,

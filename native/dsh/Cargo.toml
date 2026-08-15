@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/dsh-bridge-protocol"]
+members = [
+    "crates/dsh-bridge-protocol",
+    "crates/dsh-bridge-runtime",
+    "crates/dsh-sidecar",
+]
 resolver = "2"
 
 [workspace.package]
