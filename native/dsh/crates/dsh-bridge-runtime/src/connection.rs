@@ -1,5 +1,5 @@
 use crate::error::{RuntimeError, SideExit};
-use crate::service::{CallContext, Service, ServiceError};
+use crate::service::{CallContext, FrameSink, Service, ServiceError};
 use dsh_bridge_protocol::{
     manifest_source_digest, BridgeId, BridgeLifecycle, BridgeMessage, FrameDecoder, Hello,
     RemoteError,
@@ -28,6 +28,9 @@ pub struct BridgeConfig {
 pub trait ServiceRegistry: Send + Sync {
     /// Resolves a service by its registered name.
     fn resolve(&self, name: &str) -> Option<Arc<dyn Service>>;
+
+    /// Returns every registered service, for id-ownership routing.
+    fn all(&self) -> Vec<Arc<dyn Service>>;
 }
 
 /// Simple fixed map registry for the first-party sidecar.
@@ -59,6 +62,15 @@ impl ServiceRegistry for MapRegistry {
             .get(name)
             .cloned()
     }
+
+    fn all(&self) -> Vec<Arc<dyn Service>> {
+        self.services
+            .lock()
+            .expect("registry lock must not poison")
+            .values()
+            .cloned()
+            .collect()
+    }
 }
 
 /// Runs one bridge connection to completion.
@@ -83,6 +95,19 @@ struct Connection<W> {
     pending: Arc<Mutex<HashMap<BridgeId, Arc<AtomicBool>>>>,
     workers: Vec<JoinHandle<()>>,
     handshake_done: bool,
+}
+
+/// Sink handed to services so worker threads can emit bridge frames.
+struct WriterSink<W> {
+    writer: Arc<Mutex<W>>,
+}
+
+impl<W: Write + Send> FrameSink for WriterSink<W> {
+    fn send(&self, message: BridgeMessage) -> Result<(), RuntimeError> {
+        let mut writer = self.writer.lock().expect("writer lock must not poison");
+        dsh_bridge_protocol::write_frame(&mut *writer, &message)?;
+        Ok(())
+    }
 }
 
 impl<W> Connection<W>
@@ -111,6 +136,12 @@ where
         let mut writer = self.writer.lock().expect("writer lock must not poison");
         dsh_bridge_protocol::write_frame(&mut *writer, message)?;
         Ok(())
+    }
+
+    fn sink(&self) -> Arc<dyn FrameSink> {
+        Arc::new(WriterSink {
+            writer: Arc::clone(&self.writer),
+        })
     }
 
     fn run<R>(mut self, reader: R) -> Result<SideExit, RuntimeError>
@@ -189,10 +220,18 @@ where
                 {
                     flag.store(true, Ordering::SeqCst);
                 }
+                if let Some(owner) = self.find_owner(&id) {
+                    owner.on_cancel(&id);
+                }
                 Ok(None)
             }
             BridgeMessage::Dispose { generation } => {
                 self.check_generation(generation)?;
+                // Stop new work, then release every service-owned resource
+                // (processes, handles) before joining in-flight calls.
+                for service in self.config.services.all() {
+                    service.shutdown();
+                }
                 self.lifecycle
                     .lock()
                     .expect("lifecycle lock must not poison")
@@ -213,31 +252,80 @@ where
                 self.write(&BridgeMessage::Quiescent { generation })?;
                 Ok(Some(SideExit::Quiescent))
             }
-            // Request kinds not yet served in this phase fail with a typed
-            // error instead of being silently dropped.
             BridgeMessage::ResourceOpen { generation, id, .. } => {
                 self.check_generation(generation)?;
-                self.reply_error(id, unsupported("resource/open"))?;
+                self.reply_error(id, crate::service::unsupported("resource/open"))?;
                 Ok(None)
             }
-            BridgeMessage::StreamOpen { generation, id, .. } => {
+            BridgeMessage::StreamOpen {
+                generation,
+                id,
+                resource_type,
+                credit_bytes,
+            } => {
                 self.check_generation(generation)?;
-                self.reply_error(id, unsupported("stream/open"))?;
+                self.open_stream(id, resource_type, credit_bytes)?;
                 Ok(None)
             }
-            BridgeMessage::ContributionRegister { generation, id, .. } => {
+            BridgeMessage::StreamCredit {
+                generation,
+                id,
+                credit_bytes,
+            } => {
                 self.check_generation(generation)?;
-                self.reply_error(id, unsupported("contribution/register"))?;
+                if let Some(owner) = self.find_owner(&id) {
+                    if let Err(error) = owner.stream_credit(&id, credit_bytes) {
+                        self.reply_error(id, error)?;
+                    }
+                } else {
+                    self.reply_error(id, crate::service::unsupported("stream/credit"))?;
+                }
                 Ok(None)
             }
-            BridgeMessage::ContinuationCall { generation, id, .. } => {
+            BridgeMessage::ResourceRelease { generation, id } => {
                 self.check_generation(generation)?;
-                self.reply_error(id, unsupported("continuation/call"))?;
+                if let Some(owner) = self.find_owner(&id) {
+                    match owner.release_resource(&id) {
+                        Ok(()) => self.write(&BridgeMessage::Reply {
+                            generation,
+                            id,
+                            result: serde_json::json!({ "released": true }),
+                        })?,
+                        Err(error) => self.reply_error(id, error)?,
+                    }
+                } else {
+                    self.reply_error(id, crate::service::unsupported("resource/release"))?;
+                }
                 Ok(None)
             }
             // One-way kinds without local meaning in this phase are ignored;
             // they carry their own terminal semantics for the sender.
             _ => Ok(None),
+        }
+    }
+
+    fn open_stream(
+        &mut self,
+        id: BridgeId,
+        resource_type: String,
+        credit_bytes: u32,
+    ) -> Result<(), RuntimeError> {
+        let Some(owner) = self.find_owner(&id) else {
+            return self.reply_error(id, crate::service::unsupported("stream/open"));
+        };
+        let ctx = CallContext {
+            generation: self.generation,
+            id: id.clone(),
+            cancel: Arc::new(AtomicBool::new(false)),
+        };
+        let sink = self.sink();
+        match owner.open_stream(&id, &resource_type, credit_bytes, &ctx, sink) {
+            Ok(()) => self.write(&BridgeMessage::Reply {
+                generation: self.generation,
+                id,
+                result: serde_json::json!({ "opened": true }),
+            }),
+            Err(error) => self.reply_error(id, error),
         }
     }
 
@@ -248,6 +336,14 @@ where
             });
         }
         Ok(())
+    }
+
+    fn find_owner(&self, id: &BridgeId) -> Option<Arc<dyn Service>> {
+        self.config
+            .services
+            .all()
+            .into_iter()
+            .find(|service| service.owns(id))
     }
 
     fn dispatch_call(
@@ -300,6 +396,7 @@ where
         let pending = Arc::clone(&self.pending);
         let generation = self.generation;
         let reply_id = id.clone();
+        let sink = self.sink();
 
         self.workers.push(std::thread::spawn(move || {
             let context = CallContext {
@@ -307,7 +404,7 @@ where
                 id: reply_id.clone(),
                 cancel: Arc::clone(&cancel),
             };
-            let result = service.call(&method, &args, &context);
+            let result = service.call(&method, &args, &context, sink);
             let message = match result {
                 Ok(value) => BridgeMessage::Reply {
                     generation,
@@ -368,13 +465,6 @@ where
         }
         Ok(())
     }
-}
-
-fn unsupported(kind: &str) -> ServiceError {
-    ServiceError::new(
-        "bridge.unsupported",
-        format!("{kind} is not served in this migration phase"),
-    )
 }
 
 fn lifecycle_to_service_error(error: dsh_bridge_protocol::LifecycleError) -> ServiceError {

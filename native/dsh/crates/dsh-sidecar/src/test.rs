@@ -1,7 +1,8 @@
 //! Test-only services used by the P1 bridge conformance tests.
 
-use dsh_bridge_runtime::{CallContext, Service, ServiceError};
+use dsh_bridge_runtime::{CallContext, FrameSink, Service, ServiceError};
 use serde_json::{json, Value};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// `test` service: deterministic delays and counters for bridge tests.
@@ -39,7 +40,13 @@ impl Service for TestService {
         "test"
     }
 
-    fn call(&self, method: &str, args: &Value, ctx: &CallContext) -> Result<Value, ServiceError> {
+    fn call(
+        &self,
+        method: &str,
+        args: &Value,
+        ctx: &CallContext,
+        _sink: Arc<dyn FrameSink>,
+    ) -> Result<Value, ServiceError> {
         match method {
             "sleep" => self.sleep(args, ctx),
             other => Err(ServiceError::new(

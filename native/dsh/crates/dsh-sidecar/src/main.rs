@@ -9,12 +9,15 @@ use dsh_bridge_protocol::{manifest_source_digest, BridgeRole, Hello, PROTOCOL_VE
 use dsh_bridge_runtime::{serve, BridgeConfig, MapRegistry, SideExit};
 use std::process::ExitCode;
 mod fs;
+mod subprocess;
 mod test;
 
 const CAPABILITIES: &[&str] = &[
     "fs.resolve",
     "fs.readText",
     "fs.writeTextAtomic",
+    "subprocess.runCollect",
+    "subprocess.spawn",
     "test.sleep",
 ];
 
@@ -31,6 +34,7 @@ fn main() -> ExitCode {
 
     let registry = MapRegistry::new();
     registry.register(std::sync::Arc::new(fs::FsService::new()));
+    registry.register(std::sync::Arc::new(subprocess::SubprocessService::new()));
     registry.register(std::sync::Arc::new(test::TestService::new()));
 
     let config = BridgeConfig {

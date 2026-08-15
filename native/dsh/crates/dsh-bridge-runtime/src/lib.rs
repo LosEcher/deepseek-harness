@@ -17,4 +17,4 @@ mod service;
 
 pub use connection::{serve, BridgeConfig, MapRegistry, ServiceRegistry};
 pub use error::{RuntimeError, SideExit};
-pub use service::{CallContext, Service, ServiceError};
+pub use service::{CallContext, FrameSink, Service, ServiceError};

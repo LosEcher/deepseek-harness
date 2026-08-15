@@ -4,11 +4,12 @@
 //! the bridge, including alias identity, missing targets, cancellation, and
 //! atomic mutation inside an isolated directory.
 
-use dsh_bridge_runtime::{CallContext, Service, ServiceError};
+use dsh_bridge_runtime::{CallContext, FrameSink, Service, ServiceError};
 use serde_json::{json, Value};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Stable error codes exposed by the filesystem service.
 pub mod codes {
@@ -153,7 +154,13 @@ impl Service for FsService {
         "fs"
     }
 
-    fn call(&self, method: &str, args: &Value, ctx: &CallContext) -> Result<Value, ServiceError> {
+    fn call(
+        &self,
+        method: &str,
+        args: &Value,
+        ctx: &CallContext,
+        _sink: Arc<dyn FrameSink>,
+    ) -> Result<Value, ServiceError> {
         match method {
             "resolve" => self.resolve(args),
             "readText" => self.read_text(args, ctx),
