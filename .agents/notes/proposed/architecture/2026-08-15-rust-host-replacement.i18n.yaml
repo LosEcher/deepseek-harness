@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-15-rust-host-replacement.md
-2026-08-15-rust-host-replacement.md: 063b93f5517fe92dafb3fcb25f3dc866ab1c7e53
-2026-08-15-rust-host-replacement.zh.md: 24aea2da85e7aae97959cbe89dbc281d70127fb4
+2026-08-15-rust-host-replacement.md: a255a8edf942558368cd9ce2308d4101b799d0dc
+2026-08-15-rust-host-replacement.zh.md: 4591644e6cd20270d532ab812d4798540811862e

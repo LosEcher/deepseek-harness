@@ -112,6 +112,56 @@ jobs:
           DSH_ARCHIVE_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: pnpm run check:ci:static
 
+  # Rust host-replacement conformance. The migration boundary gate
+  # (verify-native-dsh-boundary) keeps Rust packages out of shipped profiles;
+  # this lane is the "conformance first" half: native/dsh must stay green
+  # before any facade package may reference it. Runs on push and PRs.
+  native-dsh:
+    runs-on: >-
+      ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
+          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
+          || 'dsh-ubuntu-24-04-16core' }}
+    name: native/dsh conformance
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Restore cargo cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/dsh/target
+          key: ${{ runner.os }}-cargo-dsh-${{ hashFiles('native/dsh/Cargo.lock') }}
+
+      - name: Format check
+        working-directory: native/dsh
+        run: cargo fmt --all -- --check
+
+      - name: Conformance tests
+        working-directory: native/dsh
+        run: cargo test --workspace
+
+      - name: Clippy
+        working-directory: native/dsh
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Save cargo cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/dsh/target
+          key: ${{ runner.os }}-cargo-dsh-${{ hashFiles('native/dsh/Cargo.lock') }}
+
   node-24-coverage:
     if: github.event_name == 'pull_request'
     runs-on: >-

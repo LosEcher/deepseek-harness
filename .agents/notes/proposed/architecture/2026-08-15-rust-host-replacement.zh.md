@@ -224,6 +224,7 @@ Capability manifest、生命周期所有权、声明式组合、生成式 dispat
 - **分布式 waterfall 死锁。** 嵌套 callback 与 `next()` 要求可重入 frame 处理和一次性 continuation 所有权。P1 故障测试钉住行为与失败。
 - **bridge 内存无界增长。** 快速 producer 可能超过 guest 或门面的消费速度。receiver credit、有界 queue、取消优先级和进程死亡清理是协议要求，不是提供方约定。
 - **shadow 副作用。** 对比两个实现可能重复写入或启动 subprocess。有状态对比使用隔离目录、一次性数据库或录制输入；生产状态绝不双写。
+- **隔离是真空不是门禁。** P0-P4 期间 Rust 实现与产品之间没有语义连接：cordis 组合零引用、无 facade、无 shadow 对照。这个真空不是检查。`scripts/verify-native-dsh-boundary.ts` 在 facade 进仓库之前把禁令写成 gate（产品树不得引用 Rust 迁移包；native/dsh 之外不得 spawn sidecar 二进制；ledger 与矩阵必须成对存在），CI 的 `native/dsh` conformance lane 保证 cargo test 先绿。facade 包一旦进入仓库，必须同时登记进该 gate 的白名单并提供自己的 conformance suite；在那之前，任何 `@deepseek-ai/dsh-*-rust` 包名出现在 cordis 组合中即失败。
 - **快照锁死 TypeScript 意外行为。** fixture 可能编码 Node 特有的时序或文案。只有公开文本和明确顺序保持兼容；易变字段沿用现有规范化策略。
 - **回合切换语义漂移。** TypeScript 已经拥有 `turn/pending`、pending repair 与 shutdown flush 栅栏。之后任何 drain 或 repair 变化都必须在同一变更中更新 P0 fixture 与 P5 阶段用例；prose 不是第二个语义所有者。
 - **会话 split brain。** supervisor 或第二个 worker 可能在 ownership 已转移后继续 append。session lease 按 generation 限定，append 校验当前 owner，takeover 必须等待前一 owner 死亡或完成 release 后才能 resume。

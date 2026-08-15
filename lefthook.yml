@@ -37,6 +37,12 @@ pre-commit:
     - name: vendor manifest guard
       run: scripts/check-vendor-manifest.sh
 
+    # Tripwire: the Rust migration must stay inside native/dsh until a facade
+    # package with its own conformance suite exists. Cheap regex check; the
+    # full gate (scripts/verify-native-dsh-boundary.ts) runs in CI.
+    - name: native-dsh boundary (staged)
+      run: node_modules/.bin/tsx scripts/verify-native-dsh-boundary.ts
+
 pre-merge-commit:
   jobs:
     - name: translation pairing (staged records)
