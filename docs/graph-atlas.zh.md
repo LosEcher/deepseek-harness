@@ -12,6 +12,7 @@
 | 图 | 模式 |
 | --- | --- |
 | [模块依赖图](module-graph.md) | `generated` |
+| [Rust 迁移矩阵](rust-migration-matrix.md) | `generated` |
 | [工具 schema 目录与包映射](tool-catalog.md) | `generated` |
 | [能力 seam 与核心服务](capability-seams.md) | `hybrid generated` |
 | [dsh 共享基础组合](../apps/cli/composition.md) | `hybrid generated` |

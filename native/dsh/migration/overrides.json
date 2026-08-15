@@ -1,0 +1,135 @@
+{
+  "groupDefaults": {
+    "client": {
+      "disposition": "retain-typescript"
+    },
+    "examples": {
+      "disposition": "retain-typescript"
+    },
+    "test-support": {
+      "disposition": "retain-typescript"
+    }
+  },
+  "packages": {
+    "atomic-write": {
+      "phase": "P2",
+      "status": "prototype",
+      "targetCrate": "dsh-primitives",
+      "placement": "in_process",
+      "fixtures": [
+        "native/dsh/crates/dsh-primitives/tests/atomic_write.rs",
+        "native/dsh/crates/dsh-primitives/tests/file_lock.rs"
+      ]
+    },
+    "attachment": {
+      "disposition": "retain-typescript"
+    },
+    "attachment-local": {
+      "phase": "P2",
+      "targetCrate": "dsh-primitives"
+    },
+    "brand": {
+      "disposition": "retain-typescript"
+    },
+    "bridge-protocol": {
+      "disposition": "retain-typescript"
+    },
+    "agent-control": {
+      "disposition": "retain-typescript"
+    },
+    "agent-worker": {
+      "disposition": "retain-typescript"
+    },
+    "client-hmr": {
+      "disposition": "retain-typescript"
+    },
+    "credentials": {
+      "disposition": "retain-typescript"
+    },
+    "credentials-local": {
+      "phase": "P2",
+      "targetCrate": "dsh-primitives"
+    },
+    "fs": {
+      "disposition": "retain-typescript"
+    },
+    "fs-local": {
+      "phase": "P3",
+      "targetCrate": "dsh-sidecar"
+    },
+    "fs-observation-policy": {
+      "disposition": "retain-typescript"
+    },
+    "fs-sandbox": {
+      "phase": "P3",
+      "targetCrate": "dsh-sidecar"
+    },
+    "home-paths": {
+      "disposition": "retain-typescript"
+    },
+    "sandbox": {
+      "disposition": "retain-typescript"
+    },
+    "sandbox-local": {
+      "phase": "P3",
+      "targetCrate": "dsh-sidecar"
+    },
+    "sandbox-policy": {
+      "disposition": "retain-typescript"
+    },
+    "sandbox-windows-acl": {
+      "phase": "P3",
+      "targetCrate": "dsh-sidecar"
+    },
+    "session-persistence": {
+      "disposition": "retain-typescript"
+    },
+    "session-persistence-jsonl": {
+      "phase": "P2",
+      "status": "prototype",
+      "targetCrate": "dsh-session-store",
+      "placement": "in_process",
+      "fixtures": [
+        "native/dsh/crates/dsh-session-store/tests/jsonl.rs",
+        "native/dsh/crates/dsh-session-store/tests/lease.rs"
+      ]
+    },
+    "session-persistence-sqlite": {
+      "phase": "P2",
+      "targetCrate": "dsh-session-store"
+    },
+    "settings": {
+      "disposition": "retain-typescript"
+    },
+    "settings-file": {
+      "phase": "P2",
+      "targetCrate": "dsh-primitives"
+    },
+    "spill": {
+      "disposition": "retain-typescript"
+    },
+    "spill-local": {
+      "phase": "P2",
+      "targetCrate": "dsh-primitives"
+    },
+    "subprocess": {
+      "disposition": "retain-typescript"
+    },
+    "subprocess-local": {
+      "phase": "P3",
+      "targetCrate": "dsh-sidecar"
+    },
+    "typert-generator": {
+      "disposition": "retain-typescript"
+    },
+    "typert-loader": {
+      "disposition": "retain-typescript"
+    },
+    "typert-registry": {
+      "disposition": "retain-typescript"
+    },
+    "workflow-worker-thread": {
+      "disposition": "retain-typescript"
+    }
+  }
+}

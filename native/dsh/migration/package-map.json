@@ -1,0 +1,6404 @@
+{
+  "formatVersion": 1,
+  "packages": [
+    {
+      "package": "invariants",
+      "name": "@deepseek-ai/dsh-invariants",
+      "group": "runtime-diagnostics",
+      "rel": "packages/runtime-diagnostics/invariants",
+      "deps": [],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "atomic-write",
+      "name": "@deepseek-ai/dsh-atomic-write",
+      "group": "util",
+      "rel": "packages/util/atomic-write",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": "dsh-primitives",
+      "phase": "P2",
+      "status": "prototype",
+      "fixtures": [
+        "native/dsh/crates/dsh-primitives/tests/atomic_write.rs",
+        "native/dsh/crates/dsh-primitives/tests/file_lock.rs"
+      ],
+      "placement": "in_process",
+      "removeAfter": null
+    },
+    {
+      "package": "brand",
+      "name": "@deepseek-ai/dsh-brand",
+      "group": "util",
+      "rel": "packages/util/brand",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "bridge-protocol",
+      "name": "@deepseek-ai/dsh-bridge-protocol",
+      "group": "util",
+      "rel": "packages/util/bridge-protocol",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "home-paths",
+      "name": "@deepseek-ai/dsh-home-paths",
+      "group": "util",
+      "rel": "packages/util/home-paths",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "launch-environment",
+      "name": "@deepseek-ai/dsh-launch-environment",
+      "group": "util",
+      "rel": "packages/util/launch-environment",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "native-command",
+      "name": "@deepseek-ai/dsh-native-command",
+      "group": "util",
+      "rel": "packages/util/native-command",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "output-retention",
+      "name": "@deepseek-ai/dsh-output-retention",
+      "group": "util",
+      "rel": "packages/util/output-retention",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "timeout",
+      "name": "@deepseek-ai/dsh-timeout",
+      "group": "util",
+      "rel": "packages/util/timeout",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "scope",
+      "name": "@deepseek-ai/dsh-scope",
+      "group": "core",
+      "rel": "packages/core/scope",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "typert-generator",
+      "name": "@deepseek-ai/dsh-typert-generator",
+      "group": "typert",
+      "rel": "packages/typert/generator",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "typert-protocol",
+      "name": "@deepseek-ai/dsh-typert-protocol",
+      "group": "typert",
+      "rel": "packages/typert/protocol",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "typert-registry",
+      "name": "@deepseek-ai/dsh-typert-registry",
+      "group": "typert",
+      "rel": "packages/typert/registry",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subprocess",
+      "name": "@deepseek-ai/dsh-subprocess",
+      "group": "subprocess",
+      "rel": "packages/subprocess/subprocess",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sandbox-windows-acl",
+      "name": "@deepseek-ai/dsh-sandbox-windows-acl",
+      "group": "sandbox",
+      "rel": "packages/sandbox/sandbox-windows-acl",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": "dsh-sidecar",
+      "phase": "P3",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "e2b",
+      "name": "@deepseek-ai/dsh-e2b",
+      "group": "e2b",
+      "rel": "packages/e2b/e2b",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "storage",
+      "name": "@deepseek-ai/dsh-storage",
+      "group": "storage",
+      "rel": "packages/storage/storage",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "cmdline",
+      "name": "@deepseek-ai/dsh-cmdline",
+      "group": "boot",
+      "rel": "packages/boot/cmdline",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-directory-picker",
+      "name": "@deepseek-ai/dsh-host-directory-picker",
+      "group": "host",
+      "rel": "packages/host/directory-picker",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-directory-picker-browse",
+      "name": "@deepseek-ai/dsh-host-directory-picker-browse",
+      "group": "host",
+      "rel": "packages/host/directory-picker-browse",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-directory-picker-native",
+      "name": "@deepseek-ai/dsh-host-directory-picker-native",
+      "group": "host",
+      "rel": "packages/host/directory-picker-native",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-webserver",
+      "name": "@deepseek-ai/dsh-host-webserver",
+      "group": "host",
+      "rel": "packages/host/webserver",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-modules",
+      "name": "@deepseek-ai/dsh-client-modules",
+      "group": "client",
+      "rel": "packages/client/modules",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-schema-form",
+      "name": "@deepseek-ai/dsh-client-schema-form",
+      "group": "client",
+      "rel": "packages/client/schema-form",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-attachment",
+      "name": "@deepseek-ai/dsh-client-ui-attachment",
+      "group": "client",
+      "rel": "packages/client/ui-attachment",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-primitives",
+      "name": "@deepseek-ai/dsh-client-ui-primitives",
+      "group": "client",
+      "rel": "packages/client/ui-primitives",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-slots",
+      "name": "@deepseek-ai/dsh-client-ui-slots",
+      "group": "client",
+      "rel": "packages/client/ui-slots",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-web",
+      "name": "@deepseek-ai/dsh-client-web",
+      "group": "client",
+      "rel": "packages/client/web",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-web-react",
+      "name": "@deepseek-ai/dsh-client-web-react",
+      "group": "client",
+      "rel": "packages/client/web-react",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sdk-jsonrpc-demo",
+      "name": "@deepseek-ai/dsh-sdk-jsonrpc-demo",
+      "group": "examples",
+      "rel": "packages/examples/jsonrpc-demo",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm-mock-server",
+      "name": "@deepseek-ai/dsh-llm-mock-server",
+      "group": "test-support",
+      "rel": "packages/test-support/llm-mock-server",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "base",
+      "name": "@deepseek-ai/dsh-base",
+      "group": "bundle",
+      "rel": "packages/bundle/base",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "code-runtime",
+      "name": "@deepseek-ai/dsh-code-runtime",
+      "group": "code-runtime",
+      "rel": "packages/code-runtime/code-runtime",
+      "deps": [
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "attachment",
+      "name": "@deepseek-ai/dsh-attachment",
+      "group": "attachment",
+      "rel": "packages/attachment/attachment",
+      "deps": [
+        "brand",
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "typert-loader",
+      "name": "@deepseek-ai/dsh-typert-loader",
+      "group": "typert",
+      "rel": "packages/typert/loader",
+      "deps": [
+        "invariants",
+        "typert-registry"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subprocess-local",
+      "name": "@deepseek-ai/dsh-subprocess-local",
+      "group": "subprocess",
+      "rel": "packages/subprocess/subprocess-local",
+      "deps": [
+        "invariants",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/acp-agent/tests/fs-search.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-sidecar",
+      "phase": "P3",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subprocess-e2b",
+      "name": "@deepseek-ai/dsh-subprocess-e2b",
+      "group": "e2b",
+      "rel": "packages/e2b/subprocess-e2b",
+      "deps": [
+        "e2b",
+        "invariants",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "settings",
+      "name": "@deepseek-ai/dsh-settings",
+      "group": "settings",
+      "rel": "packages/settings/settings",
+      "deps": [
+        "brand",
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "credentials",
+      "name": "@deepseek-ai/dsh-credentials",
+      "group": "credentials",
+      "rel": "packages/credentials/credentials",
+      "deps": [
+        "brand",
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "storage-domain",
+      "name": "@deepseek-ai/dsh-storage-domain",
+      "group": "storage",
+      "rel": "packages/storage/storage-domain",
+      "deps": [
+        "invariants",
+        "storage"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "storage-json",
+      "name": "@deepseek-ai/dsh-storage-json",
+      "group": "storage",
+      "rel": "packages/storage/storage-json",
+      "deps": [
+        "invariants",
+        "storage"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "storage-sqlite",
+      "name": "@deepseek-ai/dsh-storage-sqlite",
+      "group": "storage",
+      "rel": "packages/storage/storage-sqlite",
+      "deps": [
+        "invariants",
+        "storage"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-frontend-static",
+      "name": "@deepseek-ai/dsh-host-frontend-static",
+      "group": "host",
+      "rel": "packages/host/frontend-static",
+      "deps": [
+        "host-webserver",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-plugin-inventory",
+      "name": "@deepseek-ai/dsh-host-plugin-inventory",
+      "group": "host",
+      "rel": "packages/host/plugin-inventory",
+      "deps": [
+        "brand",
+        "invariants",
+        "typert-protocol"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-connection",
+      "name": "@deepseek-ai/dsh-client-connection",
+      "group": "client",
+      "rel": "packages/client/connection",
+      "deps": [
+        "host-webserver",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-hmr",
+      "name": "@deepseek-ai/dsh-client-hmr",
+      "group": "client",
+      "rel": "packages/client/hmr",
+      "deps": [
+        "client-modules",
+        "host-webserver",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "anonymous-user-id",
+      "name": "@deepseek-ai/dsh-anonymous-user-id",
+      "group": "identity",
+      "rel": "packages/identity/anonymous-user-id",
+      "deps": [
+        "brand",
+        "home-paths",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "attachment-local",
+      "name": "@deepseek-ai/dsh-attachment-local",
+      "group": "attachment",
+      "rel": "packages/attachment/attachment-local",
+      "deps": [
+        "attachment",
+        "home-paths",
+        "invariants"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/image-text-route.cordis.snapshot.yml",
+        "examples/acp-agent/image-text-route.cordis.yml",
+        "examples/acp-agent/image.cordis.snapshot.yml",
+        "examples/acp-agent/image.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-primitives",
+      "phase": "P2",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm",
+      "name": "@deepseek-ai/dsh-llm",
+      "group": "llm",
+      "rel": "packages/llm/llm",
+      "deps": [
+        "attachment",
+        "brand",
+        "invariants",
+        "timeout"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "settings-file",
+      "name": "@deepseek-ai/dsh-settings-file",
+      "group": "settings",
+      "rel": "packages/settings/settings-file",
+      "deps": [
+        "atomic-write",
+        "home-paths",
+        "invariants",
+        "settings"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-primitives",
+      "phase": "P2",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "credentials-local",
+      "name": "@deepseek-ai/dsh-credentials-local",
+      "group": "credentials",
+      "rel": "packages/credentials/credentials-local",
+      "deps": [
+        "atomic-write",
+        "credentials",
+        "home-paths",
+        "invariants",
+        "launch-environment"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-primitives",
+      "phase": "P2",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "api-gateway",
+      "name": "@deepseek-ai/dsh-api-gateway",
+      "group": "api",
+      "rel": "packages/api/gateway",
+      "deps": [
+        "client-connection",
+        "invariants",
+        "typert-registry"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm-deepseek",
+      "name": "@deepseek-ai/dsh-llm-deepseek",
+      "group": "llm",
+      "rel": "packages/llm/llm-deepseek",
+      "deps": [
+        "anonymous-user-id",
+        "credentials",
+        "invariants",
+        "launch-environment",
+        "llm",
+        "settings",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/agent-instructions.cordis.snapshot.yml",
+        "examples/acp-agent/background-job-admission.cordis.snapshot.yml",
+        "examples/acp-agent/both-mode.cordis.snapshot.yml",
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode.cordis.snapshot.yml",
+        "examples/acp-agent/cordis.snapshot.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/depth-two.cordis.snapshot.yml",
+        "examples/acp-agent/fs.cordis.snapshot.yml",
+        "examples/acp-agent/image-text-route.cordis.snapshot.yml",
+        "examples/acp-agent/image.cordis.snapshot.yml",
+        "examples/acp-agent/partial-landlock.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-both.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.snapshot.yml",
+        "examples/acp-agent/pty.cordis.snapshot.yml",
+        "examples/acp-agent/retry.cordis.snapshot.yml",
+        "examples/acp-agent/retry.cordis.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.snapshot.yml",
+        "examples/acp-agent/session-title.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-continuable-inheritance.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-durability-failure.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.yml",
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml",
+        "examples/acp-agent/web.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/compaction.cordis.snapshot.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/credentials.cordis.snapshot.yml",
+        "examples/headless-agent/goal.cordis.snapshot.yml",
+        "examples/headless-agent/pty.cordis.snapshot.yml",
+        "examples/headless-agent/ralph.cordis.snapshot.yml",
+        "examples/headless-agent/retry.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-settlement.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/cli.cordis.yml",
+        "examples/jsonrpc-agent/cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "examples/jsonrpc-agent/minimal.snapshot.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm-pi-ai",
+      "name": "@deepseek-ai/dsh-llm-pi-ai",
+      "group": "llm",
+      "rel": "packages/llm/llm-pi-ai",
+      "deps": [
+        "attachment",
+        "credentials",
+        "invariants",
+        "launch-environment",
+        "llm",
+        "settings",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session",
+      "name": "@deepseek-ai/dsh-session",
+      "group": "core",
+      "rel": "packages/core/session",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "scope",
+        "typert-protocol"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "system-prompt",
+      "name": "@deepseek-ai/dsh-system-prompt",
+      "group": "core",
+      "rel": "packages/core/system-prompt",
+      "deps": [
+        "invariants",
+        "llm",
+        "scope"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "skill",
+      "name": "@deepseek-ai/dsh-skill",
+      "group": "skill",
+      "rel": "packages/skill/skill",
+      "deps": [
+        "invariants",
+        "llm",
+        "scope"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web",
+      "name": "@deepseek-ai/dsh-web",
+      "group": "web",
+      "rel": "packages/web/web",
+      "deps": [
+        "invariants",
+        "llm"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/web.cordis.snapshot.yml",
+        "examples/acp-agent/web.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "lsp",
+      "name": "@deepseek-ai/dsh-lsp",
+      "group": "lsp",
+      "rel": "packages/lsp/lsp",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/lsp.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent",
+      "name": "@deepseek-ai/dsh-agent",
+      "group": "core",
+      "rel": "packages/core/agent",
+      "deps": [
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "system-prompt",
+        "typert-protocol"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-control",
+      "name": "@deepseek-ai/dsh-agent-control",
+      "group": "core",
+      "rel": "packages/core/agent-control",
+      "deps": [
+        "brand",
+        "bridge-protocol",
+        "invariants",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sandbox",
+      "name": "@deepseek-ai/dsh-sandbox",
+      "group": "sandbox",
+      "rel": "packages/sandbox/sandbox",
+      "deps": [
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "skill-badge",
+      "name": "@deepseek-ai/dsh-skill-badge",
+      "group": "skill",
+      "rel": "packages/skill/skill-badge",
+      "deps": [
+        "invariants",
+        "skill"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web-fetch-http",
+      "name": "@deepseek-ai/dsh-web-fetch-http",
+      "group": "web",
+      "rel": "packages/web/web-fetch-http",
+      "deps": [
+        "invariants",
+        "timeout",
+        "web"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/web.cordis.snapshot.yml",
+        "examples/acp-agent/web.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web-search-exa",
+      "name": "@deepseek-ai/dsh-web-search-exa",
+      "group": "web",
+      "rel": "packages/web/web-search-exa",
+      "deps": [
+        "invariants",
+        "launch-environment",
+        "web"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web-search-perplexity",
+      "name": "@deepseek-ai/dsh-web-search-perplexity",
+      "group": "web",
+      "rel": "packages/web/web-search-perplexity",
+      "deps": [
+        "invariants",
+        "launch-environment",
+        "web"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "spill",
+      "name": "@deepseek-ai/dsh-spill",
+      "group": "spill",
+      "rel": "packages/spill/spill",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-persistence",
+      "name": "@deepseek-ai/dsh-session-persistence",
+      "group": "session",
+      "rel": "packages/session/session-persistence",
+      "deps": [
+        "brand",
+        "invariants",
+        "session",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-projection",
+      "name": "@deepseek-ai/dsh-session-projection",
+      "group": "session",
+      "rel": "packages/session/session-projection",
+      "deps": [
+        "invariants",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-diagnostic.cordis.snapshot.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "app-boot",
+      "name": "@deepseek-ai/dsh-app-boot",
+      "group": "boot",
+      "rel": "packages/boot/app-boot",
+      "deps": [
+        "home-paths",
+        "invariants",
+        "launch-environment",
+        "system-prompt"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "acp-snapshot",
+      "name": "@deepseek-ai/dsh-acp-snapshot",
+      "group": "test-support",
+      "rel": "packages/test-support/acp-snapshot",
+      "deps": [
+        "invariants",
+        "session"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "persona",
+      "name": "@deepseek-ai/dsh-persona",
+      "group": "preset",
+      "rel": "packages/preset/persona",
+      "deps": [
+        "invariants",
+        "system-prompt"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "code-runtime-worker-thread",
+      "name": "@deepseek-ai/dsh-code-runtime-worker-thread",
+      "group": "code-runtime",
+      "rel": "packages/code-runtime/code-runtime-worker-thread",
+      "deps": [
+        "code-runtime",
+        "invariants",
+        "session",
+        "timeout"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/advanced.cordis.yml",
+        "examples/acp-agent/both-mode.cordis.snapshot.yml",
+        "examples/acp-agent/both-mode.cordis.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.yml",
+        "examples/acp-agent/code-mode.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode.cordis.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.yml",
+        "packages/bundle/headless/cordis.patch.yml",
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/headless/cordis.patch.yml",
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm-retry",
+      "name": "@deepseek-ai/dsh-llm-retry",
+      "group": "llm",
+      "rel": "packages/llm/llm-retry",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "timeout"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-default-model",
+      "name": "@deepseek-ai/dsh-agent-default-model",
+      "group": "core",
+      "rel": "packages/core/agent-default-model",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "settings"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "goal",
+      "name": "@deepseek-ai/dsh-goal",
+      "group": "goal",
+      "rel": "packages/goal/goal",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "session-projection",
+        "typert-protocol"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/headless-agent/goal.cordis.snapshot.yml",
+        "examples/headless-agent/goal.cordis.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "shell",
+      "name": "@deepseek-ai/dsh-shell",
+      "group": "shell",
+      "rel": "packages/shell/shell",
+      "deps": [
+        "invariants",
+        "sandbox",
+        "settings",
+        "subprocess"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "terminal",
+      "name": "@deepseek-ai/dsh-terminal",
+      "group": "terminal",
+      "rel": "packages/terminal/terminal",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "examples/acp-agent/pty.cordis.snapshot.yml",
+        "examples/acp-agent/pty.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/pty.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sandbox-local",
+      "name": "@deepseek-ai/dsh-sandbox-local",
+      "group": "sandbox",
+      "rel": "packages/sandbox/sandbox-local",
+      "deps": [
+        "invariants",
+        "llm",
+        "sandbox",
+        "session"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/cordis.snapshot.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/depth-two.cordis.snapshot.yml",
+        "examples/acp-agent/partial-landlock.cordis.snapshot.yml",
+        "examples/acp-agent/partial-landlock.cordis.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-continuable-inheritance.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-durability-failure.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-sidecar",
+      "phase": "P3",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sandbox-policy",
+      "name": "@deepseek-ai/dsh-sandbox-policy",
+      "group": "sandbox",
+      "rel": "packages/sandbox/sandbox-policy",
+      "deps": [
+        "agent",
+        "invariants",
+        "sandbox",
+        "session",
+        "system-prompt"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.snapshot.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/pty.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "fs",
+      "name": "@deepseek-ai/dsh-fs",
+      "group": "fs",
+      "rel": "packages/fs/fs",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "sandbox"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "jobs",
+      "name": "@deepseek-ai/dsh-jobs",
+      "group": "jobs",
+      "rel": "packages/jobs/jobs",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "workflow",
+      "name": "@deepseek-ai/dsh-workflow",
+      "group": "workflow",
+      "rel": "packages/workflow/workflow",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web-search-deepseek",
+      "name": "@deepseek-ai/dsh-web-search-deepseek",
+      "group": "web",
+      "rel": "packages/web/web-search-deepseek",
+      "deps": [
+        "agent",
+        "credentials",
+        "invariants",
+        "launch-environment",
+        "session",
+        "settings",
+        "web"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "spill-local",
+      "name": "@deepseek-ai/dsh-spill-local",
+      "group": "spill",
+      "rel": "packages/spill/spill-local",
+      "deps": [
+        "invariants",
+        "spill"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/fs.cordis.snapshot.yml",
+        "examples/acp-agent/fs.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-primitives",
+      "phase": "P2",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-persistence-jsonl",
+      "name": "@deepseek-ai/dsh-session-persistence-jsonl",
+      "group": "session",
+      "rel": "packages/session/session-persistence-jsonl",
+      "deps": [
+        "invariants",
+        "session",
+        "session-persistence"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-diagnostic.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/cli.cordis.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/headless-agent/workspace-context-resume.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-session-store",
+      "phase": "P2",
+      "status": "prototype",
+      "fixtures": [
+        "native/dsh/crates/dsh-session-store/tests/jsonl.rs",
+        "native/dsh/crates/dsh-session-store/tests/lease.rs"
+      ],
+      "placement": "in_process",
+      "removeAfter": null
+    },
+    {
+      "package": "session-persistence-sqlite",
+      "name": "@deepseek-ai/dsh-session-persistence-sqlite",
+      "group": "session",
+      "rel": "packages/session/session-persistence-sqlite",
+      "deps": [
+        "invariants",
+        "session",
+        "session-persistence"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": "dsh-session-store",
+      "phase": "P2",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-projection-cache",
+      "name": "@deepseek-ai/dsh-session-projection-cache",
+      "group": "session",
+      "rel": "packages/session/session-projection-cache",
+      "deps": [
+        "invariants",
+        "session",
+        "session-persistence",
+        "session-projection",
+        "storage-domain"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-stats",
+      "name": "@deepseek-ai/dsh-session-stats",
+      "group": "session",
+      "rel": "packages/session/session-stats",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "session-projection"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-telemetry",
+      "name": "@deepseek-ai/dsh-session-telemetry",
+      "group": "session",
+      "rel": "packages/session/session-telemetry",
+      "deps": [
+        "agent",
+        "invariants",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-title",
+      "name": "@deepseek-ai/dsh-session-title",
+      "group": "session",
+      "rel": "packages/session/session-title",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "session-projection"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "workspace",
+      "name": "@deepseek-ai/dsh-workspace",
+      "group": "workspace",
+      "rel": "packages/workspace/workspace",
+      "deps": [
+        "brand",
+        "invariants",
+        "session",
+        "session-persistence",
+        "storage",
+        "storage-domain"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "commands",
+      "name": "@deepseek-ai/dsh-commands",
+      "group": "interaction",
+      "rel": "packages/interaction/commands",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "scope",
+        "session",
+        "typert-protocol"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "user-approval",
+      "name": "@deepseek-ai/dsh-user-approval",
+      "group": "interaction",
+      "rel": "packages/interaction/user-approval",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "system-prompt"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "user-questions",
+      "name": "@deepseek-ai/dsh-user-questions",
+      "group": "interaction",
+      "rel": "packages/interaction/user-questions",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/child-question.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "loader-smoke",
+      "name": "@deepseek-ai/dsh-loader-smoke",
+      "group": "test-support",
+      "rel": "packages/test-support/loader-smoke",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-presets",
+      "name": "@deepseek-ai/dsh-agent-presets",
+      "group": "preset",
+      "rel": "packages/preset/agent-presets",
+      "deps": [
+        "agent",
+        "atomic-write",
+        "home-paths",
+        "invariants",
+        "scope",
+        "session",
+        "settings",
+        "system-prompt"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "time-context",
+      "name": "@deepseek-ai/dsh-time-context",
+      "group": "context",
+      "rel": "packages/context/time-context",
+      "deps": [
+        "agent",
+        "invariants",
+        "session"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/web-schedule/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "message-feedback",
+      "name": "@deepseek-ai/dsh-message-feedback",
+      "group": "feedback",
+      "rel": "packages/feedback/message-feedback",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "storage-domain",
+        "typert-protocol"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tools",
+      "name": "@deepseek-ai/dsh-tools",
+      "group": "core",
+      "rel": "packages/core/tools",
+      "deps": [
+        "agent",
+        "code-runtime",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "system-prompt",
+        "user-approval"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "command-goal",
+      "name": "@deepseek-ai/dsh-command-goal",
+      "group": "goal",
+      "rel": "packages/goal/command-goal",
+      "deps": [
+        "commands",
+        "goal",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "goal-round-driver",
+      "name": "@deepseek-ai/dsh-goal-round-driver",
+      "group": "goal",
+      "rel": "packages/goal/goal-round-driver",
+      "deps": [
+        "agent",
+        "goal",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "bash-local",
+      "name": "@deepseek-ai/dsh-bash-local",
+      "group": "shell",
+      "rel": "packages/shell/bash-local",
+      "deps": [
+        "invariants",
+        "settings",
+        "shell",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fs-search.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "pwsh-local",
+      "name": "@deepseek-ai/dsh-pwsh-local",
+      "group": "shell",
+      "rel": "packages/shell/pwsh-local",
+      "deps": [
+        "invariants",
+        "settings",
+        "shell",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "terminal-bash",
+      "name": "@deepseek-ai/dsh-terminal-bash",
+      "group": "terminal",
+      "rel": "packages/terminal/terminal-bash",
+      "deps": [
+        "agent",
+        "invariants",
+        "sandbox",
+        "sandbox-policy",
+        "session",
+        "subprocess",
+        "terminal"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "examples/acp-agent/pty.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "fs-e2b",
+      "name": "@deepseek-ai/dsh-fs-e2b",
+      "group": "e2b",
+      "rel": "packages/e2b/fs-e2b",
+      "deps": [
+        "e2b",
+        "fs",
+        "invariants"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "fs-local",
+      "name": "@deepseek-ai/dsh-fs-local",
+      "group": "fs",
+      "rel": "packages/fs/fs-local",
+      "deps": [
+        "fs",
+        "invariants"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/workspace-context-resume.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": "dsh-sidecar",
+      "phase": "P3",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "fs-observation-policy",
+      "name": "@deepseek-ai/dsh-fs-observation-policy",
+      "group": "fs",
+      "rel": "packages/fs/fs-observation-policy",
+      "deps": [
+        "fs",
+        "invariants"
+      ],
+      "roles": [
+        "companion"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "skill-filesystem",
+      "name": "@deepseek-ai/dsh-skill-filesystem",
+      "group": "skill",
+      "rel": "packages/skill/skill-filesystem",
+      "deps": [
+        "fs",
+        "home-paths",
+        "invariants",
+        "skill"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "compaction",
+      "name": "@deepseek-ai/dsh-compaction",
+      "group": "compaction",
+      "rel": "packages/compaction/compaction",
+      "deps": [
+        "brand",
+        "commands",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "jobs-local",
+      "name": "@deepseek-ai/dsh-jobs-local",
+      "group": "jobs",
+      "rel": "packages/jobs/jobs-local",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "scope",
+        "timeout"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "hook-protocol",
+      "name": "@deepseek-ai/dsh-hook-protocol",
+      "group": "hooks",
+      "rel": "packages/hooks/hook-protocol",
+      "deps": [
+        "invariants",
+        "session",
+        "shell"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-title-llm",
+      "name": "@deepseek-ai/dsh-session-title-llm",
+      "group": "session",
+      "rel": "packages/session/session-title-llm",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "session-title",
+        "timeout"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-query",
+      "name": "@deepseek-ai/dsh-session-query",
+      "group": "session-query",
+      "rel": "packages/session-query/session-query",
+      "deps": [
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "session-title"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "acp",
+      "name": "@deepseek-ai/dsh-acp",
+      "group": "acp",
+      "rel": "packages/acp/acp",
+      "deps": [
+        "agent",
+        "invariants",
+        "session",
+        "user-approval"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "permission-presets",
+      "name": "@deepseek-ai/dsh-permission-presets",
+      "group": "interaction",
+      "rel": "packages/interaction/permission-presets",
+      "deps": [
+        "commands",
+        "invariants",
+        "sandbox",
+        "sandbox-policy",
+        "session",
+        "session-projection",
+        "settings",
+        "shell",
+        "user-approval"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "headless",
+      "name": "@deepseek-ai/dsh-headless",
+      "group": "bundle",
+      "rel": "packages/bundle/headless",
+      "deps": [
+        "agent",
+        "agent-default-model",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "packages/bundle/headless/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/headless/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tmux-context",
+      "name": "@deepseek-ai/dsh-tmux-context",
+      "group": "context",
+      "rel": "packages/context/tmux-context",
+      "deps": [
+        "agent",
+        "invariants",
+        "session",
+        "shell"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "command-feedback",
+      "name": "@deepseek-ai/dsh-command-feedback",
+      "group": "feedback",
+      "rel": "packages/feedback/command-feedback",
+      "deps": [
+        "anonymous-user-id",
+        "commands",
+        "invariants",
+        "session",
+        "session-telemetry"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "lsp-stdio",
+      "name": "@deepseek-ai/dsh-lsp-stdio",
+      "group": "lsp",
+      "rel": "packages/lsp/lsp-stdio",
+      "deps": [
+        "brand",
+        "fs",
+        "invariants",
+        "llm",
+        "lsp",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/lsp.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/tests/fixtures/e2b/e2b/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "token-meter",
+      "name": "@deepseek-ai/dsh-token-meter",
+      "group": "llm",
+      "rel": "packages/llm/token-meter",
+      "deps": [
+        "compaction",
+        "invariants",
+        "llm",
+        "session",
+        "session-projection"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-loop",
+      "name": "@deepseek-ai/dsh-agent-loop",
+      "group": "core",
+      "rel": "packages/core/agent-loop",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "session-persistence",
+        "settings",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-tool-presentation",
+      "name": "@deepseek-ai/dsh-agent-tool-presentation",
+      "group": "core",
+      "rel": "packages/core/agent-tool-presentation",
+      "deps": [
+        "invariants",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-goal",
+      "name": "@deepseek-ai/dsh-tool-goal",
+      "group": "goal",
+      "rel": "packages/goal/tool-goal",
+      "deps": [
+        "agent",
+        "goal",
+        "invariants",
+        "llm",
+        "session",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/headless-agent/goal.cordis.snapshot.yml",
+        "examples/headless-agent/goal.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "bash-sandbox",
+      "name": "@deepseek-ai/dsh-bash-sandbox",
+      "group": "shell",
+      "rel": "packages/shell/bash-sandbox",
+      "deps": [
+        "bash-local",
+        "invariants",
+        "sandbox",
+        "sandbox-policy",
+        "shell"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "pwsh-sandbox",
+      "name": "@deepseek-ai/dsh-pwsh-sandbox",
+      "group": "shell",
+      "rel": "packages/shell/pwsh-sandbox",
+      "deps": [
+        "invariants",
+        "pwsh-local",
+        "sandbox",
+        "sandbox-policy",
+        "shell"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "shell-env",
+      "name": "@deepseek-ai/dsh-shell-env",
+      "group": "shell",
+      "rel": "packages/shell/shell-env",
+      "deps": [
+        "home-paths",
+        "invariants",
+        "session-persistence",
+        "shell",
+        "tools"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-bash-persistent",
+      "name": "@deepseek-ai/dsh-tool-bash-persistent",
+      "group": "shell",
+      "rel": "packages/shell/tool-bash-persistent",
+      "deps": [
+        "agent",
+        "invariants",
+        "terminal",
+        "timeout",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-terminal",
+      "name": "@deepseek-ai/dsh-tool-terminal",
+      "group": "terminal",
+      "rel": "packages/terminal/tool-terminal",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "llm",
+        "output-retention",
+        "system-prompt",
+        "terminal",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/pty.cordis.snapshot.yml",
+        "examples/acp-agent/pty.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml",
+        "examples/headless-agent/pty.cordis.snapshot.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "fs-sandbox",
+      "name": "@deepseek-ai/dsh-fs-sandbox",
+      "group": "fs",
+      "rel": "packages/fs/fs-sandbox",
+      "deps": [
+        "fs",
+        "fs-local",
+        "invariants",
+        "sandbox",
+        "sandbox-policy"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": "dsh-sidecar",
+      "phase": "P3",
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-fs",
+      "name": "@deepseek-ai/dsh-tool-fs",
+      "group": "fs",
+      "rel": "packages/fs/tool-fs",
+      "deps": [
+        "attachment",
+        "fs",
+        "invariants",
+        "llm",
+        "sandbox",
+        "sandbox-policy",
+        "session",
+        "system-prompt",
+        "tools",
+        "user-approval"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-fs-search",
+      "name": "@deepseek-ai/dsh-tool-fs-search",
+      "group": "fs",
+      "rel": "packages/fs/tool-fs-search",
+      "deps": [
+        "invariants",
+        "llm",
+        "output-retention",
+        "session",
+        "spill",
+        "subprocess",
+        "system-prompt",
+        "timeout",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/tests/fs-search.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-str-replace-editor",
+      "name": "@deepseek-ai/dsh-tool-str-replace-editor",
+      "group": "fs",
+      "rel": "packages/fs/tool-str-replace-editor",
+      "deps": [
+        "fs",
+        "invariants",
+        "sandbox",
+        "sandbox-policy",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/minimal/agent.cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-skill",
+      "name": "@deepseek-ai/dsh-tool-skill",
+      "group": "skill",
+      "rel": "packages/skill/tool-skill",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "skill",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "command-compact",
+      "name": "@deepseek-ai/dsh-command-compact",
+      "group": "compaction",
+      "rel": "packages/compaction/command-compact",
+      "deps": [
+        "commands",
+        "compaction",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent",
+      "name": "@deepseek-ai/dsh-subagent",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent",
+      "deps": [
+        "agent",
+        "agent-presets",
+        "brand",
+        "invariants",
+        "jobs",
+        "llm",
+        "sandbox",
+        "sandbox-policy",
+        "scope",
+        "session",
+        "session-persistence",
+        "session-projection",
+        "session-projection-cache",
+        "tools",
+        "user-approval"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-diagnostic.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-jobs",
+      "name": "@deepseek-ai/dsh-tool-jobs",
+      "group": "jobs",
+      "rel": "packages/jobs/tool-jobs",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "llm",
+        "output-retention",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-workflow",
+      "name": "@deepseek-ai/dsh-tool-workflow",
+      "group": "workflow",
+      "rel": "packages/workflow/tool-workflow",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session",
+        "system-prompt",
+        "tools",
+        "workflow"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-web",
+      "name": "@deepseek-ai/dsh-tool-web",
+      "group": "web",
+      "rel": "packages/web/tool-web",
+      "deps": [
+        "invariants",
+        "llm",
+        "system-prompt",
+        "tools",
+        "web"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/web.cordis.snapshot.yml",
+        "examples/acp-agent/web.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "spill-policy",
+      "name": "@deepseek-ai/dsh-spill-policy",
+      "group": "spill",
+      "rel": "packages/spill/spill-policy",
+      "deps": [
+        "invariants",
+        "llm",
+        "output-retention",
+        "session",
+        "spill",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/fs.cordis.snapshot.yml",
+        "examples/acp-agent/fs.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-todo",
+      "name": "@deepseek-ai/dsh-tool-todo",
+      "group": "todo",
+      "rel": "packages/todo/tool-todo",
+      "deps": [
+        "agent",
+        "invariants",
+        "session",
+        "session-projection",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "plan-mode",
+      "name": "@deepseek-ai/dsh-plan-mode",
+      "group": "plan",
+      "rel": "packages/plan/plan-mode",
+      "deps": [
+        "agent",
+        "commands",
+        "invariants",
+        "llm",
+        "session",
+        "session-projection",
+        "system-prompt",
+        "tools",
+        "user-questions"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "hooks-codex",
+      "name": "@deepseek-ai/dsh-hooks-codex",
+      "group": "hooks",
+      "rel": "packages/hooks/hooks-codex",
+      "deps": [
+        "agent",
+        "hook-protocol",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-checkpoint-policy",
+      "name": "@deepseek-ai/dsh-session-checkpoint-policy",
+      "group": "session",
+      "rel": "packages/session/session-checkpoint-policy",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-telemetry-otel",
+      "name": "@deepseek-ai/dsh-session-telemetry-otel",
+      "group": "session",
+      "rel": "packages/session/session-telemetry-otel",
+      "deps": [
+        "anonymous-user-id",
+        "command-feedback",
+        "invariants",
+        "llm",
+        "session",
+        "session-telemetry"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-title-all-prompts-llm",
+      "name": "@deepseek-ai/dsh-session-title-all-prompts-llm",
+      "group": "session",
+      "rel": "packages/session/session-title-all-prompts-llm",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "session-title",
+        "session-title-llm"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-title-first-prompt-llm",
+      "name": "@deepseek-ai/dsh-session-title-first-prompt-llm",
+      "group": "session",
+      "rel": "packages/session/session-title-first-prompt-llm",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "session-title",
+        "session-title-llm"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/session-title.cordis.snapshot.yml",
+        "examples/acp-agent/session-title.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-query-sqlite",
+      "name": "@deepseek-ai/dsh-session-query-sqlite",
+      "group": "session-query",
+      "rel": "packages/session-query/session-query-sqlite",
+      "deps": [
+        "invariants",
+        "session",
+        "session-persistence",
+        "session-query"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-session-query",
+      "name": "@deepseek-ai/dsh-tool-session-query",
+      "group": "session-query",
+      "rel": "packages/session-query/tool-session-query",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "session-query",
+        "system-prompt",
+        "timeout",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/session-query.cordis.snapshot.yml",
+        "examples/acp-agent/session-query.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-ask-user",
+      "name": "@deepseek-ai/dsh-tool-ask-user",
+      "group": "interaction",
+      "rel": "packages/interaction/tool-ask-user",
+      "deps": [
+        "agent",
+        "invariants",
+        "tools",
+        "user-questions"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/child-question.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-loop-testkit",
+      "name": "@deepseek-ai/dsh-agent-loop-testkit",
+      "group": "test-support",
+      "rel": "packages/test-support/agent-loop-testkit",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "llm-replay",
+      "name": "@deepseek-ai/dsh-llm-replay",
+      "group": "test-support",
+      "rel": "packages/test-support/llm-replay",
+      "deps": [
+        "compaction",
+        "invariants",
+        "llm",
+        "session"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/agent-instructions.cordis.snapshot.yml",
+        "examples/acp-agent/background-job-admission.cordis.snapshot.yml",
+        "examples/acp-agent/both-mode.cordis.snapshot.yml",
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode.cordis.snapshot.yml",
+        "examples/acp-agent/cordis.snapshot.yml",
+        "examples/acp-agent/depth-two.cordis.snapshot.yml",
+        "examples/acp-agent/fs.cordis.snapshot.yml",
+        "examples/acp-agent/image-text-route.cordis.snapshot.yml",
+        "examples/acp-agent/image.cordis.snapshot.yml",
+        "examples/acp-agent/partial-landlock.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-both.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.snapshot.yml",
+        "examples/acp-agent/pty.cordis.snapshot.yml",
+        "examples/acp-agent/retry.cordis.snapshot.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.snapshot.yml",
+        "examples/acp-agent/session-title.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-continuable-inheritance.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-durability-failure.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.snapshot.yml",
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/web.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/compaction.cordis.snapshot.yml",
+        "examples/headless-agent/goal.cordis.snapshot.yml",
+        "examples/headless-agent/pty.cordis.snapshot.yml",
+        "examples/headless-agent/ralph.cordis.snapshot.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-diagnostic.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-settlement.cordis.snapshot.yml",
+        "examples/headless-agent/workspace-context-resume.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.snapshot.yml",
+        "examples/jsonrpc-agent/minimal.snapshot.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "repeat-tool-reminder",
+      "name": "@deepseek-ai/dsh-repeat-tool-reminder",
+      "group": "guard",
+      "rel": "packages/guard/repeat-tool-reminder",
+      "deps": [
+        "agent",
+        "invariants",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-call-timeout-policy",
+      "name": "@deepseek-ai/dsh-tool-call-timeout-policy",
+      "group": "guard",
+      "rel": "packages/guard/timeout-policy",
+      "deps": [
+        "invariants",
+        "llm",
+        "timeout",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/session-query.cordis.snapshot.yml",
+        "examples/acp-agent/session-query.cordis.yml",
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/lsp.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "cordis-host-runner",
+      "name": "@deepseek-ai/dsh-cordis-host-runner",
+      "group": "extensions",
+      "rel": "packages/extensions/cordis-host-runner",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "tools",
+        "typert-protocol"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/advanced.cordis.yml",
+        "examples/acp-agent/cordis-tools.cordis.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.yml",
+        "examples/web-cordis/cordis.yml",
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-instructions",
+      "name": "@deepseek-ai/dsh-agent-instructions",
+      "group": "context",
+      "rel": "packages/context/agent-instructions",
+      "deps": [
+        "agent",
+        "fs",
+        "home-paths",
+        "invariants",
+        "llm",
+        "session",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-reference",
+      "name": "@deepseek-ai/dsh-session-reference",
+      "group": "context",
+      "rel": "packages/context/session-reference",
+      "deps": [
+        "agent",
+        "compaction",
+        "invariants",
+        "llm",
+        "output-retention",
+        "session",
+        "session-query"
+      ],
+      "roles": [
+        "consumer",
+        "definition"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-lsp",
+      "name": "@deepseek-ai/dsh-tool-lsp",
+      "group": "lsp",
+      "rel": "packages/lsp/tool-lsp",
+      "deps": [
+        "invariants",
+        "llm",
+        "lsp",
+        "system-prompt",
+        "timeout",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/lsp.cordis.snapshot.yml",
+        "examples/acp-agent/tests/lsp.cordis.yml",
+        "examples/headless-agent/e2b.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "mcp-client",
+      "name": "@deepseek-ai/dsh-mcp-client",
+      "group": "mcp",
+      "rel": "packages/mcp/mcp-client",
+      "deps": [
+        "invariants",
+        "llm",
+        "subprocess",
+        "timeout",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/mcp-memory/engram.cordis.yml",
+        "examples/mcp-memory/mcp-reference-memory.cordis.yml",
+        "examples/mcp-memory/memorix.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "schedule",
+      "name": "@deepseek-ai/dsh-schedule",
+      "group": "schedule",
+      "rel": "packages/schedule/schedule",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/web-schedule/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-worker",
+      "name": "@deepseek-ai/dsh-agent-worker",
+      "group": "core",
+      "rel": "packages/core/agent-worker",
+      "deps": [
+        "agent",
+        "agent-control",
+        "agent-loop",
+        "bridge-protocol",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "session-persistence-jsonl",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-bash",
+      "name": "@deepseek-ai/dsh-tool-bash",
+      "group": "shell",
+      "rel": "packages/shell/tool-bash",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "llm",
+        "sandbox",
+        "sandbox-policy",
+        "shell",
+        "shell-env",
+        "system-prompt",
+        "tools",
+        "user-approval"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-pwsh",
+      "name": "@deepseek-ai/dsh-tool-pwsh",
+      "group": "shell",
+      "rel": "packages/shell/tool-pwsh",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "llm",
+        "sandbox",
+        "sandbox-policy",
+        "shell",
+        "shell-env",
+        "system-prompt",
+        "tools",
+        "user-approval"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/tests/fixtures/shell/tool-pwsh/cordis.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "compaction-tool-result-pruner",
+      "name": "@deepseek-ai/dsh-compaction-tool-result-pruner",
+      "group": "compaction",
+      "rel": "packages/compaction/compaction-tool-result-pruner",
+      "deps": [
+        "compaction",
+        "invariants",
+        "llm",
+        "session",
+        "token-meter"
+      ],
+      "roles": [
+        "definition"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-acp",
+      "name": "@deepseek-ai/dsh-subagent-acp",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-acp",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session",
+        "subagent",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-claude-code",
+      "name": "@deepseek-ai/dsh-subagent-claude-code",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-claude-code",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "subagent",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/product-subagent-both.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-both.cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-in-process-driver",
+      "name": "@deepseek-ai/dsh-subagent-in-process-driver",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-in-process-driver",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "session",
+        "subagent",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-subagent",
+      "name": "@deepseek-ai/dsh-tool-subagent",
+      "group": "subagent",
+      "rel": "packages/subagent/tool-subagent",
+      "deps": [
+        "agent",
+        "invariants",
+        "jobs",
+        "llm",
+        "subagent",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/depth-two.cordis.snapshot.yml",
+        "examples/acp-agent/depth-two.cordis.yml",
+        "examples/acp-agent/product-subagent-both.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-both.cordis.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-subagent-control",
+      "name": "@deepseek-ai/dsh-tool-subagent-control",
+      "group": "subagent",
+      "rel": "packages/subagent/tool-subagent-control",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "subagent",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-subagent-report",
+      "name": "@deepseek-ai/dsh-tool-subagent-report",
+      "group": "subagent",
+      "rel": "packages/subagent/tool-subagent-report",
+      "deps": [
+        "invariants",
+        "llm",
+        "subagent",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-ralph",
+      "name": "@deepseek-ai/dsh-tool-ralph",
+      "group": "workflow",
+      "rel": "packages/workflow/tool-ralph",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "subagent",
+        "system-prompt",
+        "tools",
+        "workflow"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "workflow-worker-thread",
+      "name": "@deepseek-ai/dsh-workflow-worker-thread",
+      "group": "workflow",
+      "rel": "packages/workflow/workflow-worker-thread",
+      "deps": [
+        "agent",
+        "brand",
+        "invariants",
+        "llm",
+        "session",
+        "subagent",
+        "tools",
+        "workflow"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "hooks-claude-code",
+      "name": "@deepseek-ai/dsh-hooks-claude-code",
+      "group": "hooks",
+      "rel": "packages/hooks/hooks-claude-code",
+      "deps": [
+        "agent",
+        "hook-protocol",
+        "invariants",
+        "llm",
+        "session",
+        "session-persistence",
+        "subagent",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sdk-protocol",
+      "name": "@deepseek-ai/dsh-sdk-protocol",
+      "group": "sdk",
+      "rel": "packages/sdk/protocol",
+      "deps": [
+        "invariants",
+        "llm",
+        "session",
+        "subagent"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-apiproxy",
+      "name": "@deepseek-ai/dsh-host-apiproxy",
+      "group": "host",
+      "rel": "packages/host/apiproxy",
+      "deps": [
+        "agent-presets",
+        "cordis-host-runner",
+        "invariants"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "web-app",
+      "name": "@deepseek-ai/dsh-web-app",
+      "group": "bundle",
+      "rel": "packages/bundle/web-app",
+      "deps": [
+        "invariants",
+        "shell-env",
+        "system-prompt"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "tool-cordis",
+      "name": "@deepseek-ai/dsh-tool-cordis",
+      "group": "extensions",
+      "rel": "packages/extensions/tool-cordis",
+      "deps": [
+        "agent",
+        "cordis-host-runner",
+        "invariants",
+        "llm",
+        "scope",
+        "session",
+        "system-prompt",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/advanced.cordis.yml",
+        "examples/acp-agent/cordis-tools.cordis.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.yml",
+        "examples/web-cordis/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "api-remotes",
+      "name": "@deepseek-ai/dsh-api-remotes",
+      "group": "api",
+      "rel": "packages/api/remotes",
+      "deps": [
+        "agent",
+        "agent-presets",
+        "api-gateway",
+        "commands",
+        "cordis-host-runner",
+        "credentials",
+        "goal",
+        "host-plugin-inventory",
+        "invariants",
+        "llm",
+        "message-feedback",
+        "session",
+        "session-persistence",
+        "settings",
+        "typert-registry"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "compaction-basic",
+      "name": "@deepseek-ai/dsh-compaction-basic",
+      "group": "compaction",
+      "rel": "packages/compaction/compaction-basic",
+      "deps": [
+        "agent",
+        "commands",
+        "compaction",
+        "compaction-tool-result-pruner",
+        "invariants",
+        "llm",
+        "session",
+        "token-meter"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "apps/cli/config/agent-presets/code/agent.cordis.yml",
+        "apps/cli/config/agent-presets/cordis/agent.cordis.yml",
+        "apps/cli/config/agent-presets/standard/agent.cordis.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/compaction.cordis.snapshot.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-codex",
+      "name": "@deepseek-ai/dsh-subagent-codex",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-codex",
+      "deps": [
+        "invariants",
+        "llm",
+        "sdk-protocol",
+        "session",
+        "subagent",
+        "subprocess",
+        "timeout"
+      ],
+      "roles": [
+        "consumer",
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/product-subagent-both.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-both.cordis.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.snapshot.yml",
+        "examples/acp-agent/product-subagent-codex.cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-fork-in-process",
+      "name": "@deepseek-ai/dsh-subagent-fork-in-process",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-fork-in-process",
+      "deps": [
+        "agent",
+        "invariants",
+        "session",
+        "subagent",
+        "subagent-in-process-driver"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-spawn-in-process",
+      "name": "@deepseek-ai/dsh-subagent-spawn-in-process",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-spawn-in-process",
+      "deps": [
+        "invariants",
+        "subagent",
+        "subagent-in-process-driver"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/acp-agent/cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sdk-client",
+      "name": "@deepseek-ai/dsh-sdk-client",
+      "group": "sdk",
+      "rel": "packages/sdk/client",
+      "deps": [
+        "invariants",
+        "llm",
+        "sdk-protocol",
+        "session"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "sdk-jsonrpc-server",
+      "name": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "group": "sdk",
+      "rel": "packages/sdk/server",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "llm-deepseek",
+        "scope",
+        "sdk-protocol",
+        "session",
+        "subagent"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-runtime",
+      "name": "@deepseek-ai/dsh-client-runtime",
+      "group": "client",
+      "rel": "packages/client/runtime",
+      "deps": [
+        "api-remotes",
+        "invariants",
+        "typert-protocol",
+        "typert-registry"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "agent-spine-demo",
+      "name": "@deepseek-ai/dsh-agent-spine-demo",
+      "group": "examples",
+      "rel": "packages/examples/agent-spine-demo",
+      "deps": [
+        "agent",
+        "agent-instructions",
+        "agent-loop",
+        "goal",
+        "goal-round-driver",
+        "home-paths",
+        "invariants",
+        "jobs-local",
+        "llm",
+        "llm-retry",
+        "scope",
+        "session",
+        "session-title",
+        "shell-env",
+        "skill",
+        "skill-filesystem",
+        "system-prompt",
+        "tool-bash",
+        "tool-goal",
+        "tool-jobs",
+        "tool-skill",
+        "tools"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "compositions": [
+        "examples/acp-agent/tests/fixtures/subagent/subagent-acp/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-claude-code/cordis.yml",
+        "examples/acp-agent/tests/fixtures/subagent/subagent-codex/cordis.yml",
+        "examples/headless-agent/advanced.cordis.snapshot.yml",
+        "examples/headless-agent/advanced.cordis.yml",
+        "examples/headless-agent/cordis.yml",
+        "examples/headless-agent/semantic-checkpoint.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-diagnostic.cordis.snapshot.yml",
+        "examples/headless-agent/subagent-inheritance.cordis.snapshot.yml",
+        "examples/headless-agent/tests/fixtures/cli.cordis.yml",
+        "examples/headless-agent/tests/fixtures/goal-domain/cordis.yml",
+        "examples/headless-agent/tests/fixtures/session-telemetry-otel.cordis.yml",
+        "examples/headless-agent/tests/fixtures/time-context.cordis.yml",
+        "examples/headless-agent/workspace-context-resume.cordis.snapshot.yml",
+        "examples/jsonrpc-agent/cordis.yml",
+        "examples/jsonrpc-agent/minimal.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/child.cordis.yml",
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml",
+        "python/sdk-runtime/src/deepseek_harness_runtime/runtime/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "subagent-dsh-sdk",
+      "name": "@deepseek-ai/dsh-subagent-dsh-sdk",
+      "group": "subagent",
+      "rel": "packages/subagent/subagent-dsh-sdk",
+      "deps": [
+        "agent",
+        "invariants",
+        "llm",
+        "sdk-client",
+        "session",
+        "subagent",
+        "subprocess"
+      ],
+      "roles": [
+        "provider"
+      ],
+      "compositions": [
+        "examples/jsonrpc-agent/tests/fixtures/subagent/subagent-dsh-sdk/cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-settings",
+      "name": "@deepseek-ai/dsh-client-ui-settings",
+      "group": "client",
+      "rel": "packages/client/ui-settings",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-runtime",
+        "client-schema-form",
+        "client-ui-slots",
+        "invariants",
+        "settings"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-settings-models",
+      "name": "@deepseek-ai/dsh-client-ui-settings-models",
+      "group": "client",
+      "rel": "packages/client/ui-settings-models",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-runtime",
+        "client-schema-form",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "client-web-react",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "acp-demo",
+      "name": "@deepseek-ai/dsh-acp-demo",
+      "group": "examples",
+      "rel": "packages/examples/acp-demo",
+      "deps": [
+        "acp",
+        "agent-instructions",
+        "agent-spine-demo",
+        "app-boot",
+        "invariants",
+        "session-checkpoint-policy",
+        "session-persistence-jsonl",
+        "session-query",
+        "session-query-sqlite",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "examples/acp-agent/advanced.cordis.snapshot.yml",
+        "examples/acp-agent/advanced.cordis.yml",
+        "examples/acp-agent/agent-instructions.cordis.snapshot.yml",
+        "examples/acp-agent/agent-instructions.cordis.yml",
+        "examples/acp-agent/background-job-admission.cordis.snapshot.yml",
+        "examples/acp-agent/background-job-admission.cordis.yml",
+        "examples/acp-agent/both-mode.cordis.snapshot.yml",
+        "examples/acp-agent/both-mode.cordis.yml",
+        "examples/acp-agent/child-question.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode-workspace-context.cordis.yml",
+        "examples/acp-agent/code-mode.cordis.snapshot.yml",
+        "examples/acp-agent/code-mode.cordis.yml",
+        "examples/acp-agent/cordis.snapshot.yml",
+        "examples/acp-agent/cordis.yml",
+        "examples/acp-agent/depth-two.cordis.snapshot.yml",
+        "examples/acp-agent/fs.cordis.snapshot.yml",
+        "examples/acp-agent/image-text-route.cordis.snapshot.yml",
+        "examples/acp-agent/image-text-route.cordis.yml",
+        "examples/acp-agent/image.cordis.snapshot.yml",
+        "examples/acp-agent/image.cordis.yml",
+        "examples/acp-agent/partial-landlock.cordis.snapshot.yml",
+        "examples/acp-agent/retry.cordis.snapshot.yml",
+        "examples/acp-agent/retry.cordis.yml",
+        "examples/acp-agent/session-sandbox-root.cordis.snapshot.yml",
+        "examples/acp-agent/session-title.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-continuable-inheritance.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-durability-failure.cordis.snapshot.yml",
+        "examples/acp-agent/subagent-report-quiet.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-diff-bound.cordis.yml",
+        "examples/acp-agent/tests/fs-search.cordis.snapshot.yml",
+        "examples/acp-agent/tests/fs-search.cordis.yml",
+        "examples/acp-agent/tests/pwsh.cordis.snapshot.yml",
+        "examples/acp-agent/tests/pwsh.cordis.yml"
+      ],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-test-runtime",
+      "name": "@deepseek-ai/dsh-client-test-runtime",
+      "group": "test-support",
+      "rel": "packages/test-support/client-runtime",
+      "deps": [
+        "client-runtime",
+        "client-ui-slots",
+        "client-web-react",
+        "host-apiproxy",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-locale",
+      "name": "@deepseek-ai/dsh-client-locale",
+      "group": "client",
+      "rel": "packages/client/locale",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-input-trigger",
+      "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+      "group": "client",
+      "rel": "packages/client/ui-input-trigger",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-settings-plugin-inventory",
+      "name": "@deepseek-ai/dsh-client-ui-settings-plugin-inventory",
+      "group": "client",
+      "rel": "packages/client/ui-settings-plugin-inventory",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-settings-plugins",
+      "name": "@deepseek-ai/dsh-client-ui-settings-plugins",
+      "group": "client",
+      "rel": "packages/client/ui-settings-plugins",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "client-web-react",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-sidebar",
+      "name": "@deepseek-ai/dsh-client-ui-sidebar",
+      "group": "client",
+      "rel": "packages/client/ui-sidebar",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-theme",
+      "name": "@deepseek-ai/dsh-client-ui-theme",
+      "group": "client",
+      "rel": "packages/client/ui-theme",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "host-webserver",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-trajectory",
+      "name": "@deepseek-ai/dsh-client-ui-trajectory",
+      "group": "client",
+      "rel": "packages/client/ui-trajectory",
+      "deps": [
+        "agent",
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "compaction",
+        "invariants",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-user-questions",
+      "name": "@deepseek-ai/dsh-client-ui-user-questions",
+      "group": "client",
+      "rel": "packages/client/ui-user-questions",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-workspace",
+      "name": "@deepseek-ai/dsh-client-ui-workspace",
+      "group": "client",
+      "rel": "packages/client/ui-workspace",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-conversation",
+      "name": "@deepseek-ai/dsh-client-ui-conversation",
+      "group": "client",
+      "rel": "packages/client/ui-conversation",
+      "deps": [
+        "agent",
+        "api-remotes",
+        "attachment",
+        "brand",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-attachment",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "commands",
+        "compaction",
+        "invariants",
+        "llm-retry",
+        "session-stats",
+        "token-meter",
+        "tools"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-directory-picker-browse",
+      "name": "@deepseek-ai/dsh-client-ui-directory-picker-browse",
+      "group": "client",
+      "rel": "packages/client/ui-directory-picker-browse",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "client-ui-workspace",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-directory-picker-native",
+      "name": "@deepseek-ai/dsh-client-ui-directory-picker-native",
+      "group": "client",
+      "rel": "packages/client/ui-directory-picker-native",
+      "deps": [
+        "client-runtime",
+        "client-ui-slots",
+        "client-ui-workspace",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [],
+      "patches": [],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-layout",
+      "name": "@deepseek-ai/dsh-client-ui-layout",
+      "group": "client",
+      "rel": "packages/client/ui-layout",
+      "deps": [
+        "client-runtime",
+        "client-ui-slots",
+        "client-ui-theme",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-settings-general",
+      "name": "@deepseek-ai/dsh-client-ui-settings-general",
+      "group": "client",
+      "rel": "packages/client/ui-settings-general",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-sidebar",
+        "client-ui-slots",
+        "client-web-react",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "cordis-client-runner",
+      "name": "@deepseek-ai/dsh-cordis-client-runner",
+      "group": "extensions",
+      "rel": "packages/extensions/cordis-client-runner",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-modules",
+        "client-runtime",
+        "client-ui-slots",
+        "client-ui-theme",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "host-directory-picker-auto",
+      "name": "@deepseek-ai/dsh-host-directory-picker-auto",
+      "group": "host",
+      "rel": "packages/host/directory-picker-auto",
+      "deps": [
+        "client-ui-directory-picker-browse",
+        "client-ui-directory-picker-native",
+        "host-directory-picker-browse",
+        "host-directory-picker-native",
+        "host-webserver",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-agent-preset",
+      "name": "@deepseek-ai/dsh-client-ui-agent-preset",
+      "group": "client",
+      "rel": "packages/client/ui-agent-preset",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "client-web-react",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-commands",
+      "name": "@deepseek-ai/dsh-client-ui-commands",
+      "group": "client",
+      "rel": "packages/client/ui-commands",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "commands",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-deliverables",
+      "name": "@deepseek-ai/dsh-client-ui-deliverables",
+      "group": "client",
+      "rel": "packages/client/ui-deliverables",
+      "deps": [
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-slots",
+        "invariants",
+        "system-prompt"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-goal",
+      "name": "@deepseek-ai/dsh-client-ui-goal",
+      "group": "client",
+      "rel": "packages/client/ui-goal",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "commands",
+        "goal",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-jobs",
+      "name": "@deepseek-ai/dsh-client-ui-jobs",
+      "group": "client",
+      "rel": "packages/client/ui-jobs",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-message-feedback",
+      "name": "@deepseek-ai/dsh-client-ui-message-feedback",
+      "group": "client",
+      "rel": "packages/client/ui-message-feedback",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants",
+        "message-feedback",
+        "typert-protocol"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-plan",
+      "name": "@deepseek-ai/dsh-client-ui-plan",
+      "group": "client",
+      "rel": "packages/client/ui-plan",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants",
+        "plan-mode"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-subagent",
+      "name": "@deepseek-ai/dsh-client-ui-subagent",
+      "group": "client",
+      "rel": "packages/client/ui-subagent",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants",
+        "subagent",
+        "token-meter"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-tool",
+      "name": "@deepseek-ai/dsh-client-ui-tool",
+      "group": "client",
+      "rel": "packages/client/ui-tool",
+      "deps": [
+        "api-remotes",
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-workflow-run",
+      "name": "@deepseek-ai/dsh-client-ui-workflow-run",
+      "group": "client",
+      "rel": "packages/client/ui-workflow-run",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants",
+        "session",
+        "tool-workflow",
+        "workflow"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "session-log-export",
+      "name": "@deepseek-ai/dsh-session-log-export",
+      "group": "session-query",
+      "rel": "packages/session-query/session-log-export",
+      "deps": [
+        "client-locale",
+        "client-runtime",
+        "client-ui-commands",
+        "client-ui-conversation",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "commands",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-model-selection",
+      "name": "@deepseek-ai/dsh-client-ui-model-selection",
+      "group": "client",
+      "rel": "packages/client/ui-model-selection",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-commands",
+        "client-ui-conversation",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-permission-presets",
+      "name": "@deepseek-ai/dsh-client-ui-permission-presets",
+      "group": "client",
+      "rel": "packages/client/ui-permission-presets",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-schema-form",
+        "client-ui-commands",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-settings",
+        "client-ui-slots",
+        "invariants",
+        "permission-presets"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-skill",
+      "name": "@deepseek-ai/dsh-client-ui-skill",
+      "group": "client",
+      "rel": "packages/client/ui-skill",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-slots",
+        "client-ui-tool",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "retain-typescript",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    },
+    {
+      "package": "client-ui-cordis",
+      "name": "@deepseek-ai/dsh-client-ui-cordis",
+      "group": "extensions",
+      "rel": "packages/extensions/ui-cordis",
+      "deps": [
+        "api-remotes",
+        "client-connection",
+        "client-locale",
+        "client-runtime",
+        "client-ui-input-trigger",
+        "client-ui-primitives",
+        "client-ui-sidebar",
+        "client-ui-slots",
+        "client-ui-tool",
+        "cordis-client-runner",
+        "invariants"
+      ],
+      "roles": [],
+      "compositions": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "patches": [
+        "packages/bundle/web-app/cordis.patch.yml"
+      ],
+      "disposition": "replace",
+      "targetCrate": null,
+      "phase": null,
+      "status": "unmigrated",
+      "fixtures": [],
+      "placement": null,
+      "removeAfter": null
+    }
+  ]
+}

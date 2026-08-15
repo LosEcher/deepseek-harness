@@ -338,6 +338,7 @@ export function requiresSourceLanguageSwitcher(source: string): boolean {
     'docs/graph-atlas.md',
     'docs/module-graph.md',
     'docs/persistence-catalog.md',
+    'docs/rust-migration-matrix.md',
     'docs/tool-catalog.md',
     'docs/tool-execution-pipeline.md',
   ].includes(source)

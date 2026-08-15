@@ -83,6 +83,12 @@ describe('gate graph validation', () => {
     expect(ids).toContain('public-repository-links')
   })
 
+  it('keeps the Rust migration ledger in the documentation gate', () => {
+    const ids = withPnpmEntrypoint(() => gatesForMode('doc-sync').map(subject => subject.id))
+
+    expect(ids).toContain('rust-migration-ledger')
+  })
+
   it.each(['ci-primary', 'ci-static', 'check-all'] as const)(
     'keeps the DSH package license policy in %s',
     (mode) => {

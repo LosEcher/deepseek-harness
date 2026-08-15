@@ -148,6 +148,7 @@ describe('translation pairing manifest', () => {
 describe('translation pairing switchers', () => {
   it('exempts only paired generated English sources from reciprocal switchers', () => {
     expect(requiresSourceLanguageSwitcher('docs/config-catalog.md')).toBe(false)
+    expect(requiresSourceLanguageSwitcher('docs/rust-migration-matrix.md')).toBe(false)
     expect(requiresSourceLanguageSwitcher('docs/cordis-api/context.md')).toBe(false)
     expect(requiresSourceLanguageSwitcher('docs/cordis-api/inherited.md')).toBe(false)
     expect(requiresSourceLanguageSwitcher('docs/architecture.md')).toBe(true)

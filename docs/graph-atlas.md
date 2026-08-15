@@ -10,6 +10,7 @@ The process decision behind this index is recorded in [the documentation graph A
 | Graph | Mode |
 | --- | --- |
 | [module dependency graph](module-graph.md) | `generated` |
+| [Rust migration matrix](rust-migration-matrix.md) | `generated` |
 | [tool schema catalog and package map](tool-catalog.md) | `generated` |
 | [capability seams and core services](capability-seams.md) | `hybrid generated` |
 | [dsh shared base composition](../apps/cli/composition.md) | `hybrid generated` |

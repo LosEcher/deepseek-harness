@@ -121,6 +121,8 @@
     "gen-third-party-notices": "tsx scripts/gen-third-party-notices.ts",
     "verify-third-party-notices": "tsx scripts/gen-third-party-notices.ts --check",
     "gen-module-graph": "tsx scripts/gen-module-graph.ts",
+    "gen-rust-migration-ledger": "tsx scripts/gen-rust-migration-ledger.ts",
+    "verify-rust-migration-ledger": "tsx scripts/gen-rust-migration-ledger.ts --check",
     "gen-scoped-events": "tsx scripts/gen-scoped-events.ts",
     "verify-scoped-events": "tsx scripts/gen-scoped-events.ts --check",
     "verify-module-graph": "tsx scripts/gen-module-graph.ts --check",
