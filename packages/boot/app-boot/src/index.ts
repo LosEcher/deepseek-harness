@@ -20,6 +20,12 @@ import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from 
 import type {} from '@deepseek-ai/cordis-plugin-hmr'
 // Side-effect type import: resolves `ctx.get('systemPrompt')` to the service.
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import {
+  BOOTSTRAP_INCLUDE_ID,
+  collectFailedLoaderRefs,
+  entryIdsForNames,
+} from './addon-quarantine.ts'
+import { composeEntries } from './profile.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -39,6 +45,7 @@ export {
   PROFILES_DIR,
   readProfileManifest,
   resolveBundleDir,
+  bundleResolvesFromInstallation,
   resolveProfileDir,
   writeProfileManifest,
   type DshBundleManifest,
@@ -48,6 +55,15 @@ export {
   type ProfileLayer,
   type ProfileManifest,
 } from './profile.ts'
+export {
+  BOOTSTRAP_INCLUDE_ID,
+  collectAddonEntryIds,
+  collectEntryIds,
+  collectFailedLoaderRefs,
+  entryIdsForNames,
+  profileAddonEntryIds,
+  type FailedLoaderRefs,
+} from './addon-quarantine.ts'
 
 /**
  * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
@@ -814,6 +830,75 @@ export async function boot(
     const stack = deepest instanceof Error && deepest !== cause ? `\n${deepest.stack ?? deepest.message}` : ''
     throw new Error(`${binName}: ${stage}: ${detail}${stack}`, { cause })
   }
+}
+
+/** Result of {@link bootQuarantiningAddons}. */
+export interface BootQuarantineResult {
+  /** Settled root context. */
+  ctx: Context
+  /** Addon entry ids disabled for this process after they failed to load. */
+  quarantined: string[]
+}
+
+/**
+ * Boot the include tree, disabling addon rows that fail to import or apply and
+ * retrying. A failure that names an installation-owned (non-addon) row, or
+ * that names no addon row, is rethrown. Quarantine is in-memory only.
+ * @param binName - diagnostic prefix forwarded to {@link boot}.
+ * @param absoluteConfigPath - absolute include root.
+ * @param patches - overlay patches; cloned so retries can append disables.
+ * @param addonIds - row ids that may be quarantined.
+ * @param prepare - host setup run before any config-tree entry mounts, on every attempt.
+ * @param bareModuleBaseUrl - optional installed-host module base.
+ * @param warn - sink for each quarantined row; defaults to one stderr line.
+ * @returns the settled context and the ids disabled this boot.
+ */
+export async function bootQuarantiningAddons(
+  binName: string,
+  absoluteConfigPath: string,
+  patches: readonly PatchOptions[],
+  addonIds: ReadonlySet<string>,
+  prepare?: (ctx: Context) => Promise<void> | void,
+  bareModuleBaseUrl?: string,
+  warn: (message: string) => void = (message) => {
+    process.stderr.write(`${message}\n`)
+  },
+): Promise<BootQuarantineResult> {
+  const working: PatchOptions[] = structuredClone(patches) as PatchOptions[]
+  const quarantined: string[] = []
+  const disabled = new Set<string>()
+  const budget = Math.max(1, addonIds.size + 1)
+  let lastError: unknown
+  for (let attempt = 0; attempt < budget; attempt += 1) {
+    try {
+      const ctx = await boot(binName, absoluteConfigPath, working, prepare, bareModuleBaseUrl)
+      return { ctx, quarantined }
+    } catch (error) {
+      lastError = error
+      const refs = collectFailedLoaderRefs(error)
+      const composed = composeEntries([working])
+      const named = entryIdsForNames(composed, refs.names)
+      const failed = new Set([...refs.ids, ...named])
+      const addons: string[] = []
+      let coreFailed = false
+      for (const id of failed) {
+        if (id === BOOTSTRAP_INCLUDE_ID) continue
+        if (addonIds.has(id)) {
+          if (!disabled.has(id)) addons.push(id)
+        } else {
+          coreFailed = true
+        }
+      }
+      if (coreFailed || addons.length === 0) throw error
+      for (const id of addons) {
+        disabled.add(id)
+        quarantined.push(id)
+        working.push({ id, disabled: true })
+        warn(`${binName}: optional plugin ${id} failed to load; host continues without it`)
+      }
+    }
+  }
+  throw lastError
 }
 
 /** Prompt-section name for the harness-source location line an app bin adds after boot. */

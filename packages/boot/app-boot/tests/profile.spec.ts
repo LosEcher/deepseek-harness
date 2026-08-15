@@ -9,12 +9,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  bundleResolvesFromInstallation,
   composeEntries,
   healProfilesModuleFallback,
   initProfile,
   loadProfile,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
+  profileAddonEntryIds,
   readProfileManifest,
   resolveBundleDir,
   resolveProfileDir,
@@ -92,6 +94,8 @@ describe('resolveBundleDir', () => {
     writeFileSync(join(profileDir, 'node_modules', 'local-only', 'package.json'), JSON.stringify({ name: 'local-only', version: '0.0.0' }))
     expect(resolveBundleDir('t', 'in-box', anchor, profileDir)).toContain('in-box')
     expect(resolveBundleDir('t', 'local-only', anchor, profileDir)).toContain('local-only')
+    expect(bundleResolvesFromInstallation('in-box', anchor)).toBe(true)
+    expect(bundleResolvesFromInstallation('local-only', anchor)).toBe(false)
     expect(() => resolveBundleDir('t', 'absent', anchor, profileDir)).toThrow('cannot resolve profile bundle')
   })
 
@@ -208,6 +212,33 @@ describe('composeEntries', () => {
     expect(warnings.join('\n')).toContain('"missing"')
     // Default warn sink: skipped patches are silently dropped (boot repeats them).
     expect(composeEntries([[{ id: 'missing', config: {} }]])).toEqual([])
+  })
+})
+
+describe('profileAddonEntryIds', () => {
+  it('classifies profile-local inserts as addons and installation rows as core', () => {
+    const anchor = stageInstallation({
+      'in-box': { patch: '- insert:\n    - id: session\n      name: dsh-session\n' },
+    })
+    const home = tmp()
+    const dir = resolveProfileDir('demo', home)
+    initProfile(dir, ['in-box'])
+    mkdirSync(join(dir, 'node_modules', 'local-bundle'), { recursive: true })
+    writeFileSync(join(dir, 'node_modules', 'local-bundle', 'package.json'), JSON.stringify({
+      name: 'local-bundle',
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }))
+    writeFileSync(
+      join(dir, 'node_modules', 'local-bundle', 'cordis.patch.yml'),
+      '- insert:\n    - id: multimedia\n      name: dsh-multimedia\n',
+    )
+    writeProfileManifest(dir, {
+      name: 'dsh-profile-demo',
+      dsh: { profile: { bundles: ['in-box', 'local-bundle'] } },
+    })
+    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '- insert:\n    - id: ocr\n      name: dsh-tool-ocr\n')
+    const profile = loadProfile('t', 'demo', anchor, home)
+    expect([...profileAddonEntryIds(profile, anchor)].sort()).toEqual(['multimedia', 'ocr'])
   })
 })
 

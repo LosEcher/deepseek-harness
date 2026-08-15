@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
+  bundleResolvesFromInstallation,
   DEFAULT_PROFILE_BUNDLES,
   initProfile,
   PROFILE_TEMPLATES,
@@ -91,6 +92,41 @@ function reconcilePlugins(before: ProfileManifest, profileDir: string): void {
 }
 
 /**
+ * Import-probe out-of-tree bundles that just joined the layer stack.
+ * A failed import is a warning: the host quarantines the row at boot.
+ * @param before - manifest captured before the pnpm run.
+ * @param profileDir - the profile directory (resolution and import cwd).
+ * @param installAnchor - dsh app package.json; installation-owned bundles are skipped.
+ * @param write - diagnostic sink; defaults to stderr.
+ * @returns nothing; writes one warning line per unimportable new bundle.
+ */
+export function probeAddedBundleImports(
+  before: ProfileManifest,
+  profileDir: string,
+  installAnchor: string,
+  write: (message: string) => void = (message) => {
+    process.stderr.write(message)
+  },
+): void {
+  const beforeBundles = new Set(before.dsh?.profile?.bundles ?? [])
+  const after = readProfileManifest(NAME, profileDir)
+  for (const packageName of after.dsh?.profile?.bundles ?? []) {
+    if (beforeBundles.has(packageName)) continue
+    if (bundleResolvesFromInstallation(packageName, installAnchor)) continue
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', `import(${JSON.stringify(packageName)})`], {
+      cwd: profileDir,
+      encoding: 'utf8',
+    })
+    if ((result.status ?? 1) === 0) continue
+    const detail = (result.stderr || result.stdout || 'import failed').trim().split('\n')[0]
+    write(
+      `${NAME}: warning: ${packageName} failed to import (${detail}); `
+      + 'the host will start without it if load still fails\n',
+    )
+  }
+}
+
+/**
  * Rewrite relative filesystem specs against the user's invoking directory.
  * pnpm runs with cwd = the profile directory, so a bare `.` or `../plugin`
  * (or their `file:`/`link:` forms) would silently resolve inside the profile
@@ -142,6 +178,7 @@ export function runPlugin(profile: string, args: readonly string[]): number {
   const exitCode = result.status ?? 1
   if (exitCode === 0) {
     reconcilePlugins(before, dir)
+    probeAddedBundleImports(before, dir, INSTALL_ANCHOR)
   } else {
     // pnpm's own diagnostics name pnpm-workspace.yaml without saying WHICH
     // one; the profile owns it, and the commonest failure here is pnpm ≥10

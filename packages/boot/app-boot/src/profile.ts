@@ -330,6 +330,17 @@ function packageDirFromAnchor(anchor: string, packageName: string): string | und
 }
 
 /**
+ * Whether `packageName` resolves from the dsh installation (not only the profile).
+ * Installation-owned bundles stay fail-loud; only profile-local packages are addons.
+ * @param packageName - the bundle's package name.
+ * @param installAnchor - absolute path of the dsh app's package.json.
+ * @returns true when the package is visible from the installation anchor.
+ */
+export function bundleResolvesFromInstallation(packageName: string, installAnchor: string): boolean {
+  return packageDirFromAnchor(installAnchor, packageName) !== undefined
+}
+
+/**
  * Resolve one bundle package's directory: installation anchor first, then the
  * profile directory. The installation-first order is the contract that
  * `@deepseek-ai/dsh-base` (and every other in-box bundle) always comes from
