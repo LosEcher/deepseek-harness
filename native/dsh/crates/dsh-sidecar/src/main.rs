@@ -31,6 +31,13 @@ fn main() -> ExitCode {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(1);
+    // DSH_BRIDGE_ROLE selects the bridge role; the default is the Node-root
+    // pairing (RustSidecar under a Node root). `rust_root` exercises the
+    // process-root inversion with a JsGuest peer.
+    let role = match std::env::var("DSH_BRIDGE_ROLE").as_deref() {
+        Ok("rust_root") => BridgeRole::RustRoot,
+        _ => BridgeRole::RustSidecar,
+    };
     let build = format!(
         "dsh-sidecar {} ({} profile)",
         env!("CARGO_PKG_VERSION"),
@@ -47,7 +54,7 @@ fn main() -> ExitCode {
         hello: Hello {
             bridge_version: PROTOCOL_VERSION,
             generation,
-            role: BridgeRole::RustSidecar,
+            role,
             build,
             schema_digest: manifest_source_digest(),
             capabilities: CAPABILITIES.iter().map(|item| item.to_string()).collect(),

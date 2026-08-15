@@ -25,11 +25,35 @@ impl CallContext {
 /// Push channel from a service back to the connection writer.
 ///
 /// A service receives a sink on every call and stream-open so it can emit
-/// `stream/chunk`, `stream/end` and `resource/open` frames under the
-/// connection's write lock, in any worker thread.
+/// `stream/chunk`, `stream/end`, `event/invoke` and `continuation/*` frames
+/// under the connection's write lock, in any worker thread.
 pub trait FrameSink: Send + Sync {
     /// Writes one bridge frame to the peer.
     fn send(&self, message: BridgeMessage) -> Result<(), RuntimeError>;
+
+    /// Registers a one-shot continuation and returns its receiver.
+    ///
+    /// The service emits an `event/invoke` carrying this id, then waits on
+    /// the receiver for the peer's `continuation/call` / `continuation/reply`
+    /// frames. The runtime routes those frames to the receiver and removes
+    /// the registration exactly once; a late frame is rejected.
+    fn open_continuation(&self, id: &BridgeId) -> std::sync::mpsc::Receiver<ContinuationMessage>;
+
+    /// Removes a registered continuation without consuming it (used on
+    /// short-circuit paths where the service no longer waits).
+    fn close_continuation(&self, id: &BridgeId);
+}
+
+/// A frame routed to a waiting continuation receiver.
+#[derive(Debug, Clone)]
+pub enum ContinuationMessage {
+    /// The peer invoked `continuation/call` (waterfall `next()`).
+    Call { payload: Value },
+    /// The peer replied with `continuation/reply` (terminal result).
+    Reply {
+        payload: Value,
+        error: Option<RemoteError>,
+    },
 }
 
 /// A capability service exposed over the bridge.

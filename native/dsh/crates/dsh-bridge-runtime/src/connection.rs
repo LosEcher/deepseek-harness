@@ -1,5 +1,5 @@
 use crate::error::{RuntimeError, SideExit};
-use crate::service::{CallContext, FrameSink, Service, ServiceError};
+use crate::service::{CallContext, ContinuationMessage, FrameSink, Service, ServiceError};
 use dsh_bridge_protocol::{
     manifest_source_digest, BridgeId, BridgeLifecycle, BridgeMessage, FrameDecoder, Hello,
     RemoteError,
@@ -93,6 +93,8 @@ struct Connection<W> {
     generation: u64,
     lifecycle: Arc<Mutex<BridgeLifecycle>>,
     pending: Arc<Mutex<HashMap<BridgeId, Arc<AtomicBool>>>>,
+    /// One-shot waterfall continuations awaiting a peer frame.
+    continuations: Arc<Mutex<HashMap<BridgeId, std::sync::mpsc::Sender<ContinuationMessage>>>>,
     workers: Vec<JoinHandle<()>>,
     handshake_done: bool,
 }
@@ -100,6 +102,7 @@ struct Connection<W> {
 /// Sink handed to services so worker threads can emit bridge frames.
 struct WriterSink<W> {
     writer: Arc<Mutex<W>>,
+    continuations: Arc<Mutex<HashMap<BridgeId, std::sync::mpsc::Sender<ContinuationMessage>>>>,
 }
 
 impl<W: Write + Send> FrameSink for WriterSink<W> {
@@ -107,6 +110,22 @@ impl<W: Write + Send> FrameSink for WriterSink<W> {
         let mut writer = self.writer.lock().expect("writer lock must not poison");
         dsh_bridge_protocol::write_frame(&mut *writer, &message)?;
         Ok(())
+    }
+
+    fn open_continuation(&self, id: &BridgeId) -> std::sync::mpsc::Receiver<ContinuationMessage> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.continuations
+            .lock()
+            .expect("continuations lock must not poison")
+            .insert(id.clone(), tx);
+        rx
+    }
+
+    fn close_continuation(&self, id: &BridgeId) {
+        self.continuations
+            .lock()
+            .expect("continuations lock must not poison")
+            .remove(id);
     }
 }
 
@@ -127,6 +146,7 @@ where
             generation,
             lifecycle: Arc::new(Mutex::new(BridgeLifecycle::default())),
             pending: Arc::new(Mutex::new(HashMap::new())),
+            continuations: Arc::new(Mutex::new(HashMap::new())),
             workers: Vec::new(),
             handshake_done: false,
         })
@@ -141,6 +161,7 @@ where
     fn sink(&self) -> Arc<dyn FrameSink> {
         Arc::new(WriterSink {
             writer: Arc::clone(&self.writer),
+            continuations: Arc::clone(&self.continuations),
         })
     }
 
@@ -298,6 +319,73 @@ where
                 }
                 Ok(None)
             }
+            BridgeMessage::ContributionRegister {
+                generation,
+                id,
+                plugin,
+                service,
+            } => {
+                self.check_generation(generation)?;
+                // First-party sidecar: contributions are accepted as
+                // registrations but there is no dynamic dispatch surface yet;
+                // ack so the peer can proceed and exercise continuation
+                // semantics against the test service.
+                self.write(&BridgeMessage::Reply {
+                    generation,
+                    id,
+                    result: serde_json::json!({
+                        "plugin": plugin,
+                        "service": service,
+                        "registered": true,
+                    }),
+                })?;
+                Ok(None)
+            }
+            BridgeMessage::ContributionRemove { generation, id, .. } => {
+                self.check_generation(generation)?;
+                self.write(&BridgeMessage::Reply {
+                    generation,
+                    id,
+                    result: serde_json::json!({ "removed": true }),
+                })?;
+                Ok(None)
+            }
+            BridgeMessage::ContinuationCall {
+                generation,
+                id,
+                payload,
+            } => {
+                self.check_generation(generation)?;
+                self.route_continuation(id, ContinuationMessage::Call { payload })
+            }
+            BridgeMessage::ContinuationReply {
+                generation,
+                id,
+                payload,
+                error,
+            } => {
+                self.check_generation(generation)?;
+                self.route_continuation(id, ContinuationMessage::Reply { payload, error })
+            }
+            // Event frames target guest listeners; nothing registers a
+            // listener on the first-party sidecar, so they are acknowledged
+            // as unknown rather than silently dropped.
+            BridgeMessage::EventInvoke {
+                generation,
+                id,
+                event,
+                ..
+            } => {
+                self.check_generation(generation)?;
+                self.reply_error(
+                    id,
+                    ServiceError::new(
+                        "bridge.no_listener",
+                        format!("no listener registered for event {event:?}"),
+                    ),
+                )?;
+                Ok(None)
+            }
             // One-way kinds without local meaning in this phase are ignored;
             // they carry their own terminal semantics for the sender.
             _ => Ok(None),
@@ -336,6 +424,52 @@ where
             });
         }
         Ok(())
+    }
+
+    /// Routes a continuation frame to its waiting receiver; unknown ids are
+    /// rejected with a typed error.
+    ///
+    /// A waterfall continuation stays pending across the peer's `next()`
+    /// (`continuation/call`) so the listener can still terminate with its
+    /// own `continuation/reply`; the terminal reply removes the id. A late
+    /// frame on a completed continuation is rejected as stale.
+    fn route_continuation(
+        &mut self,
+        id: BridgeId,
+        message: ContinuationMessage,
+    ) -> Result<Option<SideExit>, RuntimeError> {
+        let terminal = matches!(message, ContinuationMessage::Reply { .. });
+        let sender = {
+            let mut continuations = self
+                .continuations
+                .lock()
+                .expect("continuations lock must not poison");
+            if let Some(sender) = continuations.get(&id) {
+                let sender = sender.clone();
+                if terminal {
+                    continuations.remove(&id);
+                }
+                Some(sender)
+            } else {
+                None
+            }
+        };
+        match sender {
+            Some(sender) => {
+                let _ = sender.send(message);
+                Ok(None)
+            }
+            None => {
+                self.reply_error(
+                    id,
+                    ServiceError::new(
+                        "bridge.stale_continuation",
+                        "continuation is not pending (late or consumed)",
+                    ),
+                )?;
+                Ok(None)
+            }
+        }
     }
 
     fn find_owner(&self, id: &BridgeId) -> Option<Arc<dyn Service>> {
