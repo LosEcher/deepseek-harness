@@ -689,6 +689,22 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
+   * Restart-coordination gate (see {@link startRestartCoordinator}): arm every
+   * live machine so no new turn may start; in-flight turns settle naturally.
+   */
+  markDraining(): void {
+    for (const machine of this.liveMachines) machine.markDraining()
+  }
+
+  /** True while any live machine still has a turn in flight. */
+  hasLiveActivity(): boolean {
+    for (const machine of this.liveMachines) {
+      if (machine.hasLiveActivity()) return true
+    }
+    return false
+  }
+
+  /**
    * Create an agent and session under one caller-supplied identity, owned by
    * the accessing fiber. Constructor-driven config calls mint a fresh combined
    * id before entering this boundary.

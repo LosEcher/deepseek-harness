@@ -132,3 +132,33 @@ describe('agent drain to turn boundary', () => {
     }
   })
 })
+
+describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
+  it('hasLiveActivity is false at idle and true while a turn is live', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('hi')]))
+    const loop = ctx.agentLoop as unknown as { create(...args: unknown[]): Agent }
+    const agent = loop.create('s1') as Agent & { markDraining(): void; hasLiveActivity(): boolean }
+    const gated = agent as unknown as { markDraining(): void; hasLiveActivity(): boolean }
+    expect(gated.hasLiveActivity()).toBe(false)
+    send(agent, 'hello')
+    await waitForStatus(ctx, agent, 'running')
+    expect(gated.hasLiveActivity()).toBe(true)
+    await waitForStatus(ctx, agent, 'idle')
+    expect(gated.hasLiveActivity()).toBe(false)
+  })
+
+  it('markDraining refuses new turns after the in-flight one settles (wake gate)', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('first')]))
+    const loop = ctx.agentLoop as unknown as { create(...args: unknown[]): Agent }
+    const agent = loop.create('s2') as Agent & { markDraining(): void; hasLiveActivity(): boolean }
+    const gated = agent as unknown as { markDraining(): void; hasLiveActivity(): boolean }
+    send(agent, 'first')
+    await waitForStatus(ctx, agent, 'idle')
+    gated.markDraining()
+    // A follow-up arrives while draining: the wake is refused, no new turn starts.
+    send(agent, 'second')
+    await new Promise<void>((resolve) => { setTimeout(resolve, 120) })
+    expect(gated.hasLiveActivity()).toBe(false)
+    expect(agent.status).toBe('idle')
+  })
+})

@@ -224,6 +224,21 @@ export class ReactLoopAgent implements Agent {
   }
 
   /**
+   * Restart-coordination gate: when armed, no new turn may start (wake is
+   * refused) and the in-flight turn settles naturally before the driver exits
+   * to idle. Unlike {@link drainToIdle} this never waits — the restart
+   * coordinator polls {@link hasLiveActivity} until it flips to false.
+   */
+  markDraining(): void {
+    this.draining = true
+  }
+
+  /** True while a turn is live (pre-step / model-wait / tool-in-flight). */
+  hasLiveActivity(): boolean {
+    return this.phase.kind !== 'idle'
+  }
+
+  /**
    * Phase-aware drain (方案 C, step 1). The decision depends on where the live
    * turn currently sits, not on a fixed grace:
    *
