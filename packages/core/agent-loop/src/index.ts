@@ -655,7 +655,7 @@ export class AgentLoop extends Service implements AgentFactory {
           // session-start extension point), so only the liveness recheck is owed.
           emitAgentEvent(loopCtx, agent, 'agent/session-start', { source })
           assertLive()
-          if (machine.hasPendingResume()) machine.resumeOpenTurn()
+          if (machine !== undefined && machine.hasPendingResume()) machine.resumeOpenTurn()
           // Explicit closes (handle.dispose) mean "stop now": no turn drain,
           // but the caller-owned lifecycle effect still retires (unfollowOwner
           // runs on the non-ownerTriggered path).

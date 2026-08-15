@@ -219,10 +219,10 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     const ctx = await harness(new MockAdapter([textResponse('unused')]))
     const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
     ctx.on('agent/session-start', ({ agent }) => {
-      const original = agent.session.append.bind(agent.session)
+      const original = agent.session.append.bind(agent.session) as (type: string, data: unknown, extra?: unknown) => unknown
       agent.session.append = ((type: string, data: unknown, extra?: unknown) => {
         if (type === 'step/end') throw new Error('step-end-denied')
-        return original(type as never, data as never, extra as never)
+        return original(type, data, extra)
       }) as typeof agent.session.append
     })
     const { agent } = await ctx.agents.create({
@@ -277,10 +277,10 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     send(agent, 'hello')
     await running
     await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
-    const original = agent.session.append.bind(agent.session)
+    const original = agent.session.append.bind(agent.session) as (type: string, data: unknown, extra?: unknown) => unknown
     agent.session.append = ((type: string, data: unknown, extra?: unknown) => {
       if (type === 'turn/pending') throw new Error('append-denied')
-      return original(type as never, data as never, extra as never)
+      return original(type, data, extra)
     }) as typeof agent.session.append
     const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
     expect(outcome).toBe('pending')

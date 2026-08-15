@@ -432,6 +432,6 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     logger: ctx.logger,
     record: recordDrainOutcome,
   })
-  ctx.on('dispose', () => { stopRestartCoordinator() })
+  ctx.effect(() => () => { stopRestartCoordinator() })
   return { ctx, shutdown }
 }
