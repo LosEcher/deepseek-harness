@@ -3,13 +3,11 @@
  *
  * Turns an external `restart-request` file (touched by dsh-web-restart.sh, or
  * by the daemon on plugin-manifest / git-head reloads) into a *coordinated*
- * exit: the process waits for every live agent turn to settle at a natural
- * boundary, then exits 0 through the ordinary shutdown path. The supervisor
- * only waits (with a force-kill backstop), so a busy turn finishes instead of
- * being cut mid-execution — the restart point is the last active turn's
- * natural completion, not a supervisor timer. This is the "执行面自决退出"
- * design: the exit timing lives in the event-sourced execution surface, not
- * in the shell supervisor.
+ * exit: the process waits only while a tool's external side effects are in
+ * flight, then exits 0 through the ordinary shutdown path. Model wait and
+ * pre-step fast-exit as `turn/pending` on that path. The supervisor only
+ * waits (with a force-kill backstop). Exit timing lives in the execution
+ * surface, not in the shell supervisor.
  *
  * Implementation notes:
  * - Process-level plain interval (not a cordis service): it must keep running
@@ -17,8 +15,8 @@
  *   force-exit budget.
  * - The agent loop is resolved lazily because it mounts during boot; one-shot
  *   surfaces without an agent loop exit immediately on request.
- * - Once armed, `markDraining()` refuses new turns (wake gate), so the wait
- *   converges: the in-flight turn finishes, the driver exits to idle.
+ * - Once armed, `markDraining()` refuses new turns (loop-level wake gate), so
+ *   the wait cannot grow a new turn after the request is consumed.
  */
 
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -26,13 +24,15 @@ import { join } from 'node:path'
 
 /** Poll cadence for the request file and, once armed, for live activity. */
 export const RESTART_POLL_MS = 1_000
-/** Cap for waiting on live turns before falling back to the drain path. */
+/** Cap for waiting on in-flight tools before falling back to the drain path. */
 export const RESTART_WAIT_CAP_MS = 5 * 60_000
+/** Signal file the UI touches (POST /restart/immediate) to skip the wait. */
+export const RESTART_IMMEDIATE_FILE = 'restart-immediate'
 
 /** The agent-loop surface the coordinator needs (see AgentLoop). */
 export interface RestartCoordinatorAgentLoop {
   markDraining(): void
-  hasLiveActivity(): boolean
+  hasBlockingActivity(): boolean
 }
 
 export interface RestartCoordinatorOptions {
@@ -59,6 +59,7 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
   const pollMs = options.pollMs ?? RESTART_POLL_MS
   const waitCapMs = options.waitCapMs ?? RESTART_WAIT_CAP_MS
   const requestFile = join(dshHome, 'restart-request')
+  const immediateFile = join(dshHome, RESTART_IMMEDIATE_FILE)
   const log = (message: string): void => {
     options.logger?.info?.(`dsh: restart: ${message}`)
     options.record?.(`restart coordinated: ${message}`)
@@ -88,7 +89,14 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
   }
 
   function stop(): void {
-    if (!disposed) clearState()
+    if (!disposed) {
+      clearState()
+      try {
+        unlinkSync(immediateFile)
+      } catch {
+        // Already gone; a stale immediate signal must not leak into a later boot.
+      }
+    }
     disposed = true
     clearInterval(timer)
   }
@@ -104,24 +112,35 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
       try {
         unlinkSync(requestFile)
       } catch {
-        // Another consumer (e.g. the daemon) won the race; keep the request.
+        // Best-effort consume. A lost race with the daemon still arms; TERM
+        // then sets isShuttingDown and this coordinator stops.
       }
       armed = true
       waitingSince = Date.now()
       writeState()
       getAgentLoop()?.markDraining()
-      log('request consumed; waiting for live turns to settle')
+      log('request consumed; waiting for in-flight tools to settle')
+    }
+    if (existsSync(immediateFile)) {
+      try {
+        unlinkSync(immediateFile)
+      } catch {
+        // Lost the race; the next tick re-checks the file.
+      }
+      log('immediate restart requested; draining now')
+      stop()
+      interrupt(0)
       return
     }
     const agentLoop = getAgentLoop()
-    if (agentLoop === undefined || !agentLoop.hasLiveActivity()) {
-      log(`all live turns idle after ${Math.round((Date.now() - waitingSince) / 1000)}s; exiting`)
+    if (agentLoop === undefined || !agentLoop.hasBlockingActivity()) {
+      log(`no blocking activity after ${Math.round((Date.now() - waitingSince) / 1000)}s; exiting`)
       stop()
       interrupt(0)
       return
     }
     if (Date.now() - waitingSince >= waitCapMs) {
-      log(`wait cap ${Math.round(waitCapMs / 1000)}s reached with live turns; draining now`)
+      log(`wait cap ${Math.round(waitCapMs / 1000)}s reached with in-flight tools; draining now`)
       stop()
       interrupt(0)
       return

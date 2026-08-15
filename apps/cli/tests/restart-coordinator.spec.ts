@@ -10,7 +10,7 @@ import {
 function fakeAgentLoop(busy: () => boolean): RestartCoordinatorAgentLoop {
   return {
     markDraining: vi.fn(),
-    hasLiveActivity: busy,
+    hasBlockingActivity: busy,
   }
 }
 
@@ -39,17 +39,17 @@ describe('restart coordinator (执行面自决退出)', () => {
       waitCapMs: 300_000,
     })
     timers.push(stop as unknown as ReturnType<typeof setInterval>)
-    // First poll: consume + arm. Second poll: all idle → exit.
-    vi.advanceTimersByTime(2_000)
+    // First poll: consume + arm + no blocking work → exit on the same tick.
+    vi.advanceTimersByTime(1_000)
     expect(interrupt).toHaveBeenCalledOnce()
     expect(interrupt).toHaveBeenCalledWith(0)
-    expect(record).toHaveBeenCalledWith(expect.stringContaining('all live turns idle'))
+    expect(record).toHaveBeenCalledWith(expect.stringContaining('no blocking activity'))
     expect(loop.markDraining).toHaveBeenCalledOnce()
     expect(existsSync(join(dshHome, 'restart-pending'))).toBe(false) // cleared before exit
     rmSync(dshHome, { recursive: true, force: true })
   })
 
-  it('busy agent: waits for the turn to settle, then exits 0', () => {
+  it('busy agent: waits for in-flight tools to settle, then exits 0', () => {
     vi.useFakeTimers()
     const dshHome = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
     writeFileSync(join(dshHome, 'restart-request'), '')
@@ -108,7 +108,7 @@ describe('restart coordinator (执行面自决退出)', () => {
       waitCapMs: 300_000,
     })
     timers.push(stop as unknown as ReturnType<typeof setInterval>)
-    vi.advanceTimersByTime(2_000)
+    vi.advanceTimersByTime(1_000)
     expect(interrupt).toHaveBeenCalledOnce()
     expect(interrupt).toHaveBeenCalledWith(0)
     rmSync(dshHome, { recursive: true, force: true })
@@ -149,6 +149,50 @@ describe('restart coordinator (执行面自决退出)', () => {
     vi.advanceTimersByTime(1_000) // consume + arm
     shuttingDown = true
     vi.advanceTimersByTime(10_000)
+    expect(interrupt).not.toHaveBeenCalled()
+    rmSync(dshHome, { recursive: true, force: true })
+  })
+})
+
+describe('restart coordinator immediate signal', () => {
+  it('busy agent: touching restart-immediate drains on the next poll', () => {
+    vi.useFakeTimers()
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
+    writeFileSync(join(dshHome, 'restart-request'), '')
+    const interrupt = vi.fn()
+    const stop = startRestartCoordinator({
+      dshHome,
+      getAgentLoop: () => fakeAgentLoop(() => true),
+      interrupt,
+      pollMs: 1_000,
+      waitCapMs: 300_000,
+    })
+    timers.push(stop as unknown as ReturnType<typeof setInterval>)
+    vi.advanceTimersByTime(1_000) // consume + arm, still busy
+    expect(interrupt).not.toHaveBeenCalled()
+    writeFileSync(join(dshHome, 'restart-immediate'), '')
+    vi.advanceTimersByTime(1_000)
+    expect(interrupt).toHaveBeenCalledOnce()
+    expect(interrupt).toHaveBeenCalledWith(0)
+    // signal file cleaned up so it cannot leak into a later boot
+    expect(existsSync(join(dshHome, 'restart-immediate'))).toBe(false)
+    rmSync(dshHome, { recursive: true, force: true })
+  })
+
+  it('stale immediate file without a request never fires (not armed)', () => {
+    vi.useFakeTimers()
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
+    writeFileSync(join(dshHome, 'restart-immediate'), '')
+    const interrupt = vi.fn()
+    const stop = startRestartCoordinator({
+      dshHome,
+      getAgentLoop: () => fakeAgentLoop(() => true),
+      interrupt,
+      pollMs: 1_000,
+      waitCapMs: 300_000,
+    })
+    timers.push(stop as unknown as ReturnType<typeof setInterval>)
+    vi.advanceTimersByTime(5_000)
     expect(interrupt).not.toHaveBeenCalled()
     rmSync(dshHome, { recursive: true, force: true })
   })
