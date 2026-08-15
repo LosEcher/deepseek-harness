@@ -27,6 +27,20 @@ export interface ToolBridgeOptions {
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
+  /**
+   * Raw tool names (as the server lists them) allowed into the model-facing
+   * registry. Omitted or empty allows every listed tool; a non-empty list
+   * registers only those tools. Filtered tools are never visible to the model.
+   */
+  toolAllow?: readonly string[]
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. */
+  toolDeny?: readonly string[]
+  /**
+   * Hard cap on the model-facing description length; longer descriptions are
+   * cut with an ellipsis. Token cost is linear in description length, so
+   * verbose servers can be trimmed client-side without touching the server.
+   */
+  descriptionMaxLength?: number
 }
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
@@ -59,6 +73,17 @@ function listToolsUncached(client: Client, cursor?: string) {
     { method: 'tools/list', ...cursor === undefined ? {} : { params: { cursor } } },
     ListToolsResultSchema,
   )
+}
+
+/**
+ * Hard-cap a model-facing tool description. Token cost is linear in the
+ * description length, so a configured cap lets deployments trim verbose
+ * server prose (library docs, graph walkthroughs) client-side without
+ * touching the server. A cap of 1 yields a single character.
+ */
+function truncateDescription(description: string, maxLength: number | undefined): string {
+  if (maxLength === undefined || description.length <= maxLength) return description
+  return maxLength <= 1 ? description.slice(0, 1) : `${description.slice(0, maxLength - 1)}…`
 }
 
 /** Call without the SDK pre-validating an output schema the bridge may not support. */
@@ -134,9 +159,15 @@ export async function syncTools(
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
   let cursor: string | undefined
+  let listedCount = 0
   do {
     const response = await listToolsUncached(client, cursor)
     for (const tool of response.tools) {
+      listedCount += 1
+      // The allow/deny filter is a hard registry-level cut: filtered tools are
+      // never registered, so the model never sees them and cannot call them.
+      if (opts.toolAllow !== undefined && opts.toolAllow.length > 0 && !opts.toolAllow.includes(tool.name)) continue
+      if (opts.toolDeny !== undefined && opts.toolDeny.includes(tool.name)) continue
       const publicName = publicToolName(opts.serverName, tool.name)
       if (definitions.has(publicName)) {
         throw new Error(
@@ -145,7 +176,7 @@ export async function syncTools(
       }
       definitions.set(publicName, {
         name: publicName,
-        description: tool.description ?? '',
+        description: truncateDescription(tool.description ?? '', opts.descriptionMaxLength),
         parameters: tool.inputSchema,
         output: createOutput(tool.name, supportedOutputSchema(tool.outputSchema)),
         execute: createExecutor(client, tool.name, tool.execution?.taskSupport === 'required', opts),
@@ -153,6 +184,11 @@ export async function syncTools(
     }
     cursor = response.nextCursor
   } while (cursor)
+  if (listedCount > 0 && definitions.size === 0) {
+    ctx.logger.warn(
+      `mcp-client(${opts.serverName}): all ${listedCount} listed tools filtered by toolAllow/toolDeny — nothing registered`,
+    )
+  }
 
   // Phase 2: swap generations.
   for (const dispose of previous.values()) dispose()

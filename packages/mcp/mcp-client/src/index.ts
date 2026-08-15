@@ -70,6 +70,20 @@ export interface StdioConfig {
   failOnStartupError: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
+  /**
+   * Raw tool names (as the server lists them) allowed into the model-facing
+   * registry. Omitted or empty allows every listed tool; a non-empty list
+   * registers only those tools. Filtered tools are never visible to the model.
+   */
+  toolAllow?: string[]
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. */
+  toolDeny?: string[]
+  /**
+   * Hard cap on the model-facing description length; longer descriptions are
+   * cut with an ellipsis. Token cost is linear in description length, so
+   * verbose servers can be trimmed client-side without touching the server.
+   */
+  descriptionMaxLength?: number
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
@@ -92,6 +106,20 @@ export interface StreamableHttpConfig {
   failOnStartupError: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
+  /**
+   * Raw tool names (as the server lists them) allowed into the model-facing
+   * registry. Omitted or empty allows every listed tool; a non-empty list
+   * registers only those tools. Filtered tools are never visible to the model.
+   */
+  toolAllow?: string[]
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. */
+  toolDeny?: string[]
+  /**
+   * Hard cap on the model-facing description length; longer descriptions are
+   * cut with an ellipsis. Token cost is linear in description length, so
+   * verbose servers can be trimmed client-side without touching the server.
+   */
+  descriptionMaxLength?: number
 }
 
 /** Configuration for one stdio or Streamable HTTP MCP server. */
@@ -115,6 +143,9 @@ export const Config = z.union([
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
     reconnect: Reconnect,
+    toolAllow: z.array(String),
+    toolDeny: z.array(String),
+    descriptionMaxLength: z.number().step(1).min(1),
   }),
   z.object({
     transport: z.const('streamable-http'),
@@ -124,6 +155,9 @@ export const Config = z.union([
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
     reconnect: Reconnect,
+    toolAllow: z.array(String),
+    toolDeny: z.array(String),
+    descriptionMaxLength: z.number().step(1).min(1),
   }),
 ]) as unknown as z<Config>
 

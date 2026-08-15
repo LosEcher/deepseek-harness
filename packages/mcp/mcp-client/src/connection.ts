@@ -126,6 +126,9 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     registrationFailure: 'contain',
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
+    ...(config.toolAllow !== undefined ? { toolAllow: config.toolAllow } : {}),
+    ...(config.toolDeny !== undefined ? { toolDeny: config.toolDeny } : {}),
+    ...(config.descriptionMaxLength !== undefined ? { descriptionMaxLength: config.descriptionMaxLength } : {}),
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
