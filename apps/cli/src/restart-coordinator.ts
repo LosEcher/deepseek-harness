@@ -21,7 +21,7 @@
  *   converges: the in-flight turn finishes, the driver exits to idle.
  */
 
-import { existsSync, unlinkSync } from 'node:fs'
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** Poll cadence for the request file and, once armed, for live activity. */
@@ -67,8 +67,28 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
   let armed = false
   let waitingSince = 0
   let disposed = false
+  const stateFile = join(dshHome, 'restart-pending')
+
+  /** Best-effort state file for UI observers (restart banner): present while
+   *  a coordinated restart is armed, absent otherwise. */
+  function writeState(): void {
+    try {
+      writeFileSync(stateFile, JSON.stringify({ sinceMs: waitingSince, capMs: waitCapMs }))
+    } catch {
+      // Best-effort observability; never fail the restart over it.
+    }
+  }
+
+  function clearState(): void {
+    try {
+      unlinkSync(stateFile)
+    } catch {
+      // Already gone.
+    }
+  }
 
   function stop(): void {
+    if (!disposed) clearState()
     disposed = true
     clearInterval(timer)
   }
@@ -88,6 +108,7 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
       }
       armed = true
       waitingSince = Date.now()
+      writeState()
       getAgentLoop()?.markDraining()
       log('request consumed; waiting for live turns to settle')
       return

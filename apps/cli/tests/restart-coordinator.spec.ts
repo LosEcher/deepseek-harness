@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -45,6 +45,7 @@ describe('restart coordinator (执行面自决退出)', () => {
     expect(interrupt).toHaveBeenCalledWith(0)
     expect(record).toHaveBeenCalledWith(expect.stringContaining('all live turns idle'))
     expect(loop.markDraining).toHaveBeenCalledOnce()
+    expect(existsSync(join(dshHome, 'restart-pending'))).toBe(false) // cleared before exit
     rmSync(dshHome, { recursive: true, force: true })
   })
 
@@ -64,6 +65,7 @@ describe('restart coordinator (执行面自决退出)', () => {
     timers.push(stop as unknown as ReturnType<typeof setInterval>)
     vi.advanceTimersByTime(1_000) // consume + arm
     expect(interrupt).not.toHaveBeenCalled()
+    expect(existsSync(join(dshHome, 'restart-pending'))).toBe(true) // banner-visible state
     vi.advanceTimersByTime(5_000) // still busy
     expect(interrupt).not.toHaveBeenCalled()
     busy = false
