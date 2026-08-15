@@ -12,7 +12,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import AgentWorker, { WorkerSupervisor } from '@deepseek-ai/dsh-agent-worker'
+import AgentWorker, { WorkerSupervisor, type Config } from '@deepseek-ai/dsh-agent-worker'
 import { lastOwnership } from '@deepseek-ai/dsh-agent-control'
 import type { AgentControlMessage } from '@deepseek-ai/dsh-agent-control'
 import { AgentControlError } from '@deepseek-ai/dsh-agent-control'
@@ -30,6 +30,16 @@ const dirs: string[] = []
 afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true })
 })
+
+function localTsConfig(overrides: Partial<Config> = {}): Config {
+  return {
+    backend: 'local-ts',
+    commandQueueLimit: 32,
+    eventCredit: 64,
+    replayWindow: 1024,
+    ...overrides,
+  }
+}
 
 function asControl(message: ReturnType<typeof createUserMessage>): AgentControlMessage {
   return {
@@ -49,7 +59,7 @@ async function localHarness(): Promise<Context> {
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   ctx.llm.registerAdapter(['mock'], new FixtureAdapter())
-  await ctx.plugin(AgentWorker, { backend: 'local-ts' })
+  await ctx.plugin(AgentWorker, localTsConfig())
   return ctx
 }
 
@@ -119,7 +129,7 @@ describe('local-ts drain-and-resume', () => {
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
     ctx.llm.registerAdapter(['mock'], new FixtureAdapter())
-    await ctx.plugin(AgentWorker, { backend: 'local-ts', sessionRoot: root })
+    await ctx.plugin(AgentWorker, localTsConfig({ sessionRoot: root }))
     const id = SessionId('local-resume')
     const first = await ctx.agentControl.create('host', {
       sessionId: id,

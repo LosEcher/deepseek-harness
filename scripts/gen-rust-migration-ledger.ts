@@ -363,9 +363,12 @@ function recordName(name: unknown, names: string[]): void {
 function readOverrides(): Overrides {
   const raw = JSON.parse(readFileSync(resolve(root, OVERRIDES_REL), 'utf8')) as unknown
   if (!isRecord(raw)) throw new Error('gen-rust-migration-ledger: overlay must be an object')
+  const overrides: Overrides = {}
   const groupDefaults = optionalMap(raw.groupDefaults, 'groupDefaults')
   const packages = optionalMap(raw.packages, 'packages')
-  return { groupDefaults, packages }
+  if (groupDefaults !== undefined) overrides.groupDefaults = groupDefaults
+  if (packages !== undefined) overrides.packages = packages
+  return overrides
 }
 
 function optionalMap(value: unknown, field: string): Record<string, OverrideEntry> | undefined {

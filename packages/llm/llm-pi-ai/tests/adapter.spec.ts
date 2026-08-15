@@ -333,7 +333,8 @@ describe('PiAiAdapter provider routing', () => {
     const ctx = await harness(server.url)
     const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
-    expect(result.finish.failure?.message).toContain('503')
+    if (result.finish.kind !== 'error') throw new Error('expected an error finish')
+    expect(result.finish.failure.message).toContain('503')
     expect(server.paths).toEqual(['/chat/completions'])
   })
 

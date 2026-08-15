@@ -47,7 +47,12 @@ describe('collectAddonEntryIds', () => {
       [{ insert: [{ id: 'ocr', name: 'dsh-tool-ocr' }] }, { id: 'session', config: { x: 1 } }],
     ]
     expect([...collectAddonEntryIds(owned, all)].sort()).toEqual(['multimedia', 'ocr'])
-    expect(collectEntryIds([{ id: 'g', group: true, config: [{ id: 'child', name: 'c' }] }])).toEqual(['g', 'child'])
+    expect(collectEntryIds([{
+      id: 'g',
+      name: '@deepseek-ai/cordis-plugin-group',
+      group: true,
+      config: [{ id: 'child', name: 'c' }],
+    }])).toEqual(['g', 'child'])
   })
 })
 
