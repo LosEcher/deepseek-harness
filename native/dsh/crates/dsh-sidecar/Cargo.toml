@@ -10,8 +10,10 @@ name = "dsh-sidecar"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22"
 dsh-bridge-protocol = { path = "../dsh-bridge-protocol" }
 dsh-bridge-runtime = { path = "../dsh-bridge-runtime" }
+portable-pty = "0.9"
 serde_json = "1"
 thiserror = "2"
 
