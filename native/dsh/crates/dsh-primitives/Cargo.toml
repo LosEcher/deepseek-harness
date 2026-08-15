@@ -1,0 +1,9 @@
+[package]
+name = "dsh-primitives"
+description = "P2 leaf primitives: branded ids, atomic file replacement, and writer locks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = "2"

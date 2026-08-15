@@ -2,6 +2,8 @@
 members = [
     "crates/dsh-bridge-protocol",
     "crates/dsh-bridge-runtime",
+    "crates/dsh-primitives",
+    "crates/dsh-session-store",
     "crates/dsh-sidecar",
 ]
 resolver = "2"

@@ -1,4 +1,4 @@
-# Agent Note: Rust host replacement of the Node runtime
+# Agent Note: Rust capability providers behind Cordis
 
 Status: proposed
 
@@ -6,70 +6,53 @@ English | [中文](2026-08-15-rust-host-replacement.zh.md)
 
 ## Problem
 
-DeepSeek Harness is a Cordis plugin tree whose process root is Node. The product is replaceable Service Providers behind stable Service Definitions, plus three out-of-process protocols: SDK JSON-RPC, ACP, and Host `/api`. That structure already lets one execution world move without forking bash, PTY, or LSP ([portable consumers](../../implemented/architecture/2026-07-28-portable-execution-world-consumers.md)). It does not let the host process itself leave Node.
+DeepSeek Harness is a Cordis plugin tree whose process root is Node. The product is replaceable Service Providers behind stable Service Definitions, plus three out-of-process protocols: SDK JSON-RPC, ACP, and Host `/api`. That structure already lets one execution world move without forking bash, PTY, or LSP ([portable consumers](../../implemented/architecture/2026-07-28-portable-execution-world-consumers.md)).
 
-A whole-tree TypeScript-to-Rust rewrite would throw away the plugin composition model, the session log, and the existing snapshot corpus. Provider-only native modules, including the Landlock launcher ([native architecture](../../../../native/landlock-run/docs/architecture.md)), packaged ripgrep, and koffi FFI, improve individual paths but leave Node as the root, so they cannot complete a replacement.
+A host-language replacement that removes Node would also remove TypeScript `apply(ctx)`, HMR, `!!js` composition, and [`dsh-tool-cordis`](../../implemented/feature/2026-07-08-self-referential-cordis-toolset.md). Those are product extension behavior, not host accidents. Provider-only native modules — the Landlock launcher ([native architecture](../../../../native/landlock-run/docs/architecture.md)), packaged ripgrep, and koffi FFI — already show that a capability can move without taking the composer with it.
 
-The repository is still pre-release: backends may refuse old on-disk formats, and `SESSION_FORMAT_VERSION` stays at `0` ([session log versioning](../../implemented/architecture/2026-08-10-session-log-version-mechanism.md)). This window permits a host-language change without promising compatibility with every intermediate implementation, but the final runtime must preserve the product's observable protocols, reconstruction rules, and extension behavior.
+The repository is still pre-release, so on-disk formats may change, but the TypeScript plugin API and shipped composition rows are not a format the product may drop in order to rustify a backend.
 
 ## Proposal
 
-Replace the Node host with one Rust binary while keeping the browser client, the Python and TypeScript SDK clients, and the existing durable and network protocols. A replacement that cannot replay the current keyless snapshots is a different harness, not this one.
+Add Rust implementations behind the existing Service Definitions while Node remains the process root and Cordis remains the composer. A profile may default to a Rust provider only after conformance matches the TypeScript provider; the TypeScript provider and every `apply(ctx)` plugin stay loadable. Translating TypeScript plugins into Rust, or embedding a second JavaScript engine so Rust can be the root, is out of scope.
 
-### Replacement target
+### Product topology
 
-Done means every product entry, including headless, ACP, SDK JSON-RPC, and the web host that serves `apps/web`, runs from the same Rust binary, and the user's runtime closure contains no Node. Repository development tools such as Vitest, doc-sync, the documentation website, TypeScript SDK builds, and snapshot recorders may stay TypeScript.
+`dsh` still boots through Node and the Cordis Loader. Rust code lives in `native/dsh` and enters the tree only as an ordinary Cordis facade: the facade declares injections, acquires a sidecar or in-process addon inside `ctx.effect()`, registers the existing `ctx` key, converts `AbortSignal` to bridge cancellation, and awaits quiescence on dispose. Consumers keep importing the Service Definition package.
 
-The migration unit is a capability closure, not an npm package. A crate may be implemented independently, but a profile switches only after its Service Definition, Service Provider, Consumers, durable effects, cancellation, and teardown behavior pass one conformance suite. `fs`, `subprocess`, and `sandbox` therefore move as one execution world; `session`, `system-prompt`, `tools`, `agent`, and `agent-loop` move as the model-visible spine.
+The sidecar child process carries filesystem, subprocess, sandbox, and PTY work that needs an owned process tree. Leaf primitives that are file replacement, locks, JSONL append, or session leases may later use an in-process native addon when a process hop is measurable overhead. The agent loop, prompt assembly, tool registry, and product plugins stay in the Node process so waterfall listeners keep shared object identity.
 
-Out of scope: rewriting the React client, cloning Cordis HMR, evaluating arbitrary JavaScript in the Rust composer, or hot-compiling model-written Rust plugins. Typert remains a build-time source for the Host endpoint manifest rather than becoming a Rust runtime, and `dsh-tool-cordis` remains available only while the Node-root or temporary JS-guest phase can host it ([self-referential toolset](../../implemented/feature/2026-07-08-self-referential-cordis-toolset.md)).
+Agent isolation is a separate [worker-process proposal](2026-08-15-agent-worker-process-isolation.md). It first moves a complete TypeScript Agent composition into a Node child process; a Rust provider sidecar alone does not satisfy that proposal.
 
-### P0: protocol and schema foundation
-
-P0 creates `native/dsh/` as a Cargo workspace without changing any product profile. Existing TypeScript owners remain authoritative until the corresponding implementation moves; generators under `scripts/` emit checked-in fixtures and manifests consumed by Rust tests. A protocol has one semantic owner at a time: Rust does not hand-maintain a second copy of a TypeScript union or endpoint list.
-
-#### Compatibility classes
+### Compatibility classes
 
 P0 records a compatibility class for each observed interface instead of applying byte equality to every JSON document.
 
-| Interface | P0 owner | Required compatibility |
+| Interface | Owner | Required compatibility |
 |---|---|---|
 | Session event envelope and persisted JSONL | [`dsh-session`](../../../../packages/core/session/README.md) and persistence providers | Canonical persisted rows remain byte-identical after normalization; reconstruction, unknown-event refusal, and `ignorable: true` remain semantically identical |
 | SDK JSON-RPC | [`dsh-sdk-protocol`](../../../../packages/sdk/protocol/README.md) | Method names, params, results, errors, notification ordering, cancellation, and NDJSON framing remain compatible with both SDK clients |
 | ACP | [`dsh-acp`](../../../../packages/acp/acp/README.md) | Protocol frames and automation behavior remain compatible with the ACP snapshot corpus |
-| Host API | [`dsh-host-apiproxy`](../../../../packages/host/apiproxy/README.md), Typert Remote definitions, and the GUI RPC decision | Endpoint, named arguments, result and error schemas, authority, unary versus stream behavior, and ordering remain compatible with the existing client |
-| Composition | app-boot, bundle patches, and plugin Config schemas | Ordered patch replacement, activation dependencies, config validation, `disabled`, `isolate`, and explicit runtime-value references have deterministic Rust and TypeScript interpretations |
-| Migration bridge | `dsh-bridge-protocol` | Internal, versioned compatibility only between adjacent migration phases; it is not a public SDK or third-party plugin promise |
+| Host API | [`dsh-host-apiproxy`](../../../../packages/host/apiproxy/README.md) and Typert Remote definitions | Endpoint, named arguments, result and error schemas, authority, unary versus stream behavior, and ordering remain compatible with the existing client |
+| Composition | app-boot, bundle patches, and plugin Config schemas | Ordered patch replacement, `disabled`, `isolate`, `!!js`, and HMR keep their TypeScript Loader meanings; Rust does not become a second composer |
+| Product bridge | `dsh-bridge-protocol` | Versioned internal IPC between a Cordis facade and a Rust provider; it is not a public SDK |
 
-The session schema is an open envelope, not a closed Rust enum. Rust represents `{ type, seq, time, data, ignorable?, ...surfaceFields }` generically, dispatches known `type` values through registered codecs and folders, and may expose typed views for first-party events. An unknown event without `ignorable: true` refuses reconstruction; an unknown ignorable event remains in the raw log and is skipped only by projections that do not understand it.
+The session schema stays an open envelope owned by TypeScript. Rust persistence code treats `{ type, seq, time, data, ignorable?, ...surfaceFields }` generically. TypeScript stack traces and Node-specific syscall wording are not compatibility promises unless an existing user-visible snapshot pins them.
 
-The Host manifest is generated from the static `ApiProxy` definitions and Typert Remote metadata. It records each endpoint's service, method, exact named arguments, result schema, error identities, authority, and carrier mode. Typert remains in the build plane; the Rust host loads the generated manifest and dispatch table. A process or WASM plugin that contributes Host endpoints must declare the same metadata in its plugin manifest rather than relying on runtime TypeScript reflection.
+`native/dsh/contracts/` holds generated JSON schemas, positive fixtures, and negative fixtures with a format version and source digest. TypeScript remains the semantic owner; a freshness check regenerates the artifacts and fails on a diff.
 
-Composition v1 replaces arbitrary `!!js` expressions with tagged data nodes for environment lookup, platform selection, runtime paths such as cwd and Harness home, schema-declared JSON startup values exposed by injected services, and CLI-supplied overlays. Each node defines its evaluation phase, missing-value failure, and result type; it cannot inspect an arbitrary service object. The existing `id`, `name`, `config`, `disabled`, and `isolate` row fields remain, but Rust does not execute JavaScript. P0 inventories every shipped `!!js` expression and proves that composition v1 can represent it before any profile switches composer.
+### Two-way compatibility constraints
 
-#### Generated artifacts and conformance
+Rust implementations are replacements, not destinations. Every Rust provider must stay switchable back to its TypeScript provider without residual state:
 
-`native/dsh/contracts/` contains generated JSON schemas, endpoint and event manifests, positive fixtures, and negative fixtures. Each artifact carries a format version and source digest. A freshness check regenerates them from the TypeScript owners and fails on a diff; Rust tests decode the positive set, reject the negative set with the named error class, and encode values that the TypeScript verifier reads back.
+- **No orphaned state on rollback.** Persistent artifacts introduced by a Rust implementation — session lease files, log row formats, lock siblings — must be readable, validated, and cleanable by the TypeScript implementation, or explicitly handed over by the supervisor during drain-and-resume. Rolling back to TypeScript must never leave an unclaimed lease or a format the TypeScript side cannot consume.
+- **Byte-aligned log formats.** Rust-written session JSONL rows must match the TypeScript `format.ts` row spec and zstd framing. Acceptance includes a bidirectional fixture: logs written by Rust are read unchanged by TypeScript, and vice versa.
+- **One shared conformance corpus.** The capability conformance suite is one shared fixture set — one JSON case corpus with a runner on each side. Rust and TypeScript providers run the same corpus; switching a backend in either direction passes the same assembled snapshots.
+- **Explicit rollback only.** Rolling back to a TypeScript provider is an explicit configured operation reported in diagnostics as the effective backend; it is never a hidden fallback.
 
-The conformance runner distinguishes canonical bytes from semantics. Session storage and any protocol text explicitly defined as canonical compare normalized bytes. SDK, ACP, Host, cancellation, and lifecycle cases compare decoded frames, ordering, error identity, and terminal state. Timestamps, opaque ids, temporary paths, and transport chunk boundaries are normalized only where the existing snapshot policy already treats them as volatile.
+### Product bridge
 
-P0 captures the already-implemented TypeScript turn-switching behavior as the P5 oracle: a durable `turn/pending` row, repair that does not synthesize an `interrupted` closer for that turn, and the shutdown flush fence that persists the marker before teardown. It also records phase-scoped P5 scenarios for automatic continuation, a durable continuation cursor, and duplicate `assistant/chunk` suppression. Those future scenarios are freshness-gated in P0 but become required executable conformance cases only when P5 takes ownership; they do not pretend that TypeScript already implements step 3 of [event-sourced turn switching](2026-08-14-event-sourced-turn-switching.md).
-
-P0 also emits an error catalog covering code, message stability, retryability, cancellation identity, and whether the error crosses a public protocol. TypeScript stack traces and Node-specific syscall wording are not compatibility promises unless an existing user-visible snapshot pins them.
-
-P0 exits only when the Cargo workspace builds, every generated artifact is freshness-gated, both languages pass the same positive and negative fixtures, every shipped `!!js` use has a composition v1 representation, and no `web`, `headless`, ACP, or SDK profile changes behavior.
-
-### P1: bidirectional migration bridge
-
-P1 introduces `dsh-bridge-protocol`, a Rust bridge runtime, and a TypeScript Cordis facade. The bridge is symmetric: with Node as process root, the facade invokes a Rust sidecar; after process inversion, the Rust runtime can use the same protocol to host a time-boxed JS guest. The public SDK, ACP, and Host protocols never tunnel through or expose bridge frames.
-
-#### Transport and handshake
-
-The initial carrier is a child process's stdin and stdout using `Content-Length`-framed JSON, matching the repository's proven LSP framing model. Stderr is diagnostics-only and never carries protocol frames. Byte chunks use base64 in P1 because the bridge is temporary and correctness is the first constraint; a measured throughput or allocation failure may justify a binary payload extension without changing the logical messages.
-
-Each side starts with `hello { bridgeVersion, role, build, schemaDigest, capabilities }` and refuses an unsupported version, role, or schema digest before registering services. Every frame carries a connection generation and request, resource, stream, or continuation id. Reconnection never reuses ids from a dead generation, so a late frame cannot complete new work.
-
-#### Logical messages
+`dsh-bridge-protocol` is the product IPC for a Rust provider, not a migration scaffold. The public SDK, ACP, and Host protocols never tunnel through or expose bridge frames. The initial carrier is a child process's stdin and stdout using `Content-Length`-framed JSON; stderr is diagnostics-only. Byte chunks may use base64 until a measured throughput or allocation failure justifies a binary payload extension. The same bridge is also the Agent worker transport of the worker-process proposal: worker commands are `call` frames on an `agent` service and session-event notifications are `event/invoke` payloads, so Rust providers and Agent workers share one IPC primitive set.
 
 | Operation | Required behavior |
 |---|---|
@@ -79,158 +62,125 @@ Each side starts with `hello { bridgeVersion, role, build, schemaDigest, capabil
 | `stream/open` / `stream/chunk` / `stream/end` | Preserves per-stream order, terminal error or success, bounded buffering, receiver credit, and cancellation |
 | `contribution/register` / `contribution/remove` | Registers services and event listeners under one plugin generation and removes them as one reversible effect |
 | `event/invoke` | Carries serial, parallel, emit, or waterfall dispatch with the original event payload and scoped registration identity |
-| `continuation/call` / `continuation/reply` | Implements one-shot waterfall `next()` so guest middleware can run code both before and after downstream listeners |
-| `dispose` / `quiescent` | Stops new work, cancels or drains owned work according to the service contract, releases resources, and acknowledges only after complete quiescence |
+| `continuation/call` / `continuation/reply` | Implements one-shot waterfall `next()` so a Node listener can wrap a Rust provider, or a Rust provider can call back into Node, without sharing an object reference |
+| `dispose` / `quiescent` | Stops new work, cancels or drains owned work, releases resources, and acknowledges only after complete quiescence |
 
-The connection must continue reading frames while a callback or waterfall continuation is outstanding; a single request-at-a-time reader would deadlock on nested `next()` or service callbacks. Continuations are one-shot, generation-scoped resources. Returning without invoking the continuation short-circuits the waterfall exactly as Cordis does.
+A parallel event that relies on shared mutable object identity is not bridged; those listeners stay in the Node process. Role inversion (Rust as process root, Node as guest) is a laboratory fixture only and is not a product topology.
 
-Every bridged field is classified as a JSON value, an owner-bound resource handle, a cancellation signal, or a continuation. A mutable waterfall request is value-threaded through `continuation/call` and returned with the downstream result, preserving before/after middleware behavior without pretending that two processes share an object reference. Live `Agent`, process, terminal, iterator, and callback objects cross only as handles. A parallel event that relies on shared mutable object identity is not bridgeable until it gains an explicit reducer or its listeners move into the same process.
+### Phases
 
-Typed errors contain a stable code, public message when one exists, retryability, cancellation marker, and structured data. A remote stack is diagnostic metadata and never replaces the local error identity. EOF, malformed framing, protocol mismatch, or child death rejects every pending operation, terminates owned descendants, and makes the providing service unavailable; the facade never silently falls back to a different implementation mid-call.
-
-Flow control is explicit. A stream sender may not exceed receiver credit, frame queues have fixed safety limits, and cancellation frames bypass ordinary data credit. The bridge conformance suite includes a stalled reader, cancellation during backpressure, nested callback, duplicate terminal frame, late old-generation frame, malformed frame, and process death with a live PTY.
-
-#### Cordis and Rust ownership
-
-Under the Node root, each TypeScript facade is an ordinary Cordis plugin: it declares injections, spawns or acquires the Rust sidecar inside `ctx.effect()`, registers the existing `ctx` key, converts `AbortSignal` to bridge cancellation, and awaits bridge quiescence during disposal. Consumers continue importing the Service Definition package and cannot tell which language implements the provider.
-
-Under the later Rust root, the composer mounts first-party crates directly. A JS guest may contribute only through declared bridge services and event registrations; it cannot mutate the Rust registry through a hidden Node API. Plugin generation owns every registration, resource, callback, subprocess, and stream so unloading one guest generation removes all of them before the next generation can become ready.
-
-The migration bridge is not the eventual third-party ABI. Before process inversion, a separate decision must choose either a closed first-party product or a stable process/WASM plugin format with explicit service, event, Host endpoint, permission, and version manifests. Rust `dylib` is not a stable public ABI.
-
-The full bridge is also not the permanent worker protocol by default. P3 may reuse its framing and the `call`, `cancel`, `stream`, `resource`, and `dispose` semantics to prove an execution worker, but before P7 a separate versioned manifest must freeze the smallest internal IPC subset that resident and task workers actually need. Guest contribution and distributed waterfall messages remain migration-only unless a measured worker use case requires them.
-
-#### P1 implementation order
-
-1. Implement framing, handshake, symmetric calls, typed errors, cancellation, resource ownership, flow control, and fault-injection fixtures in Rust and TypeScript.
-2. Prove `fs.resolve` plus text read across the bridge, including alias identity, missing targets, cancellation, and atomic mutation in an isolated directory.
-3. Prove collect-mode and piped subprocess output, cancellation, process-tree termination, spill reporting, and process death.
-4. Prove PTY allocation, input and output ordering, resize, signals, foreground process handling, cancellation, and whole-session quiescence.
-5. Prove one synthetic Cordis service callback and one waterfall listener that calls `next()`, wraps its result, short-circuits, unloads, and rejects a late continuation.
-6. Run the same fixtures with Node and Rust exchanging root and guest roles; no shipped profile uses the bridge by default yet.
-
-P1 exits only when all six steps pass on supported macOS, Linux, and Windows process semantics, disposal leaves no child process or open handle, protocol faults fail loudly, and the root-role reversal changes no fixture. Execution-world providers switch in P3, not during bridge construction.
-
-### Native operational model
-
-The TypeScript tree already implements step 1 and step 2 of the event-sourced switching proposal: phase-aware drain writes `turn/pending`, pending-tail repair does not synthesize `interrupted`, and the shutdown path flushes live sessions before teardown. It does not implement step 3 automatic continuation or chunk deduplication. The vendored Include guard also rejects hot application of changed core-seam config and writes `$DSH_HOME/restart-request`; the repository contains the request producer and tests, but no assembled supervisor consumer, so registered restart is only a validated transition signal today.
-
-| Existing or proposed mechanism | Rust phase | Native form and required evidence |
-|---|---|---|
-| TypeScript switching steps 1 and 2 | P0 fixtures, enforced at P5 | Preserve `turn/pending`, pending repair, `TOOL_OUTCOME_UNKNOWN`, and the shutdown flush fence as behavior-oracle fixtures; Rust must replay the same durable rows and terminal states |
-| Step 3 automatic continuation and chunk deduplication | P5 | Make continuation part of the first Rust spine: append under a durable continuation cursor, reject or coalesce duplicate chunks idempotently, rebuild model-visible history, and wake the pending turn without replaying completed tool side effects |
-| Execution-plane workers | P3, P5, then P7 | A resident execution-world worker owns constrained filesystem, subprocess, sandbox, PTY resources, and its process tree; a task worker is allowed for cheap isolated work; placement does not change the service API |
-| Single writer and session ownership | P2 and P5 | Persistence uses an exclusive session lease; after the agent moves, its worker owns append order, flush, resume cursor, and release. Supervisor and web host never append to the same live session |
-| Phase-aware drain and stuck tools | P5 | Reproduce the existing phase table natively. Model wait becomes pending immediately; a tool gets a configured bounded completion deadline, then records an unknown outcome and releases ownership. A three-to-five-second target is a candidate to measure, not a protocol constant |
-| Registered restart | P7 and P8 | A supervisor state machine accepts a restart request, stops admission, drains or cancels by phase, flushes owners, waits for quiescence, starts the next generation, and publishes readiness. This replaces core-seam HMR rather than reproducing it |
-| Blue-green or prewarmed host replacement | Not a default phase | Do not add a second host generation unless cold-start, configuration-load, session-reconstruction, and readiness measurements miss a stated availability target. Worker ownership should already keep live turns outside a web-host restart |
-
-TypeScript step 3 is not a prerequisite for Rust P5. If P5 can arrive before users need crash-continuation in the current host, implementing the full resume and deduplication path twice is rejected. If the Rust schedule is too long for that product requirement, the bounded TypeScript fallback is to finish the registered-restart consumer and its operational tests; any later change to drain or repair semantics must update the P0 oracle in the same change.
-
-### Replacement phases after P1
-
-Phases are sequential at their exit boundaries. Work inside a phase may proceed in parallel, but a product profile does not switch until the whole phase exit is green.
+Phases are sequential at their exit boundaries. A shipped profile does not default to a Rust provider until that phase is green. TypeScript providers remain in the tree.
 
 | Phase | Owns | Exit |
 |---|---|---|
-| P0 protocol and schema foundation | Cargo workspace, generated contracts, composition v1, compatibility classes | Freshness and bidirectional conformance checks pass; profiles are unchanged |
-| P1 bidirectional migration bridge | Framed IPC, lifecycle, streams, resources, callbacks, event contributions, fault handling | Filesystem, subprocess, PTY, waterfall, and reversed-role fixtures pass; profiles are unchanged |
-| P2 leaf and persistence primitives | Branded values, settings, credentials, attachment, spill, JSONL and SQLite primitives, session leases | TypeScript coordinators use Rust implementations behind facades with behavior parity; a second writer cannot acquire one live session |
-| P3 execution world | `fs`, `subprocess`, and `sandbox` providers, resident execution worker | Shipped `web` and `headless` profiles use one constrained Rust execution world with owned process-tree teardown; bash, PTY, and LSP Consumers are unchanged |
-| P4 external streaming providers | DeepSeek and later LLM adapters, web fetch/search, MCP | Chunk order, retry, cancellation, error mapping, and teardown match provider fixtures |
-| P5 model-visible spine | Session runtime and projection, scope, system-prompt, tools, agent registry, agent-loop, agent-worker ownership | Named headless and tool snapshots match; automatic pending-turn continuation, chunk idempotency, single-writer ownership, cancel, phase-aware drain, failure, unload, and empty-turn behavior pass |
-| P6 product plugins | Approval, commands, user questions, compaction, jobs, skill, workflow, goal, plan, todo, subagent | Base and headless runtime closures contain no Node implementation required by their configured rows |
-| P7 process-root inversion | Rust headless, SDK JSON-RPC, ACP entries, supervisor, minimal internal worker IPC; optional time-boxed JS guest | The three entries run from `dsh-runtime`; SDK and ACP assembled tests pass; restart never creates two session writers |
-| P8 web host | Generated Host dispatch, HTTP uplink, WebSocket downlinks, static frontend, registered restart readiness | Existing React client and browser e2e run against the Rust host; a requested restart drains owners and returns ready without changing session semantics |
-| P9 remove Node from the product | Remove JS guest and Node release closure; retain TypeScript development tools | Release artifacts and assembled product tests invoke only the Rust host |
+| P0 contracts and ledger | Cargo workspace, generated fixtures, [migration ledger](../../implemented/process/2026-08-15-rust-migration-ledger.md) | Freshness and bidirectional fixture checks pass; profiles are unchanged |
+| P1 product bridge | Framed IPC, lifecycle, streams, resources, callbacks, fault handling | Filesystem, subprocess, PTY, and waterfall fixtures pass on the Node-root pairing; profiles are unchanged |
+| P2 persistence leaves | Atomic write, file lock, JSONL, SQLite, session leases | TypeScript coordinators may use Rust storage behind facades; a second writer cannot acquire one live session; TypeScript backends remain mountable |
+| P3 execution world | `fs`, `subprocess`, and `sandbox` providers plus PTY in one sidecar | Shipped `web` and `headless` profiles may default to that Rust world; bash, PTY, and LSP Consumers stay TypeScript; the TypeScript local providers remain mountable |
+| P4 measured providers | Only a streaming or query backend whose Node path has a recorded cost | Chunk order, retry, cancellation, and teardown match that backend's fixtures; no spine or product-plugin rewrite |
 
-### Plugin and module model
+P5–P9 from the host-replacement plan — reimplementing the model-visible spine, rewriting product plugins, inverting the process root, replacing the web host, and removing Node — are not on the default path. Revisit only with a new Agent Note and a measured reason that this topology cannot meet.
 
-First-party plugins become Rust crates compiled into the binary and remain rows in declarative composition. The Rust runtime implements service registration, injection readiness, reversible effects, and emit, serial, parallel, and waterfall dispatch as explicit traits; it does not clone TypeScript declaration merging or HMR.
+Turn-switching steps 1 and 2, stuck-tool drain, and HMR stay TypeScript. Step 3 automatic continuation, if built, is built in TypeScript first so it is not implemented twice.
 
-Tree-external extensibility is a product decision that must finish before P7. A stable process or WASM format may preserve replaceable rows without shipping Node; a closed product must explicitly withdraw that promise. The temporary JS guest cannot be the only extension mechanism at P9.
+### Package and crate map
 
-The replacement is also an opportunity to remove TypeScript-host mechanisms from the architecture rather than merely translate them. The following mechanisms are independent of Rust syntax and define how modules remain replaceable.
+The unit of replacement is a Service Provider, not a Service Definition and not a Consumer. Definitions, tools, and the composer stay TypeScript. The generated [Rust migration matrix](../../../../docs/rust-migration-matrix.md) is the exhaustive package list; the tables below are the replacement policy.
 
-| Mechanism | Required design | Placement |
+Shipped Rust crates and the TypeScript they stand behind:
+
+| Rust crate | Implements | TypeScript that stays | Carrier today |
+|---|---|---|---|
+| `dsh-bridge-protocol` | Versioned bridge messages, framing, handshake, lifecycle | None — new IPC | Used by the sidecar and its tests |
+| `dsh-bridge-runtime` | Stdio connection, service registry, cancellation, dispose | None — new IPC | Used by the sidecar |
+| `dsh-sidecar` | Prototype `fs`, `subprocess`, and PTY services | [`dsh-fs`](../../../../packages/fs/fs/README.md), [`dsh-subprocess`](../../../../packages/subprocess/subprocess/README.md), and the bash / PTY / LSP Consumers | Child process stdio |
+| `dsh-primitives` | Branded string ids, atomic file replacement, writer lock | [`dsh-brand`](../../../../packages/util/brand/README.md) remains the type-only Definition; settings and credentials coordinators stay TypeScript | Prototype only; later in-process addon or sidecar |
+| `dsh-session-store` | Exclusive session lease, JSONL append and replay | [`dsh-session`](../../../../packages/core/session/README.md) and [`dsh-session-persistence`](../../../../packages/session/session-persistence/README.md) stay TypeScript | Prototype only |
+| [`landlock-run`](../../../../native/landlock-run/docs/architecture.md) | Existing C11 Landlock launcher | [`dsh-sandbox-local`](../../../../packages/sandbox/sandbox-local/README.md) keeps calling it | Unchanged native helper |
+
+Planned provider replacements. Each row keeps the Service Definition package on TypeScript:
+
+| TypeScript provider | Target crate | Phase | TypeScript Definition that stays |
+|---|---|---|---|
+| [`dsh-atomic-write`](../../../../packages/util/atomic-write/README.md) | `dsh-primitives` | P2 (prototype) | None — this package is the primitive |
+| [`dsh-session-persistence-jsonl`](../../../../packages/session/session-persistence-jsonl/README.md) | `dsh-session-store` | P2 (prototype) | `dsh-session-persistence` |
+| [`dsh-session-persistence-sqlite`](../../../../packages/session/session-persistence-sqlite/README.md) | `dsh-session-store` | P2 | `dsh-session-persistence` |
+| [`dsh-settings-file`](../../../../packages/settings/settings-file/README.md) | `dsh-primitives` for the durable file | P2 | `dsh-settings` |
+| [`dsh-credentials-local`](../../../../packages/credentials/credentials-local/README.md) | `dsh-primitives` for the durable file | P2 | `dsh-credentials` |
+| [`dsh-attachment-local`](../../../../packages/attachment/attachment-local/README.md) | store crate beside `dsh-primitives` | P2 | `dsh-attachment` |
+| [`dsh-spill-local`](../../../../packages/spill/spill-local/README.md) | store crate beside `dsh-primitives` | P2 | `dsh-spill` |
+| [`dsh-fs-local`](../../../../packages/fs/fs-local/README.md), [`dsh-fs-sandbox`](../../../../packages/fs/fs-sandbox/README.md) | `dsh-sidecar` / later `dsh-execution` | P3 | `dsh-fs` |
+| [`dsh-subprocess-local`](../../../../packages/subprocess/subprocess-local/README.md) | `dsh-sidecar` / later `dsh-execution` | P3 | `dsh-subprocess` |
+| [`dsh-sandbox-local`](../../../../packages/sandbox/sandbox-local/README.md), [`dsh-sandbox-windows-acl`](../../../../packages/sandbox/sandbox-windows-acl/README.md) | `dsh-sidecar` plus `landlock-run` | P3 | `dsh-sandbox` |
+
+Stay on TypeScript. No Rust clone is planned unless a later measured Agent Note opens one:
+
+| Kind | Packages |
+|---|---|
+| Composer and host mechanisms | Cordis Loader, HMR, `!!js`, `tsx` source launch, Typert generator / loader / registry, [`dsh-tool-cordis`](../../../../packages/extensions/tool-cordis/README.md) |
+| Model-visible spine | `dsh-session`, `dsh-system-prompt`, `dsh-tools`, `dsh-agent`, `dsh-agent-loop`, `dsh-scope` |
+| Product plugins | approval, commands, user-questions, subagent and in-process drivers, compaction, jobs, skill, workflow including `dsh-workflow-worker-thread`, goal, plan, todo |
+| Consumers over the execution world | `dsh-tool-fs`, `dsh-tool-bash`, `dsh-bash-local`, `dsh-terminal-bash`, `dsh-lsp-stdio`, `dsh-tool-lsp` |
+| Alternate execution world | `dsh-e2b`, `dsh-fs-e2b`, `dsh-subprocess-e2b` |
+| Product entries and clients | `dsh-acp`, SDK protocol / client / server, `dsh-host-apiproxy`, `dsh-host-webserver`, `apps/web`, `packages/client` |
+| Measured later only | `dsh-llm-deepseek` and other adapters, web fetch/search, MCP, `dsh-session-query-sqlite` |
+
+`migrated` on the ledger means the shipped default provider is Rust. The TypeScript provider package remains in the workspace and stays selectable from composition.
+
+### Candidate work queue
+
+| Order | Work | Exit condition |
 |---|---|---|
-| Capability manifest | Each module declares provided and required services, event codecs and listeners, Host endpoints, permissions, resources, placement options, version range, and shutdown policy | Required foundation in P0/P1; generated for first-party crates and explicit for process/WASM plugins |
-| Lifecycle ownership graph | One plugin generation owns every registration, stream, continuation, process, timer, and resource handle; unload closes admission and releases the owned graph in deterministic order | Required in P1 and the Rust runtime kernel |
-| Worker placement policy | A module may be `in_process`, `resident_worker`, or `task_worker`; the composer validates whether its service values are serializable and whether its ownership requirements allow that placement | Design in P3, enforce through P7; no per-profile API forks |
-| Declarative composition | Bundle and profile rows remain ordered data with schema-checked tagged runtime values; no arbitrary code executes while loading configuration | Required in P0 and used by every phase |
-| Generated dispatch | Typert and TypeScript declarations generate endpoint, event, and schema manifests; Rust compiles static dispatch tables and does not perform runtime reflection | Required for P0 and P8 |
-| Open event plugins | Durable event types register a codec, compatibility class, projection folders, and model-visibility metadata. Parallel listeners that need shared mutable identity become explicit reducers or stay co-located | Required for session work in P2/P5 |
-| Supervisor policy | Modules declare admission close, drain, cancel, snapshot or flush, restart dependencies, and readiness. Restart requests are state transitions, not HMR callbacks | Design by P5, activate in P7/P8 |
-| Runtime invariants | Registered diagnostics check single-writer ownership, leaked resources, stale generations, and quiescence without adding conditionals to `agent-loop` | Add with the owning phase; expose through the existing diagnostics capability |
-| External plugin ABI | Prefer a versioned process or WASM manifest over Rust `dylib`; negotiate capabilities and permissions before registration | Decide before P7 only if tree-external plugins remain a product requirement |
+| 1 | Benchmark `dsh-session-query-sqlite` on representative persisted and live corpora, recording query latency, Node event-loop delay, reconciliation throughput, cancellation latency, and resident memory | A P4 Agent Note opens `dsh-session-index` only when the measurements identify a material Node cost or an isolation requirement |
+| 2 | Define the `dsh-session-index` facade and shared conformance corpus; TypeScript keeps the `SessionQuery` Definition, canonical session log, request semantics, and Consumers, while Rust owns only the disposable derived database, reconciliation, FTS execution, cursor generations, and query cancellation | Rust and TypeScript backends pass the same search, cursor invalidation, rebuild, cancellation, and explicit two-way switching cases without changing model-visible snapshots |
+| 3 | Decide whether restartable or durable DAG execution is a product requirement; if it is, specify a versioned plain-data DAG representation and a separate Rust engine behind a complete capability | The proposal proves deterministic scheduling, bounded concurrency, cancellation, checkpoint recovery, and ordered TypeScript-owned session events without translating the current JavaScript worker or embedding another JavaScript runtime |
+| 4 | Route the ACP, Codex, Claude Code, and DSH SDK subagent adapters through the P3 Rust subprocess Provider and measure process-tree cleanup, bounded output, cancellation, and adapter duplication | A separate `dsh-subagent-runner` is proposed only if protocol-neutral supervision remains duplicated after the shared subprocess Provider ships; continuable orchestration and provider protocols stay TypeScript |
+| 5 | Replace the callback- and live-`Agent`-based jobs start API with a proposed plain-data job specification, owner identity, commands, observations, and recovery rules before considering a Rust backend | The new jobs proposal defines restart, cancellation, ownership, result delivery, and compatibility semantics without transferring callbacks or live objects across the process boundary |
+| Deferred | Keep `agent-loop`, continuable subagent orchestration, the current JavaScript workflow engine, todo, and session projection in TypeScript; evaluate a compaction or projection compute kernel only after profiling isolates CPU work from LLM and same-tick coordination | A later measured Agent Note names the unmet product requirement, the isolated computation, and the conformance evidence before any row moves |
 
-Capability manifests, lifecycle ownership, declarative composition, generated dispatch, and the migration ledger below are required foundations. Worker placement and supervisor policy need explicit phase decisions and failure fixtures before activation. A public process/WASM ecosystem is deferred until the product chooses external extensibility; designing a marketplace or a broad stable ABI now would add obligations that the host replacement does not need.
+### Ledger
 
-### Rust crate topology and migration ledger
-
-The target is a small runtime kernel plus capability families, not 219 one-for-one crate translations. `dsh-runtime` owns composition, registry, event dispatch, lifecycle generations, and entrypoints; `dsh-contracts` owns generated protocol views; `dsh-session` owns the open event envelope, codecs, projections, leases, and resume cursors; `dsh-execution` owns filesystem, subprocess, sandbox, terminal resources, and worker placement; `dsh-agent` owns scope, prompt, tools, registry, and loop; `dsh-providers` groups external LLM, web, and MCP adapters without merging their independent configuration; `dsh-host` owns SDK, ACP, Host dispatch, HTTP, WebSocket, and static serving; `dsh-supervisor` owns process generations and registered restart. Product plugins remain separate crates when they evolve independently, while `dsh-bridge-protocol` stays a removable migration dependency.
-
-`native/dsh/migration/package-map.json` becomes the machine-readable migration ledger and `docs/rust-migration-matrix.md` its generated human view. The generator inventories every DSH `package.json`, internal peer-dependency edge, capability role, shipped composition row, and bundle patch; maintainers add the target crate or retained TypeScript disposition, phase, status, conformance fixtures, runtime placement, and `removeAfter` gate. CI rejects an unknown package or a migrated row whose dependency closure still selects an unrecorded Node implementation. This provides the requested package and reference checklist without making a manually maintained document the source of truth.
-
-### Inventory
-
-Replace the implementation and keep the Service Definition: `fs` / `fs-local` / `fs-sandbox`, `subprocess` / `subprocess-local`, `sandbox` / `sandbox-local` / `sandbox-windows-acl`, session persistence JSONL and SQLite, `session-query-sqlite`, `llm-deepseek` and later adapters, web fetch/search, `attachment-local`, `spill-local`, `settings-file`, and `credentials-local`.
-
-Reimplement with identical semantics: `session`, `system-prompt`, `tools`, `agent`, `agent-loop`, `scope`, `approval`, `commands`, `user-questions`, `subagent` and in-process providers, `compaction`, `jobs`, `skill`, `host-apiproxy`, `webserver`, and `frontend-static`.
-
-Do not port: HMR, Typert runtime reflection, arbitrary `!!js`, `tsx` source launch, or the Node `workflow-worker-thread` engine. Replace the workflow engine with a native or separate-process implementation when its configured row moves.
-
-Keep on the TypeScript side: `apps/web` and `packages/client`, the Python and TypeScript SDK clients, the documentation website, and snapshot recorders that speak the public protocols.
+[`native/dsh/migration/package-map.json`](../../../../native/dsh/migration/package-map.json) is the machine-readable ledger and [`docs/rust-migration-matrix.md`](../../../../docs/rust-migration-matrix.md) is its generated human view, produced by [`scripts/gen-rust-migration-ledger.ts`](../../../../scripts/gen-rust-migration-ledger.ts). Maintainers edit [`native/dsh/migration/overrides.json`](../../../../native/dsh/migration/overrides.json). The [ledger Agent Note](../../implemented/process/2026-08-15-rust-migration-ledger.md) owns the generator. `removeAfter` is not a Node-removal gate; TypeScript implementations are not scheduled for deletion by this proposal.
 
 ## Alternatives considered
 
-**Rewrite Cordis, the loop, and the web client in one effort.** Rejected: the plugin tree, session reconstruction, and snapshot corpus define product behavior. A green-field Rust harness would create a different product before compatibility could be measured.
+**Replace the Node process root and remove the JavaScript runtime (the previous P5–P9 host-replacement plan).** Rejected as the completion condition: it withdraws `apply(ctx)`, HMR, `!!js`, and `dsh-tool-cordis`. Rust providers do not require that withdrawal.
 
-**Translate npm packages to crates in directory order.** Rejected: package boundaries do not contain lifecycle behavior. `fs` without `subprocess` breaks execution-world identity, and `agent-loop` without session projection and event middleware breaks model-visible reconstruction.
+**Translate TypeScript plugins into Rust, or find a Cordis-equivalent Rust crate.** Rejected: declaration merging, live `ctx`, waterfall `next()`, and reversible effects are TypeScript-host mechanisms. A translation would drop identity-sensitive listeners. No maintained Rust library reproduces that API.
 
-**Create provider-specific CLI protocols.** Rejected: each ad hoc process wrapper would need its own cancellation, stream, error, ownership, and teardown rules, then become unusable after process-root inversion. One symmetric bridge gives those rules one implementation and one fault suite.
+**Use Bun, Deno, or an embedded V8/QuickJS as a permanent guest so Rust can be the root.** Rejected: that is a second JavaScript runtime, not a provider swap, and this tree's native addons (`node-pty`, koffi, Landlock) are Node-hosted. A guest remains a laboratory inversion fixture only.
 
-**Use unary JSON-RPC only and defer event semantics.** Rejected: subprocess and PTY expose live resources, and product plugins contribute callbacks and waterfall listeners. A unary bridge could move leaf methods but could not host the temporary guest required by process inversion.
+**Keep the bridge temporary and freeze a smaller worker ABI before inversion.** Rejected under this topology: inversion is not planned, so the bridge is the product IPC for Rust providers. Guest-only contribution messages stay unused in production.
 
-**Delay process inversion until every plugin is Rust.** Viable but rejected as the primary plan: it withholds Rust entrypoint and SDK evidence until the end and makes the final switch too broad. P7 may still omit the JS guest if P6 finishes every configured row first.
+**Reimplement `session`, `agent-loop`, and product plugins in Rust for completeness.** Rejected without a measured Node-process cost: those packages are the extension surface. Moving them forces every listener across the bridge and recreates the host-replacement problem.
 
-**Embed a JavaScript engine permanently so TypeScript plugins keep loading.** Rejected as the completion condition: a permanent guest is a dual runtime. A time-boxed guest is allowed only through P8.
+**N-API only, no sidecar.** Rejected as the sole carrier: filesystem, subprocess, sandbox, and PTY need an owned process tree and crash isolation. An in-process addon remains allowed for P2 leaves after a hop is measured.
 
-**Clone Cordis declaration merging, HMR, and Typert reflection in Rust.** Rejected: those are TypeScript-host mechanisms. Rust keeps the observable service, lifecycle, event, and Host endpoint semantics through explicit traits and generated manifests.
+**Create provider-specific CLI protocols.** Rejected: each wrapper would need its own cancellation, stream, error, and teardown rules. One bridge gives those rules one implementation.
 
-**Finish the complete TypeScript step 3 before starting the Rust spine.** Rejected as the default sequence: steps 1 and 2 already provide the durable behavior oracle, while implementing continuation cursors and chunk idempotency in both hosts doubles the highest-risk work. Reconsider only if an evidenced current-host requirement arrives before P5.
+**Use unary JSON-RPC and skip waterfall.** Rejected: PTY and subprocess expose live resources, and Node middleware must still wrap a Rust provider through `next()`.
 
-**Make blue-green restart part of the initial Rust architecture.** Rejected without measurements: worker ownership and a native supervisor should isolate turns from host replacement first. Add overlapping host generations only when an availability target and cold-start benchmark prove they are still necessary.
-
-**Run every plugin in its own process.** Rejected: isolation, serialization, scheduling, and teardown cost differ by capability. Placement is declared per module, while in-process first-party crates remain the default for pure or latency-sensitive work.
-
-**Treat containers or microVMs as `ctx.sandbox` providers.** Rejected by the existing sandbox decision: those replace the `fs` and `subprocess` execution world, not the same-world confinement runner.
-
-**Rewrite the React client in Rust.** Rejected: the browser is already a separate process behind Host RPC. Replacing it is unrelated to removing Node from the product runtime.
+**Rewrite the React client in Rust.** Rejected: the browser is already a separate process behind Host RPC.
 
 ## Acceptance criteria
 
-- P0: generated schemas, manifests, positive and negative fixtures, the error catalog, composition v1 inventory, TypeScript step 1/2 turn-switching oracle, and phase-scoped P5 continuation scenarios are freshness-gated; currently owned cases pass bidirectional conformance; profiles do not change.
-- P1: symmetric bridge calls, streams, resources, cancellation, callbacks, waterfall continuation, disposal, backpressure, fault injection, and reversed roles pass; filesystem, subprocess, and PTY prototypes leave no process or handle behind; profiles do not change.
-- P2-P4: leaf, persistence, execution-world, and external provider facades default to Rust only after focused conformance and assembled snapshots pass; session leases reject a second writer; the constrained worker proves process-tree teardown; shadow comparison never double-writes production state.
-- P5-P6: the model-visible spine and product plugins produce compatible session logs and assembled output; a pending turn resumes automatically under a durable cursor, duplicate chunks do not change reconstructed output, completed tools are not replayed, stuck-tool handling is bounded, and cancel, drain, failure, and unload semantics match.
-- P7-P8: headless, ACP, SDK, and web entries run as `dsh-runtime`; the minimal worker IPC and supervisor prevent overlapping session owners; registered restart reaches quiescence and readiness; existing SDK, ACP, Host, and browser suites pass without client rewrites.
-- P9: product documentation and release artifacts have no Node runtime dependency; the JS guest is absent; snapshot and assembled e2e jobs invoke only the Rust host; the supported tree-external plugin position is explicit.
-- Migration inventory: the generated package matrix covers every DSH package and internal dependency edge, and every migrated composition row names its target, fixtures, placement, phase, and Node-removal gate.
+- P0: generated fixtures and the ledger pair stay freshness-gated; profiles do not change.
+- P1: Node-root bridge fixtures for filesystem, subprocess, PTY, cancellation, waterfall `next()`, and dispose pass; no shipped profile loads the sidecar by default until P3.
+- P2: Rust storage leaves pass focused conformance; session leases reject a second writer; TypeScript persistence backends remain mountable; shadow comparison never double-writes production state.
+- P3: a shipped profile may default to the Rust execution world only after assembled snapshots pass; bash, PTY, and LSP Consumers are unchanged; the TypeScript local providers remain mountable.
+- P4 occurs only with a recorded measurement and a provider-specific facade; it does not move the spine or product plugins.
+- `apply(ctx)`, HMR, `!!js`, Typert, `tsx` source launch, `dsh-tool-cordis`, and the TypeScript SDK/ACP/Host clients remain product APIs.
+- The generated package matrix names every DSH package and, for each default-Rust provider, the target crate, fixtures, placement, phase, and the TypeScript Definition that stayed.
 
 ## Risks
 
-- **Two semantic owners.** Hand-maintained Rust and TypeScript schemas would drift. P0 permits one owner and generated derivatives only; a freshness failure blocks migration.
-- **Distributed waterfall deadlock.** Nested callbacks and `next()` require re-entrant frame processing and one-shot continuation ownership. P1 fault tests pin both behavior and failure.
-- **Unbounded bridge memory.** Fast producers can outrun a guest or facade. Receiver credit, bounded queues, cancellation priority, and process-death cleanup are protocol requirements rather than provider conventions.
-- **Shadow side effects.** Comparing two implementations can duplicate writes or subprocesses. Stateful comparisons use isolated directories, disposable databases, or recorded inputs; production state is never dual-written.
-- **Isolation is a vacuum, not a gate.** Through P0-P4 the Rust implementation has no semantic connection to the product: zero cordis references, no facade, no shadow comparison. That vacuum is not a check. `scripts/verify-native-dsh-boundary.ts` turns the vacuum into a gate before any facade enters the tree (shipped compositions must not reference Rust migration packages; nothing outside native/dsh may spawn the sidecar binary; the migration ledger and matrix must exist together), and the CI `native/dsh` conformance lane keeps `cargo test --workspace` green first. A facade package must register in that gate's allow-list and carry its own conformance suite the day it lands; until then, any `@deepseek-ai/dsh-*-rust` package name in a cordis composition fails the gate.
-- **Snapshot lock-in of TypeScript accidents.** Fixtures may encode Node-specific timing or wording. Only public text and specified order remain compatibility requirements; volatile fields follow existing normalization policy.
-- **Turn-switching semantic drift.** TypeScript already owns `turn/pending`, pending repair, and the shutdown flush fence. Any later drain or repair change must update the P0 fixtures and phase-scoped P5 cases in the same change; prose is not a second semantic owner.
-- **Session split brain.** A supervisor or second worker could append after ownership moved. Session leases are generation-scoped, append verifies the active owner, and takeover requires prior-owner death or a completed release before resume.
-- **Bridge ossification.** Reusing the full migration bridge for internal workers would preserve guest-only contribution and waterfall complexity. P7 freezes a smaller worker protocol and keeps the bridge removable.
-- **Unverified restart assumptions.** Rust startup and restart-window improvements have no repository benchmark yet, and the TypeScript tree contains a restart-request producer without an assembled consumer. Cold start, configuration load, session reconstruction, drain, and readiness must be measured before removing a fallback or adding blue-green complexity.
-- **Open session event coverage.** The registered codec and folder model must include existing `turn/pending` rows and preserve their canonical bytes. Treating the event as unknown or ignorable would silently convert a resumable turn into incompatible state.
-- **The JS guest becomes permanent.** P9 forbids shipping it. P7 cannot begin until the extension decision and the guest removal conditions are explicit.
-- **Plugin authors lose TypeScript `apply(ctx)`.** Completion cannot retain that API without Node. A process/WASM format may preserve replaceable composition rows, but source-compatible TypeScript plugins are intentionally not promised.
-- **Native launcher scope remains ambiguous.** Product-runtime removal of Node does not by itself rewrite the existing C11 Landlock executable. A literal all-Rust native-code goal must migrate it or record it as an audited exception.
+- **Two semantic owners.** Hand-maintained Rust and TypeScript schemas would drift. P0 permits one TypeScript owner and generated derivatives only.
+- **Distributed waterfall deadlock.** Nested `next()` across the bridge requires re-entrant frame processing and one-shot continuation ownership. Listeners that need shared mutable identity stay in Node.
+- **Unbounded bridge memory.** Receiver credit, bounded queues, cancellation priority, and process-death cleanup are protocol requirements.
+- **Shadow side effects.** Stateful comparisons use isolated directories or disposable databases; production state is never dual-written.
+- **Isolation is a vacuum, not a check.** `scripts/verify-native-dsh-boundary.ts` refuses shipped compositions that name Rust migration packages until a facade is allow-listed with its own conformance suite.
+- **Snapshot lock-in of TypeScript accidents.** Only public text and specified order are compatibility requirements.
+- **Session split brain.** A lease is exclusive; a second writer cannot acquire a live session. The Node coordinator still owns when to take or release that lease.
+- **Dual CI cost.** Cargo and Node suites both stay required for every default-Rust provider.
+- **Bridge ossification.** The full message set stays available for facades; production providers should use `call`, `cancel`, `stream`, `resource`, and `dispose` unless a facade actually registers a contribution.
+- **Native launcher scope.** Landlock remains the existing C11 executable. This proposal does not rewrite it.

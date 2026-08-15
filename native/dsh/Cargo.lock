@@ -103,6 +103,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dsh-primitives"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "dsh-session-store"
+version = "0.1.0"
+dependencies = [
+ "dsh-primitives",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "dsh-sidecar"
 version = "0.1.0"
 dependencies = [
