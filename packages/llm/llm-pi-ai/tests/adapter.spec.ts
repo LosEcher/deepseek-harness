@@ -309,6 +309,34 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.paths).toEqual(['/chat/completions'])
   })
 
+  it('keeps gateway SSE error messages (LOS finish_reason "error") retryable', async () => {
+    // LOS answers HTTP 200 first, then wraps an upstream 503 as a terminal
+    // chunk with finish_reason "error" + a top-level error object. pi-ai must
+    // preserve that message so DSH classifies it SERVER (retryable) instead of
+    // the generic "Provider finish_reason: error" (PI_AI_ERROR, not retried).
+    const events = [
+      '{"choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":null}]}',
+      JSON.stringify({
+        choices: [{ delta: {}, index: 0, finish_reason: 'error' }],
+        error: {
+          message: 'packycode API error 503: QPS/TPM 高峰',
+          code: 'PROVIDER_HTTP_ERROR',
+          httpStatus: 503,
+          retryable: true,
+          provider: 'packycode',
+          model: 'gpt-5.5',
+        },
+      }),
+      '[DONE]',
+    ]
+    const server = await mockServer([{ events }])
+    const ctx = await harness(server.url)
+    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
+    expect(result.finish.failure?.message).toContain('503')
+    expect(server.paths).toEqual(['/chat/completions'])
+  })
+
   it('uses the resolved catalog context window for usage-based overflow detection', async () => {
     const model = getBuiltinModels('deepseek').find(candidate => candidate.id === 'deepseek-v4-flash')
     if (model === undefined) throw new Error('deepseek-v4-flash missing from pi-ai test catalog')

@@ -713,6 +713,13 @@ describe('mapStopReason / mapUsage', () => {
     }))).toMatchObject({ kind: 'error', failure: { code: 'QUOTA' } })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'HTTP 500: backend down' })))
       .toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
+    // LOS gateway wraps upstream failures as SSE finish_reason "error" and
+    // carries the provider status in the error message (pi-ai now preserves
+    // chunk.error.message); a PackyCode QPS/TPM 503 must stay retryable.
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: 'packycode API error 503: QPS/TPM 高峰',
+    }))).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'provider timed out' })))
       .toMatchObject({ kind: 'error', failure: { code: 'TIMEOUT' } })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'ECONNRESET socket closed' })))
