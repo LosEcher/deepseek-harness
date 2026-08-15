@@ -11,6 +11,8 @@
 | [`system-prompt/`](system-prompt/README.md) | 提示词和工具 schema 组装注册表 | `ctx.systemPrompt` |
 | [`tools/`](tools/README.md) | 作用域工具注册表和执行流水线 | `ctx.tools` |
 | [`agent/`](agent/README.md) | Agent 接口、注册表和事件词汇 | `ctx.agents` |
+| [`agent-control/`](agent-control/README.md) | 进程安全的 Agent 控制 Service Definition | `ctx.agentControl` |
+| [`agent-worker/`](agent-worker/README.md) | `local-ts` 与 `worker-ts` Agent 控制 provider | `ctx.agentControl` |
 | [`agent-default-model/`](agent-default-model/README.md) | 各 Agent 入口共享的默认模型选择 | `ctx.agentDefaultModel` |
 | [`agent-loop/`](agent-loop/README.md) | 默认具体 agent 驱动器 | `ctx.agentLoop` |
 

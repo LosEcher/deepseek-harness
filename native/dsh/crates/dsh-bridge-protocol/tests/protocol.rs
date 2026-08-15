@@ -70,6 +70,10 @@ fn node_root_accepts_only_the_matching_rust_sidecar_contract() {
         .validate_peer(&peer, "sha256:contract", &["call", "stream"])
         .expect("matching roles and digest must pass");
 
+    local
+        .validate_peer(&hello(BridgeRole::NodeWorker, 1, "sha256:contract"), "sha256:contract", &["call"])
+        .expect("node_root must pair with node_worker");
+
     let wrong_role = hello(BridgeRole::JsGuest, 1, "sha256:contract");
     assert_eq!(
         local.validate_peer(&wrong_role, "sha256:contract", &[]),

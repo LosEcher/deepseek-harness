@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "source_digest": "sha256:bf6f760c6aba76fcc0f0382b05051172841c12b5aee4c4f2be2ed32fac1d882c",
+  "source_digest": "sha256:6c4ad3c5f797841e8d28fe2bbfa3bd273d55cb4e1a1014025bc10f979049464b",
   "cases": [
     {
       "name": "node-root-hello",
@@ -12,7 +12,10 @@
           "role": "node_root",
           "build": "fixture-node",
           "schema_digest": "sha256:fixture",
-          "capabilities": ["call", "stream"]
+          "capabilities": [
+            "call",
+            "stream"
+          ]
         }
       }
     },
@@ -25,7 +28,9 @@
           "id": "call-1",
           "service": "fs",
           "method": "readText",
-          "args": {"path": "/fixture/readme.txt"}
+          "args": {
+            "path": "/fixture/readme.txt"
+          }
         }
       }
     },
@@ -59,7 +64,9 @@
         "payload": {
           "generation": 17,
           "id": "next-1",
-          "payload": {"value": "before"}
+          "payload": {
+            "value": "before"
+          }
         }
       }
     }

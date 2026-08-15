@@ -14,10 +14,14 @@ A turn flows through the six packages in one loop: the driver in [`agent-loop`](
 | `system-prompt/` | Prompt-section and tool-schema assembly (`ctx.systemPrompt`) | [system-prompt.md](system-prompt.md) |
 | `tools/` | The scoped tool registry and guarded execution pipeline (`ctx.tools`) | [tools.md](tools.md) |
 | `agent/` | The `Agent` interface, live registry, initiator scope, and `agent/*` event vocabulary (`ctx.agents`) | this page |
+| `agent-control/` | Process-safe Agent commands, generation, and session-ownership events (`ctx.agentControl`) | this page |
+| `agent-worker/` | `local-ts` and `worker-ts` providers for that control service | this page |
 | `agent-loop/` | The concrete driver implementing the public `Agent` contract (`ctx.agentLoop`) | this page |
 | `scope/` | The scoped-registration primitive the registries and loop build per-agent scoping on | [scope.md](scope.md) |
 
 `scope/` is the one non-service package: a dependency-free library (`createScope`/`scopeOf`/`scopeTarget`) that sits below `session/` and `system-prompt/` in the module graph precisely so they can consume it without a cycle. `agent-loop` is the one concrete implementation of the public `Agent` contract and lives here because it is the harness's default product loop; it runs each driver inside `ctx.agents.withInitiator()`. Extension plugins depend on `agent` — including when they need the initiating Agent — and never on `agent-loop` directly, so the loop stays swappable. The default composition that wires this spine into a runnable agent is [`examples/agent-spine-demo`](../../packages/examples/agent-spine-demo/README.md).
+
+Process-safe callers use `ctx.agentControl` from [`dsh-agent-control`](../../packages/core/agent-control/README.md). That service issues named commands and holds `AgentDescriptor` records; it never returns a live `Agent`. Writer identity is the last `session/ownership` event. `local-ts` and `worker-ts` are explicit backends from [`dsh-agent-worker`](../../packages/core/agent-worker/README.md).
 
 ## Creation and ownership
 

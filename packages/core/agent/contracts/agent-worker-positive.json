@@ -1,0 +1,104 @@
+{
+  "format_version": 1,
+  "source_digest": "sha256:e9de93e44c669884353cd85e36d7f0c7a87d2a83a9aaf078e243844840aac572",
+  "cases": [
+    {
+      "name": "create",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-1",
+          "service": "agent",
+          "method": "create",
+          "args": {
+            "owner": "host",
+            "options": {
+              "sessionId": "sess-1",
+              "backend": "local-ts"
+            }
+          }
+        }
+      },
+      "expected": "reply"
+    },
+    {
+      "name": "resume",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-2",
+          "service": "agent",
+          "method": "resume",
+          "args": {
+            "owner": "host",
+            "options": {
+              "sessionId": "sess-1",
+              "backend": "worker-ts"
+            }
+          }
+        }
+      },
+      "expected": "reply"
+    },
+    {
+      "name": "followup",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-3",
+          "service": "agent",
+          "method": "followup",
+          "args": {
+            "message": {
+              "id": "m-1",
+              "role": "user",
+              "content": "hello"
+            }
+          }
+        }
+      },
+      "expected": "reply"
+    },
+    {
+      "name": "cancel",
+      "frame": {
+        "kind": "cancel",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-4"
+        }
+      },
+      "expected": "cancelled"
+    },
+    {
+      "name": "status-notification",
+      "frame": {
+        "kind": "event_invoke",
+        "payload": {
+          "generation": 1,
+          "id": "evt-1",
+          "event": "agent/status",
+          "payload": {
+            "agent": "sess-1",
+            "status": "running"
+          },
+          "dispatch": "emit"
+        }
+      },
+      "expected": "accepted"
+    },
+    {
+      "name": "drain",
+      "frame": {
+        "kind": "dispose",
+        "payload": {
+          "generation": 1
+        }
+      },
+      "expected": "quiescent"
+    }
+  ]
+}

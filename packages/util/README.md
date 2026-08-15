@@ -12,3 +12,4 @@ These zero-dependency packages provide small primitives shared by multiple capab
 | [`retention/`](output-retention/README.md) | Bounds retained text and item collections |
 | [`atomic-write/`](atomic-write/README.md) | Replaces files atomically |
 | [`native-command/`](native-command/README.md) | Runs host-native commands without a shell |
+| [`bridge-protocol/`](bridge-protocol/README.md) | Product-bridge messages and Content-Length framing |

@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "artifact": "agent-worker-protocol",
+  "protocol_version": 1,
+  "carrier": "bridge_call_eventinvoke",
+  "roles": ["main", "worker"],
+  "services": ["agent", "session"],
+  "commands": [
+    "agent/create",
+    "agent/resume",
+    "agent/send",
+    "agent/followup",
+    "agent/steer",
+    "agent/inject",
+    "agent/cancel",
+    "agent/whenIdle",
+    "agent/get",
+    "agent/list",
+    "agent/roots",
+    "agent/isOwnedBy",
+    "session/flush",
+    "agent/drain"
+  ],
+  "notifications": ["ready", "status", "session-event", "drained", "fault"],
+  "fixtures": ["agent-worker-positive.json", "agent-worker-negative.json"],
+  "semantic_owner": "typescript",
+  "generated_from": "packages/core/agent/src/runtime-types.ts + packages/core/agent/src/index.ts"
+}

@@ -1,0 +1,92 @@
+{
+  "format_version": 1,
+  "source_digest": "sha256:e9de93e44c669884353cd85e36d7f0c7a87d2a83a9aaf078e243844840aac572",
+  "cases": [
+    {
+      "name": "retired-generation-command",
+      "expected_error": "generation retired",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 0,
+          "id": "cmd-late",
+          "service": "agent",
+          "method": "followup",
+          "args": {
+            "message": {
+              "id": "m-late",
+              "role": "user",
+              "content": "late"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "retired-generation-notification",
+      "expected_error": "generation retired",
+      "frame": {
+        "kind": "event_invoke",
+        "payload": {
+          "generation": 0,
+          "id": "evt-late",
+          "event": "session/event",
+          "payload": {
+            "seq": 5,
+            "event": {}
+          },
+          "dispatch": "emit"
+        }
+      }
+    },
+    {
+      "name": "function-in-payload",
+      "expected_error": "functions never cross the boundary",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-fn",
+          "service": "agent",
+          "method": "runMaintenance",
+          "args": {
+            "task": "function(){}"
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-service",
+      "expected_error": "unknown service",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-x",
+          "service": "nonexistent",
+          "method": "foo",
+          "args": {}
+        }
+      }
+    },
+    {
+      "name": "unbounded-replay-request",
+      "expected_error": "replay window must be bounded",
+      "frame": {
+        "kind": "call",
+        "payload": {
+          "generation": 1,
+          "id": "cmd-r",
+          "service": "agent",
+          "method": "resume",
+          "args": {
+            "options": {
+              "sessionId": "sess-1",
+              "replayWindow": 0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

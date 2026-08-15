@@ -11,6 +11,8 @@ The session log, system-prompt assembly, tool registry, agent vocabulary, deploy
 | [`system-prompt/`](system-prompt/README.md) | Prompt and tool-schema assembly registry | `ctx.systemPrompt` |
 | [`tools/`](tools/README.md) | Scoped tool registry and execution pipeline | `ctx.tools` |
 | [`agent/`](agent/README.md) | Agent interface, registry, and event vocabulary | `ctx.agents` |
+| [`agent-control/`](agent-control/README.md) | Process-safe Agent control Service Definition | `ctx.agentControl` |
+| [`agent-worker/`](agent-worker/README.md) | `local-ts` and `worker-ts` Agent control providers | `ctx.agentControl` |
 | [`agent-default-model/`](agent-default-model/README.md) | Default model selection shared by Agent entry points | `ctx.agentDefaultModel` |
 | [`agent-loop/`](agent-loop/README.md) | Default concrete agent driver | `ctx.agentLoop` |
 

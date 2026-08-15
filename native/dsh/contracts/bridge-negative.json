@@ -1,19 +1,25 @@
 {
   "format_version": 1,
-  "source_digest": "sha256:bf6f760c6aba76fcc0f0382b05051172841c12b5aee4c4f2be2ed32fac1d882c",
+  "source_digest": "sha256:6c4ad3c5f797841e8d28fe2bbfa3bd273d55cb4e1a1014025bc10f979049464b",
   "cases": [
     {
       "name": "empty-opaque-id",
       "expected_error": "bridge identifiers must not be empty",
       "message": {
         "kind": "cancel",
-        "payload": {"generation": 17, "id": " "}
+        "payload": {
+          "generation": 17,
+          "id": " "
+        }
       }
     },
     {
       "name": "unknown-message-kind",
       "expected_error": "unknown variant",
-      "message": {"kind": "fallback", "payload": {}}
+      "message": {
+        "kind": "fallback",
+        "payload": {}
+      }
     },
     {
       "name": "binary-chunk-must-be-base64",
@@ -24,7 +30,11 @@
           "generation": 17,
           "id": "stream-1",
           "sequence": 0,
-          "data": [0, 1, 2]
+          "data": [
+            0,
+            1,
+            2
+          ]
         }
       }
     }

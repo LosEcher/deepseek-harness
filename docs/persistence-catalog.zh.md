@@ -636,6 +636,22 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/core/session/src/types.ts:332`](../packages/core/session/src/types.ts)
 
+<a id="sessionownership--log-only"></a>
+
+#### `session/ownership` — 仅日志
+
+```ts persistence-catalog
+/**
+ * The generation that currently may append to this session, or the
+ * release that leaves the session without a writer. Required on read:
+ * a log that carries this event cannot be interpreted by a writer that
+ * does not understand ownership.
+ */
+'session/ownership': SessionOwnership
+```
+
+来源：[`packages/core/agent-control/src/types.ts:114`](../packages/core/agent-control/src/types.ts)
+
 <a id="sessiontitle--log-only"></a>
 
 #### `session/title` — log-only
@@ -896,6 +912,23 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 类型：[TurnEndReason](subsystems/session.md)
 
 来源：[`packages/core/session/src/types.ts:252`](../packages/core/session/src/types.ts)
+
+<a id="turnpending--log-only"></a>
+
+#### `turn/pending` — log-only
+
+```ts persistence-catalog
+/**
+ * Marks turn `turn` as intentionally left open by a fast shutdown (方案 C:
+ * event-sourced turn switching). The process exits without closing the
+ * turn; a later resume may rebuild and continue it from the event stream.
+ * Crash repair treats a `turn/pending` tail as resumable and does NOT
+ * synthesize an `interrupted` `turn/end` for it.
+ */
+'turn/pending': { turn: number }
+```
+
+来源：[`packages/core/session/src/types.ts:260`](../packages/core/session/src/types.ts)
 
 <a id="turnstart--log-only"></a>
 

@@ -11,6 +11,7 @@ pub enum BridgeRole {
     RustSidecar,
     RustRoot,
     JsGuest,
+    NodeWorker,
 }
 
 impl BridgeRole {
@@ -22,6 +23,8 @@ impl BridgeRole {
                 | (Self::RustSidecar, Self::NodeRoot)
                 | (Self::RustRoot, Self::JsGuest)
                 | (Self::JsGuest, Self::RustRoot)
+                | (Self::NodeRoot, Self::NodeWorker)
+                | (Self::NodeWorker, Self::NodeRoot)
         )
     }
 }

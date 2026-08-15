@@ -14,12 +14,16 @@
 | `system-prompt/` | 提示词段落与工具 schema 组装（`ctx.systemPrompt`） | [system-prompt.md](system-prompt.md) |
 | `tools/` | 带作用域的工具注册表与受保护的执行流水线（`ctx.tools`） | [tools.md](tools.md) |
 | `agent/` | `Agent` 接口、实时注册表、发起者作用域与 `agent/*` 事件词汇（`ctx.agents`） | 本页 |
+| `agent-control/` | 进程安全的 Agent 命令、generation 与会话所有权事件（`ctx.agentControl`） | 本页 |
+| `agent-worker/` | 该控制服务的 `local-ts` 与 `worker-ts` provider | 本页 |
 | `agent-loop/` | 实现公开 `Agent` 约定的具体 driver（`ctx.agentLoop`） | 本页 |
 | `scope/` | 注册表与循环用于构建按 agent 作用域的注册原语 | [scope.md](scope.md) |
 
 `scope/` 是这里唯一的非服务包：一个零依赖库（`createScope`/`scopeOf`/`scopeTarget`），在模块图中位于 `session/` 与 `system-prompt/` 之下，正是为了让它们消费它而不形成环。`agent-loop` 是公开 `Agent` 约定的唯一具体实现，放在这里因为它是 harness 的默认产品循环；它在 `ctx.agents.withInitiator()` 内运行每个 driver。扩展插件依赖 `agent`——包括需要发起 Agent 时——而绝不直接依赖 `agent-loop`，因此循环保持可替换。把这条主干接成可运行 agent 的默认组合是 [`examples/agent-spine-demo`](../../packages/examples/agent-spine-demo/README.md)。
 
 <a id="creation-and-ownership"></a>
+
+进程安全的调用方使用 [`dsh-agent-control`](../../packages/core/agent-control/README.md) 的 `ctx.agentControl`。该服务发出命名命令并持有 `AgentDescriptor` 记录；它从不返回活的 `Agent`。写者身份是最后一条 `session/ownership` 事件。`local-ts` 与 `worker-ts` 是 [`dsh-agent-worker`](../../packages/core/agent-worker/README.md) 的显式后端。
 
 ## 创建与所有权
 
