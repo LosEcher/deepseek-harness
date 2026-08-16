@@ -11,6 +11,7 @@ import { SlotRegistry } from './slots.ts'
 import { SessionRuntime } from './sessions/service.ts'
 import type { SessionListState } from './sessions/service.ts'
 import { WorkspaceRuntime } from './workspaces/service.ts'
+import { HostStatusRuntime } from './host-status/service.ts'
 import type { ConversationSnapshot } from './sessions/conversation.ts'
 import type { UseProjection } from './sessions/projection-store.ts'
 import { ConversationEventRegistry } from './conversation/event-registry.ts'
@@ -22,6 +23,8 @@ export { SlotRegistry } from './slots.ts'
 export { ConversationEventRegistry } from './conversation/event-registry.ts'
 export { ConversationViewRegistry } from './conversation/view-registry.ts'
 export { ConversationNodeAssembler } from './sessions/conversation-assembler.ts'
+export { HostStatusRuntime, HOST_STATUS_POLL_MS } from './host-status/service.ts'
+export type { HostStatusState, RestartPendingView } from './host-status/service.ts'
 export { ConversationLocationIndex } from './sessions/conversation-location-index.ts'
 export { conversationContextKey } from './contract/conversation.ts'
 export type {
@@ -197,6 +200,7 @@ export function apply(ctx: Context): void {
     identity: candidate => sessions.scopeOf(candidate),
   })
   const workspaces = new WorkspaceRuntime(ctx, connection.api, sessions)
+  const hostStatus = new HostStatusRuntime(ctx, connection.api)
   ctx.effect(
     () => workspaces.startInitialSelection(),
     'runtime: initial Workspace selection',
@@ -218,6 +222,7 @@ export function apply(ctx: Context): void {
     onConnected: () => {
       sessions.handleConnected()
       workspaces.handleConnected()
+      hostStatus.start()
       ctx.emit('connection/reset')
     },
     onStateChange: (state) => {
@@ -226,6 +231,7 @@ export function apply(ctx: Context): void {
       // the only safe moment to drop generation-scoped interaction state.
       if (state === 'reconnecting') {
         sessions.handleDisconnected()
+        hostStatus.stop()
       }
     },
   })
