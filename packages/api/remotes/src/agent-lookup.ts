@@ -2,6 +2,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
+import type AgentControl from '@deepseek-ai/dsh-agent-control'
+import type { AgentControlMessage, AgentDescriptor } from '@deepseek-ai/dsh-agent-control'
 import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { TypertLookupFailure } from '@deepseek-ai/dsh-typert-protocol'
@@ -208,4 +210,136 @@ export function createApiRemoteAgentResolver(
   })
 
   return agentFor
+}
+
+/**
+ * Bounded command handle over the Agent control capability for one session.
+ * Methods forward through `ctx.agentControl`; a generation that is not held
+ * rejects with the control service's own typed errors (`unknown-agent`).
+ */
+export interface ApiRemoteAgentControlHandle {
+  send(message: AgentControlMessage, target: 'next-turn' | 'next-step', wakeup: boolean): Promise<void>
+  followup(message: AgentControlMessage): Promise<void>
+  steer(message: AgentControlMessage): Promise<void>
+  inject(message: AgentControlMessage): Promise<void>
+  cancel(cause: { readonly kind: string; readonly reason?: string }, keepInbox?: boolean): Promise<void>
+  whenIdle(): Promise<void>
+  flush(): Promise<void>
+  drain(): Promise<void>
+  dispose(): Promise<void>
+}
+
+/**
+ * Main-process remote projection of one session identity — the P0
+ * agent-lookup transformation. Callers never receive a live `Agent`; they
+ * hold the durable read (header/events), the control descriptor when the
+ * provider holds the generation, and a bounded command handle forwarding
+ * through `ctx.agentControl`. The live `Agent` (session, inbox, ctx, loop)
+ * stays in the worker-local composition.
+ */
+export interface ApiRemoteAgentProjection {
+  /** Session/agent identity. */
+  readonly id: SessionId
+  /** Control descriptor when the provider holds this generation. */
+  readonly descriptor: AgentDescriptor | undefined
+  /** Durable session header (cold read). */
+  readonly header: SessionHeader | undefined
+  /** Durable events read (cold read); may lag a live in-flight generation. */
+  readonly events: readonly SessionEvent[]
+  /**
+   * Bounded command handle. Present when a control provider is mounted;
+   * commands on a generation the provider does not hold reject with its
+   * typed `unknown-agent` error.
+   */
+  readonly control: ApiRemoteAgentControlHandle | undefined
+}
+
+/** Result of resolving one session identity to its remote projection. */
+export type ApiRemoteAgentProjectionResult =
+  | { readonly projection: ApiRemoteAgentProjection }
+  | { readonly error: ApiRemoteLookupError }
+
+/**
+ * Create the main-process remote-projection factory for one session
+ * identity. The durable read comes from the persistence projection; the
+ * live descriptor and commands come from `ctx.agentControl` when a control
+ * provider is mounted (resuming a durable cold session through the control
+ * service, mirroring the legacy resolver's cold-resume policy — `setup` has
+ * no wire form, so agent-scope assembly belongs to the worker-local
+ * composition). Without a control provider the factory is a pure cold read.
+ * @param ctx - owning Host Context.
+ * @param options - per-Agent defaults used only for cold resume.
+ * @returns the shared projection resolver.
+ */
+export function createApiRemoteAgentProjection(
+  ctx: Context,
+  options: ApiRemoteAgentOptions = {},
+): (sessionId: SessionId) => Promise<ApiRemoteAgentProjectionResult> {
+  const control: AgentControl | undefined = ctx.get('agentControl')
+
+  const resolve = async (sessionId: SessionId): Promise<ApiRemoteAgentProjectionResult> => {
+    let header: SessionHeader | undefined
+    let events: SessionEvent[] = []
+    let durable = true
+    try {
+      const inspected = await inspectApiRemoteSession(ctx, sessionId)
+      header = inspected.meta
+      events = [...inspected.events]
+    } catch (error) {
+      if (error instanceof ApiRemoteSessionNotFound) {
+        if (control === undefined) {
+          return { error: { code: 'session-not-found', message: error.message, details: { sessionId } } }
+        }
+        // A control provider may hold an in-flight first generation the
+        // durable store does not list yet; project what the provider knows.
+        durable = false
+      } else {
+        throw error
+      }
+    }
+    if (header !== undefined && hasApiRemoteSubagentOwner(ctx, { header }, undefined)) {
+      return { error: apiRemoteSubagentOwnershipError(sessionId) }
+    }
+    if (control === undefined) {
+      return { projection: { id: sessionId, header, events, descriptor: undefined, control: undefined } }
+    }
+    let descriptor = control.get(sessionId)
+    if (descriptor === undefined && durable) {
+      try {
+        descriptor = await control.resume('api-remotes', {
+          resumeSessionId: sessionId,
+          ...options.agentOptions === undefined ? {} : { agentOptions: options.agentOptions() },
+        })
+      } catch (error) {
+        return {
+          error: {
+            code: 'internal',
+            message: `resume failed for session "${sessionId}": ${String(error)}`,
+            details: {},
+          },
+        }
+      }
+    }
+    return {
+      projection: {
+        id: sessionId,
+        descriptor,
+        header,
+        events,
+        control: {
+          send: (message, target, wakeup) => control.send(sessionId, message, target, wakeup),
+          followup: message => control.followup(sessionId, message),
+          steer: message => control.steer(sessionId, message),
+          inject: message => control.inject(sessionId, message),
+          cancel: (cause, keepInbox) => control.cancel(sessionId, cause, keepInbox),
+          whenIdle: () => control.whenIdle(sessionId),
+          flush: () => control.flush(sessionId),
+          drain: () => control.drain(sessionId),
+          dispose: () => control.dispose(sessionId),
+        },
+      },
+    }
+  }
+
+  return resolve
 }
