@@ -153,6 +153,15 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
           headers: { connection: 'Upgrade', upgrade: 'websocket' },
         })
       }
+      // Optional pre-dispatch hook (api-proxy ④): agent-scoped requests route
+      // into the worker holding the generation once a deployment selects
+      // worker-ts. Inert before then — the hook declines and local dispatch
+      // runs. The hook owns body cloning; the local path re-reads it.
+      const hook = ctx.get('apiProxyDispatchHook')
+      if (hook !== undefined) {
+        const forwarded = await hook.tryForward(request.clone())
+        if (forwarded !== undefined) return forwarded
+      }
       const apiProxy = ctx.get('apiProxy')
       if (apiProxy === undefined) return new Response('not found', { status: 404 })
       return toFetchHandler(apiProxy).fetch(request)

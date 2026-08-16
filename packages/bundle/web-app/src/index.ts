@@ -17,6 +17,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
 import { createHostWorkerForwarder } from '@deepseek-ai/dsh-api-gateway'
+import { createApiProxyWorkerForwarder } from '@deepseek-ai/dsh-host-apiproxy'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -139,6 +140,10 @@ export function apply(ctx: Context, config: Config): void {
   // Inert before then — no control provider, or local-ts sessions, never
   // forward, and the Gateway dispatches everything locally.
   ctx.provide('typertDispatchHook', createHostWorkerForwarder(ctx))
+  // Same routing for the /api fallback (unclaimed endpoints): agent-scoped
+  // ApiProxy requests forward into the worker's own api-proxy. Also inert
+  // until a deployment selects worker-ts.
+  ctx.provide('apiProxyDispatchHook', createApiProxyWorkerForwarder(ctx))
   const runtime = resolveLanTrust(ctx.webServer.host, config.trustedHosts)
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)

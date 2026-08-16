@@ -25,6 +25,8 @@ import {
 export type * from './api/index.ts'
 export { RpcId } from './api/rpc.ts'
 export { toFetchHandler } from './fetch/handler.ts'
+export { createApiProxyWorkerForwarder } from './api-proxy-forwarder.ts'
+export type { ApiProxyDispatchHook } from './api-proxy-forwarder.ts'
 export { AbstractApiClient, InProcessApiClient } from './fetch/client.ts'
 export type { IApiClient } from './fetch/client.ts'
 export { createApiProxy } from './api-proxy.ts'
