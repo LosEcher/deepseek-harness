@@ -1,11 +1,11 @@
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createAssistantMessage, createUserMessage, CallId } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
-import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId, SessionPreparation } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId, SessionPreparation, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -676,6 +676,108 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
       reason: { kind: 'completed' },
     })
     expect(adapter2.requests).toHaveLength(1)
+    await ctx2.fiber.dispose()
+  })
+
+  it('resume answers a dangling tool call left by a drained open step (TOOL_OUTCOME_UNKNOWN)', async () => {
+    // A drain fast-exit kills the process while a write-side tool is in
+    // flight: assistant/message + tool/call are durably recorded, the
+    // tool/result never is, and turn/pending keeps the tail resumable. The
+    // resumed driver must synthesize an unknown-outcome result BEFORE the
+    // next request — otherwise the re-derived transcript carries an assistant
+    // tool_calls message with no tool response and the provider rejects the
+    // request with INVALID_REQUEST (regression: three production sessions
+    // each failed three consecutive turns this way).
+    const sessionId = SessionId('resume-dangling-tool')
+    const assistant = createAssistantMessage({
+      content: [{ type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: '{}' }],
+      source: { provider: 'mock', model: 'mock' },
+    })
+    const { ctx: ctx1, root } = await persistentHarness(new MockAdapter([]))
+    const session = ctx1.sessions.create(sessionId, {
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: createUserMessage({ content: [{ type: 'text', text: 'run it' }], source: { kind: 'user' } }), surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        { type: 'assistant/message', seq: 3, time: 4, data: { turn: 1, step: 1, message: assistant }, surfaceOp: 'append' },
+        { type: 'tool/call', seq: 4, time: 5, data: { turn: 1, step: 1, callId: CallId('call-1'), name: 'bash', arguments: '{}' } },
+        { type: 'turn/pending', seq: 5, time: 6, data: { turn: 1 } },
+      ],
+    })
+    await ctx1.sessions.flush(session)
+    await ctx1.fiber.dispose()
+
+    const adapter2 = new MockAdapter([textResponse('recovered')])
+    const ctx2 = await mountPersistentHarness(root, adapter2)
+    const a2 = (await ctx2.agents.resume({
+      resumeSessionId: sessionId,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })).agent
+    await a2.whenIdle()
+    // The dangling call received a synthesized TOOL_OUTCOME_UNKNOWN result.
+    const synthesized = a2.session.events.filter(
+      (event): event is SessionEvent & { type: 'tool/result' } =>
+        event.type === 'tool/result' && event.data.error?.code === TOOL_OUTCOME_UNKNOWN,
+    )
+    expect(synthesized).toHaveLength(1)
+    // The request transcript pairs the assistant tool_calls with a tool
+    // response: no dangling call reaches the provider.
+    const request = adapter2.requests[0]!
+    const assistantCalls = request.messages.filter(
+      message => message.role === 'assistant'
+        && message.content.some(block => block.type === 'tool-call'),
+    )
+    expect(assistantCalls).toHaveLength(1)
+    const toolResponses = request.messages.filter(
+      message => message.role === 'user' && message.source?.kind === 'tool',
+    )
+    expect(toolResponses).toHaveLength(1)
+    await ctx2.fiber.dispose()
+  })
+
+  it('a later turn heals a historical dangling tool call before the model request', async () => {
+    // A dangling tool-call sitting mid-history (its step and turn already
+    // closed, so crash repair never synthesizes for it) must be answered by
+    // the request-time defense when a new turn starts — otherwise every
+    // follow-up request fails with INVALID_REQUEST.
+    const sessionId = SessionId('resume-historical-dangling-tool')
+    const assistant = createAssistantMessage({
+      content: [{ type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: '{}' }],
+      source: { provider: 'mock', model: 'mock' },
+    })
+    const { ctx: ctx1, root } = await persistentHarness(new MockAdapter([]))
+    const session = ctx1.sessions.create(sessionId, {
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: createUserMessage({ content: [{ type: 'text', text: 'run it' }], source: { kind: 'user' } }), surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        { type: 'assistant/message', seq: 3, time: 4, data: { turn: 1, step: 1, message: assistant }, surfaceOp: 'append' },
+        { type: 'tool/call', seq: 4, time: 5, data: { turn: 1, step: 1, callId: CallId('call-1'), name: 'bash', arguments: '{}' } },
+        { type: 'step/end', seq: 5, time: 6, data: { turn: 1, step: 1 } },
+        { type: 'turn/end', seq: 6, time: 7, data: { turn: 1, reason: { kind: 'completed' } } },
+      ],
+    })
+    await ctx1.sessions.flush(session)
+    await ctx1.fiber.dispose()
+
+    const adapter2 = new MockAdapter([textResponse('still here')])
+    const ctx2 = await mountPersistentHarness(root, adapter2)
+    const a2 = (await ctx2.agents.resume({
+      resumeSessionId: sessionId,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })).agent
+    a2.followup(createUserMessage({ content: [{ type: 'text', text: 'continue' }], source: { kind: 'user' } }))
+    await a2.whenIdle()
+    const synthesized = a2.session.events.filter(
+      (event): event is SessionEvent & { type: 'tool/result' } =>
+        event.type === 'tool/result' && event.data.error?.code === TOOL_OUTCOME_UNKNOWN,
+    )
+    expect(synthesized).toHaveLength(1)
+    const request = adapter2.requests[0]!
+    const toolResponses = request.messages.filter(
+      message => message.role === 'user' && message.source?.kind === 'tool',
+    )
+    expect(toolResponses).toHaveLength(1)
     await ctx2.fiber.dispose()
   })
 

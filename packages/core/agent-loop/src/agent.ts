@@ -28,7 +28,7 @@ import {
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals, resumablePendingTurn, type ResumablePendingTurn } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, resumablePendingTurn, scanDanglingToolCalls, danglingToolResultSpecs, type ResumablePendingTurn } from '@deepseek-ai/dsh-session'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type { Context } from '@deepseek-ai/cordis'
@@ -420,6 +420,27 @@ export class ReactLoopAgent implements Agent {
     let turn: number
     if (resuming !== undefined) {
       if (resuming.openStep !== null) {
+        // A resumed open step may carry assistant tool calls whose durable
+        // results were lost when the previous process was drained mid-flight
+        // (the drain fast-exit writes turn/pending but cannot wait for a
+        // write-side tool, and crash repair deliberately skips pending tails).
+        // Answer every dangling call with a synthesized TOOL_OUTCOME_UNKNOWN
+        // result BEFORE closing the step: otherwise the re-derived transcript
+        // contains an assistant tool_calls message with no tool response and
+        // the provider rejects the request with INVALID_REQUEST — and the
+        // dangling call poisons every later turn in the session.
+        for (const spec of danglingToolResultSpecs(
+          scanDanglingToolCalls(this.session.events).filter(call => call.turn === resuming.turn),
+        )) {
+          try {
+            this.session.append(spec.type, spec.data, {
+              surfaceOp: spec.surfaceOp,
+              ...spec.sourceEventSeqs !== undefined ? { sourceEventSeqs: spec.sourceEventSeqs } : {},
+            })
+          } catch (error: unknown) {
+            this.throwError(error)
+          }
+        }
         try {
           this.session.append('step/end', { turn: resuming.turn, step: resuming.openStep })
         } catch (error: unknown) {
@@ -527,6 +548,23 @@ export class ReactLoopAgent implements Agent {
     const system = renderPrompt(assembly)
 
     while (true) {
+      // Transcript-pairing defense: any assistant tool-call left dangling
+      // without a durable tool/result (a tool killed mid-flight outside the
+      // resume path, a historical hole from an earlier crash) makes
+      // deriveMessages emit a provider-invalid transcript and every request
+      // fail with INVALID_REQUEST. Synthesize the unknown outcome before
+      // building the request. The scan is idempotent — once a result exists
+      // the call no longer dangles — so repeated steps pay only the fold cost.
+      const dangling = scanDanglingToolCalls(this.session.events)
+      if (dangling.length > 0) {
+        for (const spec of danglingToolResultSpecs(dangling)) {
+          signal.throwIfAborted()
+          this.session.append(spec.type, spec.data, {
+            surfaceOp: spec.surfaceOp,
+            ...spec.sourceEventSeqs !== undefined ? { sourceEventSeqs: spec.sourceEventSeqs } : {},
+          })
+        }
+      }
       const { request, preparedCall } = await this.buildRequest(
         turn, step, assembly.tools, system, this.session.deriveMessages(), signal,
       )
