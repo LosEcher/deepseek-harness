@@ -1,0 +1,22 @@
+.banner {
+  /* Shell overlay occupants are click-through; the banner must not block the app. */
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-state-warn-secondary);
+  border-radius: 6px;
+  background: var(--dsw-alias-state-warn-tertiary);
+  color: var(--dsw-alias-state-warn-label);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.body {
+  opacity: 0.85;
+}
