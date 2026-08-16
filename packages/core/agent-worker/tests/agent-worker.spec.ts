@@ -403,4 +403,76 @@ describe('worker-ts profile mode', () => {
       else process.env.DSH_HOME = previousHome
     }
   }, 60_000)
+
+  it('runs Host RPC inside a worker-web composition (api-proxy world)', async () => {
+    // The worker-web composition: dsh-base plus the web Host-service rows
+    // (workspace registry, the display-free browse directory picker — the
+    // auto variant requires the webserver — plugin inventory, and the real
+    // api-proxy gateway). A host invocation must execute a real Remote
+    // method (pluginInventory/list) inside the worker and return its live
+    // snapshot.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-agent-worker-web-'))
+    dirs.push(root)
+    const name = 'worker-web-test'
+    const profileDir = join(root, 'profiles', name)
+    await mkdir(profileDir, { recursive: true })
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name,
+      version: '0.0.0',
+      private: true,
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+    }, null, 2))
+    await writeFile(join(profileDir, 'cordis.patch.yml'), [
+      '# worker-web test composition: web Host services without listeners',
+      '- insert:',
+      '    - id: storage',
+      "      name: '@deepseek-ai/dsh-storage'",
+      '    - id: storage-json',
+      "      name: '@deepseek-ai/dsh-storage-json'",
+      '      config:',
+      "        root: !!js dshHomePath('storages')",
+      '    - id: storage-domain',
+      "      name: '@deepseek-ai/dsh-storage-domain'",
+      '      config:',
+      '        backend: json',
+      '    - id: workspace',
+      "      name: '@deepseek-ai/dsh-workspace'",
+      '    - id: directory-picker',
+      "      name: '@deepseek-ai/dsh-host-directory-picker-browse'",
+      '    - id: plugin-inventory',
+      "      name: '@deepseek-ai/dsh-host-plugin-inventory'",
+      '    - id: api-gateway',
+      "      name: '@deepseek-ai/dsh-host-apiproxy'",
+    ].join('\n'))
+    const previousHome = process.env.DSH_HOME
+    process.env.DSH_HOME = root
+    try {
+      const supervisor = new WorkerSupervisor({
+        backend: 'worker-ts',
+        commandQueueLimit: 32,
+        eventCredit: 64,
+        replayWindow: 1024,
+        workerProfile: name,
+      })
+      const id = SessionId('worker-web-host')
+      await supervisor.create('host', {
+        sessionId: id,
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      const snapshot = await supervisor.invokeHost(id, 'pluginInventory', 'list', {}) as {
+        entries: Array<{ entryId: string; moduleName: string; fiberPhase: string }>
+      }
+      const byId = new Map(snapshot.entries.map(entry => [entry.entryId, entry]))
+      // The api-proxy gateway activated inside the worker composition — the
+      // worker-local Host world — and the Remote method executed there.
+      expect(byId.get('include:api-gateway')?.moduleName).toBe('@deepseek-ai/dsh-host-apiproxy')
+      expect(byId.get('include:api-gateway')?.fiberPhase).toBe('active')
+      expect(byId.get('include:directory-picker')?.fiberPhase).toBe('active')
+      expect(byId.get('include:plugin-inventory')?.fiberPhase).toBe('active')
+      await supervisor.dispose(id)
+    } finally {
+      if (previousHome === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = previousHome
+    }
+  }, 60_000)
 })
