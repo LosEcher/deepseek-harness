@@ -43,6 +43,18 @@ ACP requires each prompt response to carry a `stopReason`, but the bridge does n
 
 `pnpm --dir /path/to/deepseek-harness run demo:acp` boots the repository's automation server composition. A parent harness can spawn it through [`@deepseek-ai/dsh-subagent-acp`](../../subagent/subagent-acp/README.md); other ACP clients need only the core methods above.
 
+### acp-server profile (product surface)
+
+The product surface is a dedicated profile composition over `@deepseek-ai/dsh-base` plus this plugin:
+
+```bash
+DSH_LOG_STDERR=1 dsh --profile acp-server
+```
+
+The profile lives at `~/.dsh/profiles/acp-server/` (`dsh.profile.bundles: ["@deepseek-ai/dsh-base"]`, one insert row for this plugin). It reserves stdout for ACP JSON-RPC frames: `DSH_LOG_STDERR=1` routes every logger line to stderr (`boot()` reads the switch; see `createConsoleLoggerExporter`). The process stays up until the client closes stdin, then drains and exits.
+
+Initial provider/model for ACP-created agents come from `DSH_ACP_PROVIDER` / `DSH_ACP_MODEL`, defaulting to `deepseek-official` / `deepseek-v4-flash`. Any ACP client — including [`wechat-acp`](https://github.com/formulahendry/wechat-acp) as a WeChat→ACP bridge (`--agent "DSH_LOG_STDERR=1 dsh --profile acp-server"`) — can drive harness agents over stdio without a Web/Host surface.
+
 ## Model Experience
 
 ### Prompt text

@@ -43,6 +43,18 @@ ACP 要求每个提示词响应都携带 `stopReason`，但桥接层不声称它
 
 `pnpm --dir /path/to/deepseek-harness run demo:acp` 启动仓库的自动化服务器组合。父 harness 可以通过 [`@deepseek-ai/dsh-subagent-acp`](../../subagent/subagent-acp/README.md) spawn 它；其他 ACP 客户端只需上述核心方法。
 
+### acp-server profile（产品面）
+
+产品面是 `@deepseek-ai/dsh-base` 加本插件的专用 profile 组合：
+
+```bash
+DSH_LOG_STDERR=1 dsh --profile acp-server
+```
+
+profile 位于 `~/.dsh/profiles/acp-server/`（`dsh.profile.bundles: ["@deepseek-ai/dsh-base"]`，一行 insert 本插件）。stdout 保留给 ACP JSON-RPC 帧：`DSH_LOG_STDERR=1` 把所有 logger 行转到 stderr（`boot()` 读取该开关，见 `createConsoleLoggerExporter`）。进程常驻至客户端关闭 stdin，然后排空退出。
+
+ACP 创建 agent 的初始 provider/model 来自 `DSH_ACP_PROVIDER` / `DSH_ACP_MODEL`，缺省 `deepseek-official` / `deepseek-v4-flash`。任意 ACP 客户端——包括作为微信→ACP 桥的 [`wechat-acp`](https://github.com/formulahendry/wechat-acp)（`--agent "DSH_LOG_STDERR=1 dsh --profile acp-server"`）——都能在无 Web/Host 面的情况下通过 stdio 驱动 harness agent。
+
 ## 模型体验
 
 ### 提示词文本
