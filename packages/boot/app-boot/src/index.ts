@@ -832,12 +832,16 @@ export async function boot(
   prepare?: (ctx: Context) => Promise<void> | void,
   bareModuleBaseUrl?: string,
   requireActivated = true,
-  loggerExporter: LoggerExporter = createConsoleLoggerExporter(),
+  loggerExporter: LoggerExporter = process.env.DSH_LOG_STDERR
+    ? createConsoleLoggerExporter({ stderr: true })
+    : createConsoleLoggerExporter(),
 ): Promise<Context> {
   const ctx = new Context()
   // Surface every `ctx.logger.*` call (see createConsoleLoggerExporter). A
   // caller whose stdout is reserved for a wire protocol passes the stderr
   // variant so composed-tree logging cannot corrupt the frame stream.
+  // `DSH_LOG_STDERR` is the process-level switch for such surfaces (the
+  // acp-server profile reserves stdout for ACP JSON-RPC).
   ctx.logger.exporter(loggerExporter)
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
   // so its failure is host setup, not the plugin tree.
