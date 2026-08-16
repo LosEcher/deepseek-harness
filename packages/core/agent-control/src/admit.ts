@@ -9,7 +9,7 @@ import { AgentControlError } from './errors.ts'
 import { fixtureErrorText } from './errors.ts'
 
 /** Services the worker protocol admits. */
-export const AGENT_WORKER_SERVICES = new Set(['agent', 'session'])
+export const AGENT_WORKER_SERVICES = new Set(['agent', 'session', 'host'])
 
 /** Command methods on the agent service. */
 export const AGENT_COMMANDS = new Set([
@@ -27,6 +27,9 @@ export const AGENT_COMMANDS = new Set([
   'isOwnedBy',
   'drain',
 ])
+
+/** Command methods on the host service (worker-local Host dispatch). */
+export const HOST_COMMANDS = new Set(['invoke'])
 
 /** Default bounded replay window when a resume omits one. */
 export const DEFAULT_REPLAY_WINDOW = 1024
@@ -50,6 +53,9 @@ export function admitAgentWorkerFrame(
   }
   if (message.kind === 'call') {
     if (!AGENT_WORKER_SERVICES.has(message.payload.service)) {
+      throw new AgentControlError('unknown-service', fixtureErrorText('unknown-service'))
+    }
+    if (message.payload.service === 'host' && !HOST_COMMANDS.has(message.payload.method)) {
       throw new AgentControlError('unknown-service', fixtureErrorText('unknown-service'))
     }
     if (message.payload.method === 'runMaintenance') {

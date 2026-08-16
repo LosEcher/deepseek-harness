@@ -23,6 +23,10 @@ English | [中文](README.zh.md)
 
 Killing one worker process cannot terminate the main process or another Agent. The supervisor marks that generation `faulted`. Resume is a new generation after drain or after the supervisor observes the child exit.
 
+## Host invocation
+
+`supervisor.invokeHost(id, namespace, method, args)` routes one Host Remote invocation into the worker's own composition (service `host` on the product bridge): the worker's typert gateway — mounted by `dsh-base` in any composed profile — resolves the endpoint from its own descriptor catalog, so Host RPC method bodies can run against the in-worker live `Agent` without a remote-object facade. worker-ts only: local-ts holds agents in-process, where Host methods run directly.
+
 ## Model Experience
 
 None, as this provider never assembles a model request; the worker-local Agent composition owns every model-visible fact.

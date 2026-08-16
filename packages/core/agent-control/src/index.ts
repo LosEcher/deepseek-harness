@@ -32,6 +32,7 @@ export {
   AGENT_COMMANDS,
   AGENT_WORKER_SERVICES,
   DEFAULT_REPLAY_WINDOW,
+  HOST_COMMANDS,
 } from './admit.ts'
 export { assertCanAcquire, generationHoldsLease, lastOwnership } from './ownership.ts'
 

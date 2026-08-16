@@ -230,8 +230,8 @@ export class WorkerSupervisor {
     await Promise.allSettled([...this.records.keys()].map(id => this.dispose(id)))
   }
 
-  private async call(id: SessionId, method: string, args: unknown, service = 'agent'): Promise<unknown> {
-    const record = this.require(id, method)
+  private async call(id: SessionId, method: string, args: unknown, service: 'agent' | 'session' | 'host' = 'agent'): Promise<unknown> {
+    const record = this.require(id, method, service)
     record.queueDepth += 1
     try {
       const result = await record.connection.call(service, method, args)
@@ -244,8 +244,8 @@ export class WorkerSupervisor {
     }
   }
 
-  private require(id: SessionId, method: string): WorkerRecord {
-    this.admit(method, id)
+  private require(id: SessionId, method: string, service: 'agent' | 'session' | 'host' = 'agent'): WorkerRecord {
+    this.admit(method, id, service)
     const record = this.records.get(id)
     if (record === undefined) throw new AgentControlError('unknown-agent', 'unknown agent')
     if (record.descriptor.phase !== 'ready') {
@@ -254,18 +254,33 @@ export class WorkerSupervisor {
     return record
   }
 
-  private admit(method: string, id: SessionId): void {
+  private admit(method: string, id: SessionId, service: 'agent' | 'session' | 'host' = 'agent'): void {
     const record = this.records.get(id)
     admitAgentWorkerFrame({
       kind: 'call',
       payload: {
         generation: record?.descriptor.generation ?? (method === 'create' || method === 'resume' ? this.nextGeneration : 0),
         id: method,
-        service: method === 'flush' ? 'session' : 'agent',
+        service,
         method,
         args: {},
       },
     }, record?.descriptor.generation ?? (method === 'create' || method === 'resume' ? this.nextGeneration : undefined), record?.queueDepth ?? 0, this.config.commandQueueLimit)
+  }
+
+  /**
+   * Invoke one Host Remote method inside this worker's own composition. The
+   * worker's typert gateway resolves the method from its own descriptor
+   * catalog — the worker-local Host surface (api-proxy ④). worker-ts only:
+   * local-ts holds agents in-process, where Host methods run directly.
+   * @param id - target agent whose worker owns the invocation.
+   * @param namespace - Remote namespace selected by the generated descriptor.
+   * @param method - exported Service method name.
+   * @param args - named wire values.
+   * @returns the validated business result.
+   */
+  async invokeHost(id: SessionId, namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.call(id, 'invoke', { namespace, method, args }, 'host')
   }
 
   private async spawn(owner: string, id: SessionId): Promise<WorkerRecord> {

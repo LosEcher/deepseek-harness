@@ -3658,6 +3658,9 @@ importers:
       '@deepseek-ai/dsh-agent-loop-testkit':
         specifier: workspace:^
         version: link:../../test-support/agent-loop-testkit
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:^
+        version: link:../../api/gateway
       '@deepseek-ai/dsh-bridge-protocol':
         specifier: workspace:^
         version: link:../../util/bridge-protocol

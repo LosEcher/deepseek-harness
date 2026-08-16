@@ -23,6 +23,10 @@
 
 杀死一个 worker 进程不能终止主进程或另一个 Agent。监督器将该 generation 标为 `faulted`。resume 是 drain 之后、或监督器观察到子进程退出之后的新 generation。
 
+## Host 调用
+
+`supervisor.invokeHost(id, namespace, method, args)` 把一次 Host Remote 调用路由进 worker 自身的组合（product bridge 上的 `host` service）：worker 内的 typert 网关——任何组合 profile 都由 `dsh-base` 挂载——从自己的描述符目录解析端点，因此 Host RPC 方法体可以针对 worker 内的活体 `Agent` 执行，无需远程对象外观。仅 worker-ts：local-ts 在进程内持有 agent，Host 方法直接运行。
+
 ## Model Experience
 
 本 provider 不组装模型请求；worker 进程内的 Agent 组合拥有一切模型可见事实。

@@ -36,6 +36,8 @@ import type { AgentCancelCause } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+// Type-only: carries the `ctx.typertGateway` Context merge into this program.
+import type {} from '@deepseek-ai/dsh-api-gateway'
 import { toUserMessage } from './messages.ts'
 
 class FixtureAdapter extends LlmAdapter {
@@ -209,11 +211,38 @@ function emitSessionEvent(seq: number, event: unknown): void {
   send(frame)
 }
 
+/**
+ * Dispatch one Host Remote invocation inside this worker's composition.
+ * @param id - the request id to reply on.
+ * @param method - the host-service method (`invoke`).
+ * @param body - wire args `{ namespace, method, args }`.
+ */
+async function handleHostInvoke(id: string, method: string, body: Record<string, unknown>): Promise<void> {
+  if (method !== 'invoke') throw new AgentControlError('unknown-service', fixtureErrorText('unknown-service'))
+  if (ctx === undefined) throw new AgentControlError('unknown-agent', 'unknown agent')
+  const gateway = ctx.get('typertGateway')
+  if (gateway === undefined) {
+    throw new AgentControlError('unknown-service', 'host gateway is not mounted in this composition')
+  }
+  const namespace = typeof body.namespace === 'string' ? body.namespace : ''
+  const target = typeof body.method === 'string' ? body.method : ''
+  const args = isRecord(body.args) ? body.args : {}
+  const result = await gateway.invoke({ namespace, method: target, args })
+  reply(id, result)
+}
+
 async function handleCall(message: Extract<BridgeMessage, { kind: 'call' }>): Promise<void> {
   try {
     admitAgentWorkerFrame(message, generation)
-    const { id, method, args } = message.payload
+    const { id, method, args, service } = message.payload
     const body = isRecord(args) ? args : {}
+    // Host service: dispatch Remote invocations into this worker's own
+    // composition (the worker-local Host surface — api-proxy ④). The typert
+    // gateway resolves the method from this composition's descriptor catalog.
+    if (service === 'host') {
+      await handleHostInvoke(id, method, body)
+      return
+    }
     if (method === 'create') {
       if (handle !== undefined) throw new AgentControlError('already-held', fixtureErrorText('already-held'))
       ctx = await boot()

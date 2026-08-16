@@ -267,6 +267,25 @@ describe('worker-ts', () => {
     expect(notifications.some(notification =>
       notification.kind === 'agent/drained' && notification.agent === id && notification.generation === descriptor.generation)).toBe(true)
   }, 30_000)
+
+  it('rejects host invocations with a clean error when no gateway is mounted', async () => {
+    const supervisor = new WorkerSupervisor({
+      backend: 'worker-ts',
+      commandQueueLimit: 32,
+      eventCredit: 64,
+      replayWindow: 1024,
+    })
+    const id = SessionId('worker-host-no-gateway')
+    await supervisor.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    // The fixture spine mounts no typert gateway: the worker's own service
+    // dispatch fails cleanly instead of a protocol fault.
+    await expect(supervisor.invokeHost(id, 'no/such', 'noSuch', {}))
+      .rejects.toThrow('host gateway is not mounted')
+    await supervisor.dispose(id)
+  }, 30_000)
 })
 
 describe('worker-ts profile mode', () => {
@@ -333,6 +352,52 @@ describe('worker-ts profile mode', () => {
       // supervisor passes a sessionRoot, which this test does not.
       const sessions = await readdir(join(root, 'sessions'))
       expect(sessions.length).toBeGreaterThan(0)
+    } finally {
+      if (previousHome === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = previousHome
+    }
+  }, 60_000)
+
+  it('dispatches host invocations into the composed typert gateway', async () => {
+    // The real base bundle carries the typert registry and gateway, so a host
+    // invocation must surface the gateway's typed dispatch error for an
+    // unknown endpoint — not the worker's own missing-gateway error.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-agent-worker-base-'))
+    dirs.push(root)
+    const name = 'base-profile'
+    const profileDir = join(root, 'profiles', name)
+    await mkdir(profileDir, { recursive: true })
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name,
+      version: '0.0.0',
+      private: true,
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+    }, null, 2))
+    const previousHome = process.env.DSH_HOME
+    process.env.DSH_HOME = root
+    try {
+      const supervisor = new WorkerSupervisor({
+        backend: 'worker-ts',
+        commandQueueLimit: 32,
+        eventCredit: 64,
+        replayWindow: 1024,
+        workerProfile: name,
+      })
+      const id = SessionId('worker-host-gateway')
+      await supervisor.create('host', {
+        sessionId: id,
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      const error = await supervisor.invokeHost(id, 'no/such', 'noSuch', {}).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      )
+      expect(error).toBeInstanceOf(Error)
+      const message = error instanceof Error ? error.message : String(error)
+      // The dispatch reached the composed typert gateway, whose typed error
+      // names the endpoint — not the worker's own missing-gateway error.
+      expect(message).toContain('typert gateway')
+      await supervisor.dispose(id)
     } finally {
       if (previousHome === undefined) delete process.env.DSH_HOME
       else process.env.DSH_HOME = previousHome

@@ -33,6 +33,9 @@
       "path": "../../core/agent-control"
     },
     {
+      "path": "../../api/gateway/tsconfig.host.json"
+    },
+    {
       "path": "../../core/agent-loop"
     },
     {
