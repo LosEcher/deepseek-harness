@@ -2,7 +2,10 @@
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "lib/types"
+    "outDir": "lib/types",
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": []
   },
   "include": [
     "src"
@@ -16,6 +19,9 @@
     },
     {
       "path": "../../host/webserver"
+    },
+    {
+      "path": "../../client/ui-conversation"
     }
   ]
 }

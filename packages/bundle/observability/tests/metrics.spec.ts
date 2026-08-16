@@ -158,4 +158,39 @@ describe('the mounted /metrics route', () => {
     expect(body).toContain('dsh_llm_tokens_total{kind="input",model="mock",provider="mock"} 7')
     expect(body).toContain('dsh_tool_calls_total{tool="bash"} 1')
   })
+
+  it('serves the structured summary the GUI tab consumes', async () => {
+    ctx = new Context()
+    await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
+    await ctx.plugin(SessionStore)
+    await ctx.plugin({ name, inject, apply })
+    const session = ctx.sessions.create(SessionId('summary-session'), { seed: [] })
+    session.append('turn/start', { turn: 1 })
+    session.append('turn/pending', { turn: 1 })
+    session.append('assistant/message', {
+      turn: 1,
+      step: 1,
+      message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'mock', model: 'mock' } }),
+      usage: { inputTokens: 10, outputTokens: 3 },
+    }, { surfaceOp: 'append' })
+    session.append('tool/call', { turn: 1, step: 1, callId: CallId('c2'), name: 'edit', arguments: '{}' })
+    await ctx.sessions.flush(session)
+    const response = await fetch(`http://127.0.0.1:${ctx.webServer.port}/observability/summary`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    const summary = await response.json() as {
+      activeSessions: { preset: string; count: number }[]
+      pendingTurns: number
+      llmCalls: { provider: string; model: string; reasoningEffort?: string; count: number }[]
+      tokens: { kind: string; model?: string; tokens: number }[]
+      toolCalls: { tool: string; count: number }[]
+      totalEvents: number
+    }
+    expect(summary.activeSessions).toEqual([{ preset: 'unset', count: 1 }])
+    expect(summary.pendingTurns).toBe(1)
+    expect(summary.llmCalls).toEqual([]) // no request/header appended
+    expect(summary.tokens).toContainEqual({ kind: 'input', provider: 'mock', model: 'mock', tokens: 10 })
+    expect(summary.toolCalls).toEqual([{ tool: 'edit', count: 1 }])
+    expect(summary.totalEvents).toBe(4)
+  })
 })

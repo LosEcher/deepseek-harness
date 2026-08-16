@@ -38,6 +38,18 @@ export const METRIC_NAMES = {
   eventsTotal: 'dsh_events_total',
 } as const
 
+/** Structured metrics snapshot served to the GUI summary endpoint. */
+export interface ObservabilitySummary {
+  activeSessions: { preset: string; count: number }[]
+  pendingTurns: number
+  compactions: number
+  llmCalls: { provider: string; model: string; reasoningEffort?: string; count: number }[]
+  tokens: { kind: 'input' | 'output'; provider?: string; model?: string; tokens: number }[]
+  toolCalls: { tool: string; count: number }[]
+  events: { type: string; count: number }[]
+  totalEvents: number
+}
+
 /**
  * Process-scoped derived metrics. Pure and dependency-free so it is directly
  * unit-testable; the plugin wires it to `session/created`, `session/disposed`,
@@ -115,8 +127,8 @@ export class MetricsRegistry {
         // Token usage folds by provider/model route (the usage/cost cube
         // projection): kind + route form the series key.
         const source = event.data.message.source
-        const provider = source?.kind === 'model' ? (source.provider ?? '') : ''
-        const model = source?.kind === 'model' ? (source.model ?? '') : ''
+        const provider = source.provider
+        const model = source.model
         const input = usage.inputTokens
         const output = usage.outputTokens
         if (Number.isFinite(input) && input >= 0) {
@@ -142,6 +154,47 @@ export class MetricsRegistry {
       if (cursor.pendingTurn !== null) count += 1
     }
     return count
+  }
+
+  /** Structured snapshot for the GUI summary endpoint (same fold as {@link render}). */
+  summary(): ObservabilitySummary {
+    return {
+      activeSessions: [...this.sessionsByPreset.entries()]
+        .map(([preset, count]) => ({ preset, count }))
+        .sort((a, b) => b.count - a.count),
+      pendingTurns: this.pendingTurnCount(),
+      compactions: this.compactions,
+      llmCalls: [...this.llmCalls.entries()]
+        .map(([key, count]) => {
+          const [provider, model, effort] = key.split('\u0000')
+          return {
+            provider: provider ?? '',
+            model: model ?? '',
+            ...(effort !== undefined && effort !== '' ? { reasoningEffort: effort } : {}),
+            count,
+          }
+        })
+        .sort((a, b) => b.count - a.count),
+      tokens: [...this.tokensByKind.entries()]
+        .map(([key, tokens]) => {
+          const [kind, provider, model] = key.split('\u0000')
+          return {
+            kind: kind as 'input' | 'output',
+            ...(provider !== undefined && provider !== '' ? { provider } : {}),
+            ...(model !== undefined && model !== '' ? { model } : {}),
+            tokens,
+          }
+        })
+        .sort((a, b) => b.tokens - a.tokens),
+      toolCalls: [...this.toolCalls.entries()]
+        .map(([tool, count]) => ({ tool, count }))
+        .sort((a, b) => b.count - a.count),
+      events: [...this.eventsByType.entries()]
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12),
+      totalEvents: [...this.eventsByType.values()].reduce((sum, count) => sum + count, 0),
+    }
   }
 
   /** Render all series in Prometheus text exposition format (0.0.4). */
@@ -245,11 +298,24 @@ export function apply(ctx: Context): void {
         res.end(body)
       },
     })
+    const disposeSummary = ctx.webServer.register({
+      kind: 'exact',
+      path: '/observability/summary',
+      handler: (_req, res) => {
+        const body = JSON.stringify(registry.summary())
+        res.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+        })
+        res.end(body)
+      },
+    })
     return () => {
       stopCreated()
       stopDisposed()
       stopEvent()
       disposeRoute()
+      disposeSummary()
     }
   })
 }

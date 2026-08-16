@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-observability",
-  "description": "Session-ledger derived Prometheus metrics over the shared core, exposed as an exact /metrics web route (observability borrow list P1)",
+  "description": "Session-ledger derived observability over the shared core: Prometheus /metrics, a structured /observability/summary JSON endpoint, and a conversation tab (observability borrow list P1)",
   "version": "0.1.0-rc.5",
   "publishConfig": {
     "access": "public"
@@ -24,11 +24,13 @@
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
-    }
+    },
+    "./client": "./lib/client.js"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/client.js",
     "cordis.patch.yml",
     "lib/types/**/*.d.ts"
   ],
@@ -36,18 +38,27 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
     }
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^"
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^"
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "react": "^18.2.0",
+    "@types/react": "~18.3.1"
   }
 }
