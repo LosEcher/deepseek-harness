@@ -777,3 +777,24 @@ describe('llm.discoverModels', () => {
     expect(error.message).toContain('no model discovery is registered')
   })
 })
+
+describe('host domain restart pending', () => {
+  it('reports no restartPending when no reader state is armed', async () => {
+    const ctx = await harness()
+    const api = createApiProxy(ctx, { ...DEFAULTS, readRestartPending: () => undefined })
+    const value = expectOk(await api.host.describe(request({})))
+    expect(value.restartPending).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('reports the armed restart window from the injected reader', async () => {
+    const ctx = await harness()
+    const api = createApiProxy(ctx, {
+      ...DEFAULTS,
+      readRestartPending: () => ({ sinceMs: 1_234, capMs: 30_000 }),
+    })
+    const value = expectOk(await api.host.describe(request({})))
+    expect(value.restartPending).toEqual({ sinceMs: 1_234, capMs: 30_000 })
+    await ctx.fiber.dispose()
+  })
+})

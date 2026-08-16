@@ -4,9 +4,11 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, stat } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
@@ -632,6 +634,26 @@ function directoryError(error: unknown): RpcError {
   return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
 }
 
+/**
+ * Default coordinated-restart state reader: the restart coordinator writes
+ * `$DSH_HOME/restart-pending` while a restart is armed and removes it before
+ * exit. Absent/malformed state reads as "no restart pending" — the banner is
+ * cosmetic, so a torn write must never fail `host.describe`.
+ */
+function readRestartPendingDefault(): { sinceMs: number; capMs: number } | undefined {
+  try {
+    const path = join(resolveDshHome(), 'restart-pending')
+    if (!existsSync(path)) return undefined
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    const { sinceMs, capMs } = parsed as { sinceMs?: unknown; capMs?: unknown }
+    if (typeof sinceMs !== 'number' || typeof capMs !== 'number') return undefined
+    return { sinceMs, capMs }
+  } catch {
+    return undefined
+  }
+}
+
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
 export interface ApiProxyDefaults {
   /**
@@ -667,6 +689,13 @@ export interface ApiProxyDefaults {
    * falls back to platform detection ({@link canOpenNativePath}).
    */
   canOpenPath?: () => boolean
+  /**
+   * Coordinated-restart state reader. Absent, `host.describe` reads
+   * `$DSH_HOME/restart-pending` (the restart coordinator's state file)
+   * itself. Injectable for carrier tests that run outside a real home.
+   * @returns the pending restart window, or undefined when no restart is armed.
+   */
+  readRestartPending?: () => { sinceMs: number; capMs: number } | undefined
 }
 
 /** The tool/call payload fields the presenter path reads. */
@@ -1108,6 +1137,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ?? DEFAULT_SESSION_LOG_COMPRESSION_LEVEL
   const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
     ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES
+  const readRestartPending = defaults.readRestartPending ?? readRestartPendingDefault
   /** The seed model each create/resume declares; re-read so it never goes stale. */
   const agentOptions = (): AgentOptions => {
     const { provider, model } = defaults.defaultModelSelection()
@@ -2924,6 +2954,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       describe(request) {
         // TODO: version should read apps/cli's package.json; placeholder for now.
         const selection = defaults.defaultModelSelection()
+        const restartPending = readRestartPending()
         return Promise.resolve(ok(request, {
           version: '0.0.1',
           // Same source as session.create's fallback: the UI's default project
@@ -2935,6 +2966,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           model: selection.model,
           attachedSessions: ctx.agents.list().length,
           canOpenPath: canOpenPaths(),
+          ...restartPending === undefined ? {} : { restartPending },
         }))
       },
 

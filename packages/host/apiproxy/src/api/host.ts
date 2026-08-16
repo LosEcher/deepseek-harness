@@ -50,6 +50,14 @@ export interface HostApi {
     model?: string
     attachedSessions: number
     canOpenPath: boolean
+    /**
+     * Coordinated restart state: present while the host has consumed a
+     * `restart-request` and is waiting for live turns to settle before
+     * exiting. Mirrors the restart coordinator's state file
+     * (`$DSH_HOME/restart-pending`); absent when no restart is pending. The
+     * UI may surface a "restarting" banner while this is present.
+     */
+    restartPending?: { sinceMs: number; capMs: number }
   }>>
 
   /**
