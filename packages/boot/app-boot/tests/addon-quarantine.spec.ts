@@ -84,6 +84,8 @@ describe('bootQuarantiningAddons', () => {
     try {
       expect(quarantined).toEqual(['bad'])
       expect(warnings.some(line => line.includes('optional plugin bad'))).toBe(true)
+      // The underlying cause must surface, not just the addon id
+      expect(warnings.some(line => line.includes('addon boom'))).toBe(true)
       expect([...ctx.loader.entries()].some(entry => entry.options.name === './ok.mjs')).toBe(true)
     } finally {
       await ctx.fiber.dispose()

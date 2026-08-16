@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
-import { Context, type FiberState } from '@deepseek-ai/cordis'
+import { Context, type Exporter as LoggerExporter, type FiberState, type Message as LoggerMessage } from '@deepseek-ai/cordis'
 import Loader, { type Entry, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import Include, { applyEntryPatches, assertJsExprTree, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
@@ -785,6 +785,42 @@ export async function assertEntriesActivated(ctx: Context, binName: string): Pro
  * preparation failed` when `prepare` threw before any config-tree entry
  * mounted, `plugin tree failed to load` afterwards.
  */
+/**
+ * Console sink for the built-in Cordis logging service.
+ *
+ * Cordis ships no default exporter: without one, every `ctx.logger.*` call
+ * (the plugin tree's standard logging path) is buffered in memory and never
+ * surfaced — observed as "dsh-mobile/dsh-access-gate produce no logs" and
+ * boot failures with no visible cause. Registering this exporter on the root
+ * fiber makes every named logger visible on stdout/stderr, timestamped, on
+ * all bins (web/headless). Format: `[HH:MM:SS.mmm] [TYPE:name] args…`.
+ */
+export function createConsoleLoggerExporter(): LoggerExporter {
+  return {
+    colors: 0,
+    export(message: LoggerMessage) {
+      // Local time, matching the daemon log convention (HH:MM:SS.mmm)
+      const d = new Date(message.ts)
+      const pad = (n: number, w = 2): string => String(n).padStart(w, '0')
+      const ts = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+      const args = message.args.map((arg) => {
+        if (typeof arg === 'string') return arg
+        try {
+          return JSON.stringify(arg)
+        } catch {
+          return String(arg)
+        }
+      })
+      const text = args.join(' ')
+      if (!text) return
+      const line = `[${ts}] [${message.type.toUpperCase()}${message.name ? `:${message.name}` : ''}] ${text}`
+      // error = severity 0; every higher severity goes to stdout
+      if (message.level <= 0) console.error(line)
+      else console.log(line)
+    },
+  }
+}
+
 export async function boot(
   binName: string,
   absoluteConfigPath: string,
@@ -793,6 +829,8 @@ export async function boot(
   bareModuleBaseUrl?: string,
 ): Promise<Context> {
   const ctx = new Context()
+  // Surface every `ctx.logger.*` call (see createConsoleLoggerExporter).
+  ctx.logger.exporter(createConsoleLoggerExporter())
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
   // so its failure is host setup, not the plugin tree.
   let stage = 'host preparation failed'
@@ -894,7 +932,10 @@ export async function bootQuarantiningAddons(
         disabled.add(id)
         quarantined.push(id)
         working.push({ id, disabled: true })
-        warn(`${binName}: optional plugin ${id} failed to load; host continues without it`)
+        // Surface the underlying cause: without it an optional plugin's
+        // failure is unactionable (observed with dsh-mobile/dsh-access-gate).
+        const reason = lastError instanceof Error ? lastError.message : String(lastError)
+        warn(`${binName}: optional plugin ${id} failed to load; host continues without it: ${reason}`)
       }
     }
   }

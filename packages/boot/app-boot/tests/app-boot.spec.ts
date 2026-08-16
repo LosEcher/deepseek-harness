@@ -7,7 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   addHarnessSourceSection, assertEntriesActivated, assertEntriesLoaded, boot,
-  FAIL_LOUD_RELEASE_TIMEOUT_MS, HARNESS_SOURCE_SECTION,
+  createConsoleLoggerExporter, FAIL_LOUD_RELEASE_TIMEOUT_MS, HARNESS_SOURCE_SECTION,
   installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudProcess,
 } from '../src/index.ts'
 
@@ -830,6 +830,48 @@ describe('addHarnessSourceSection', () => {
       expect(gone.sections.some(section => section.name === HARNESS_SOURCE_SECTION)).toBe(false)
     } finally {
       await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('createConsoleLoggerExporter', () => {
+  const message = (over: Partial<import('@deepseek-ai/cordis').Message> = {}): import('@deepseek-ai/cordis').Message => ({
+    sn: 1,
+    ts: Date.UTC(2026, 7, 16, 12, 34, 56, 789),
+    name: 'dsh-test-bin',
+    type: 'info',
+    level: 1,
+    args: ['hello', 'world'],
+    ...over,
+  })
+
+  it('routes error severity to stderr and everything else to stdout', () => {
+    const exporter = createConsoleLoggerExporter()
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const out = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      exporter.export(message({ type: 'info', level: 1, args: ['ok'] }))
+      exporter.export(message({ type: 'error', level: 0, args: ['boom'] }))
+      expect(out).toHaveBeenCalledWith(expect.stringContaining('[INFO:dsh-test-bin] ok'))
+      expect(err).toHaveBeenCalledWith(expect.stringContaining('[ERROR:dsh-test-bin] boom'))
+    } finally {
+      err.mockRestore()
+      out.mockRestore()
+    }
+  })
+
+  it('formats timestamps, stringifies non-string args, and skips empty messages', () => {
+    const exporter = createConsoleLoggerExporter()
+    const out = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      exporter.export(message({ args: ['n=', 42, { a: 1 }] }))
+      const emitted = out.mock.calls[0]?.[0] as string
+      // Local-time HH:MM:SS.mmm prefix + [INFO:dsh-test-bin] + serialized args
+      expect(emitted).toMatch(/^\[\d{2}:\d{2}:\d{2}\.\d{3}\] \[INFO:dsh-test-bin\] n= 42 \{"a":1\}$/)
+      exporter.export(message({ args: [] }))
+      expect(out).toHaveBeenCalledTimes(1)
+    } finally {
+      out.mockRestore()
     }
   })
 })
