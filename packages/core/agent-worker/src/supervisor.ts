@@ -260,6 +260,7 @@ export class WorkerSupervisor {
         DSH_AGENT_WORKER_EVENT_CREDIT: String(this.config.eventCredit),
         DSH_AGENT_WORKER_REPLAY_WINDOW: String(this.config.replayWindow),
         ...this.config.sessionRoot === undefined ? {} : { DSH_AGENT_WORKER_SESSION_ROOT: this.config.sessionRoot },
+        ...this.config.workerProfile === undefined ? {} : { DSH_AGENT_WORKER_PROFILE: this.config.workerProfile },
       },
     })
     if (child.stdin === null || child.stdout === null) {

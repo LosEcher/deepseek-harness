@@ -18,6 +18,13 @@ export interface Config {
   replayWindow: number
   /** Optional JSONL persistence root used by worker-ts drain-and-resume. */
   sessionRoot?: string
+  /**
+   * Optional composed-profile name for worker-ts. When set, each worker boots
+   * the FULL profile composition (real LLM adapters, tools, credentials,
+   * presets) instead of the fixture spine — the product-composition mode
+   * Agent isolation requires. Unset keeps the fixture spine (protocol tests).
+   */
+  workerProfile?: string
 }
 
 /** Schema for {@link Config}. */
@@ -27,4 +34,5 @@ export const Config: z<Config> = z.object({
   eventCredit: z.number().step(1).min(1).default(64),
   replayWindow: z.number().step(1).min(1).default(1024),
   sessionRoot: z.string(),
+  workerProfile: z.string(),
 })

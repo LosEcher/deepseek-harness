@@ -15,6 +15,7 @@ English | [中文](README.zh.md)
 | `eventCredit` | `64` | Unacknowledged `session-event` budget |
 | `replayWindow` | `1024` | Resume replay bound; `0` is rejected |
 | `sessionRoot` | unset | JSONL root the worker mounts for drain-and-resume |
+| `workerProfile` | unset | Composed profile name; when set the worker boots the FULL profile composition (real adapters, tools, credentials, presets) instead of the fixture spine |
 
 `local-ts` requires `ctx.agents` and `ctx.sessions` at load. `worker-ts` does not.
 
@@ -33,5 +34,5 @@ No direct invalidation; the worker-local composition owns any request-prefix cha
 ## Known Limitations and Deferred Work
 
 - **Shipped profiles still default to in-process `ctx.agents`** — this plugin is opt-in and does not change `web` or `headless`.
-- **worker-ts boots the spine plus a fixture adapter** — not a shipped product composition. Assembled snapshots stay on `local-ts` until the worker mounts the same plugins as those snapshots.
+- **worker-ts defaults to the spine plus a fixture adapter** — set `workerProfile` to mount a full composed profile (real LLM adapters, tools, credentials, presets) inside the worker; shipped profiles still opt in per deployment. Prefer an execution-surface profile (headless): a control-surface profile (web) mounts listeners and ports.
 - **Host, ACP, and SDK entrypoints are not remoted yet** — they still hold live `Agent` objects in the main process.

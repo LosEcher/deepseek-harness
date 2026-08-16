@@ -4,6 +4,9 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import AgentRegistry, { type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import {
@@ -48,6 +51,18 @@ const digest = process.env.DSH_AGENT_WORKER_DIGEST ?? ''
 const build = process.env.DSH_AGENT_WORKER_BUILD ?? 'agent-worker'
 const eventCredit = Number.parseInt(process.env.DSH_AGENT_WORKER_EVENT_CREDIT ?? '64', 10)
 const sessionRoot = process.env.DSH_AGENT_WORKER_SESSION_ROOT
+/**
+ * Optional composed-profile name. When set, the worker boots the FULL profile
+ * composition (real LLM adapters, tools, credentials, presets) instead of the
+ * fixture spine — the product-composition mode that headless-style Agent
+ * isolation requires. Resolved through the standard profile loader
+ * (`loadProfile`), so the worker sees exactly the bundle + user layers the
+ * host composes for that profile name. Prefer an execution-surface profile
+ * (headless): a control-surface profile (web) mounts listeners and ports.
+ */
+const profileName = process.env.DSH_AGENT_WORKER_PROFILE
+/** Profile-mode boot diagnostics on stderr; off unless explicitly requested. */
+const profileDebug = process.env.DSH_AGENT_WORKER_DEBUG === '1'
 
 let generation = 0
 let remainingCredit = Number.isInteger(eventCredit) ? eventCredit : 64
@@ -83,7 +98,73 @@ function reject(id: string, error: AgentControlError): void {
   })
 }
 
+/**
+ * The empty profile root the worker keeps canonical in the profile directory,
+ * mirroring `apps/cli/src/profile-boot.ts` `PROFILE_ROOT_CONFIG` (that file is
+ * the source of truth — keep the literal in sync). The vendored Loader's tree
+ * write-back can bake composed rows into this file, which would duplicate
+ * every bundle insert on the next boot.
+ */
+const PROFILE_ROOT_CONFIG = `# dsh profile root — an empty entry list. The tree is composed as patches:
+# each bundle in package.json's dsh.profile.bundles, then cordis.patch.yml, then any
+# --patch overlays. Edit cordis.patch.yml, not this file.
+[]
+`
+
+let failLoudInstalled = false
+
+/**
+ * Boot the full profile composition for {@link profileName} exactly as a host
+ * surface would: resolve bundle layers and the user patch layers through the
+ * standard profile loader, mount them over the profile's empty root config,
+ * and audit the loaded tree. Imports are dynamic so the fixture spine (the
+ * protocol-test default) never pays for the app-boot module graph.
+ */
+async function bootProfile(name: string): Promise<Context> {
+  // Only the app-boot module graph stays dynamic: the fixture spine (the
+  // protocol-test default) never pays for it.
+  const { boot, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadProfile } = await import('@deepseek-ai/dsh-app-boot')
+  const { resolveDshHome } = await import('@deepseek-ai/dsh-home-paths')
+  if (profileDebug) process.stderr.write(`[worker] profile mode: ${name}\n`)
+  // A worker is a long-lived service process: an unhandled rejection must
+  // surface on stderr and exit non-zero (the supervisor observes the child),
+  // not hang the generation silently.
+  if (!failLoudInstalled) {
+    failLoudInstalled = true
+    installFailLoud('agent-worker')
+  }
+  // Anchor at this package's own package.json — the CLI launcher's
+  // INSTALL_ANCHOR convention — so profile bundles resolve from the worker
+  // installation first, then the profile directory's node_modules.
+  const installAnchor = fileURLToPath(new URL('../package.json', import.meta.url))
+  healProfilesModuleFallback(installAnchor)
+  const profile = loadProfile('agent-worker', name, installAnchor, resolveDshHome())
+  // Mirror the CLI's prepareProfile: keep the empty root config canonical
+  // before composing over it (see PROFILE_ROOT_CONFIG).
+  writeFileSync(join(profile.dir, 'cordis.yml'), PROFILE_ROOT_CONFIG)
+  // The CLI composes bundle layers, the profile's user layer, then the
+  // home-level user layer (`$DSH_HOME/cordis.patch.yml`) in that order. The
+  // worker mirrors the same stack (no --patch overlays, no telemetry switch).
+  const patches = structuredClone([
+    ...profile.layers.flatMap(layer => layer.patches),
+    ...profile.patches,
+    ...loadOptionalPatches('agent-worker', join(resolveDshHome(), 'cordis.patch.yml')) ?? [],
+  ])
+  if (profileDebug) process.stderr.write(`[worker] booting ${join(profile.dir, 'cordis.yml')} patches=${patches.length}\n`)
+  // Service-process boot: entry-point rows that stay pending (task drivers
+  // whose cmdline service this composition does not mount) are fine; failed
+  // loads still fail loud through the loaded-only audit.
+  const result = await boot('agent-worker', join(profile.dir, 'cordis.yml'), patches, undefined, undefined, false)
+  if (profileDebug) process.stderr.write('[worker] boot ok\n')
+  return result
+}
+
 async function boot(): Promise<Context> {
+  // Product-composition mode: mount the real profile tree (adapters, tools,
+  // credentials, presets) exactly as the host would. The fixture spine below
+  // remains the default for protocol tests — the P1 boundary keeps assembled
+  // product snapshots on the in-process path until a profile mounts here.
+  if (profileName !== undefined) return bootProfile(profileName)
   const next = new Context()
   await next.plugin(LlmRuntime)
   await next.plugin(SessionStore)

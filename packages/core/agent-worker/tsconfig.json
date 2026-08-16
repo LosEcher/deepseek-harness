@@ -18,6 +18,12 @@
       "path": "../../../vendor/schemastery"
     },
     {
+      "path": "../../boot/app-boot"
+    },
+    {
+      "path": "../../util/home-paths"
+    },
+    {
       "path": "../../util/bridge-protocol"
     },
     {

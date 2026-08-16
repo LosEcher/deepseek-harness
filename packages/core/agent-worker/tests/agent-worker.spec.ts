@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -202,4 +202,75 @@ describe('worker-ts', () => {
     expect(second.generation).toBeGreaterThan(first.generation)
     await supervisor.dispose(id)
   }, 30_000)
+})
+
+describe('worker-ts profile mode', () => {
+  it('boots a composed profile and creates an agent through the control protocol', async () => {
+    // A hermetic home: the profile directory carries a bundle-less manifest
+    // plus a patch layer that mounts the fixture spine as composition rows,
+    // so the loader and patch stack are exercised without real bundles or
+    // network adapters. Its persistence row roots at $DSH_HOME/sessions.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-agent-worker-profile-'))
+    dirs.push(root)
+    const name = 'test-profile'
+    const profileDir = join(root, 'profiles', name)
+    await mkdir(profileDir, { recursive: true })
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name,
+      version: '0.0.0',
+      private: true,
+      dsh: { profile: { bundles: [] } },
+    }, null, 2))
+    await writeFile(join(profileDir, 'cordis.patch.yml'), [
+      '# fixture spine through the profile composition path',
+      '- insert:',
+      '    - id: llm',
+      "      name: '@deepseek-ai/dsh-llm'",
+      '    - id: session',
+      "      name: '@deepseek-ai/dsh-session'",
+      '    - id: system-prompt',
+      "      name: '@deepseek-ai/dsh-system-prompt'",
+      '    - id: tools',
+      "      name: '@deepseek-ai/dsh-tools'",
+      '    - id: agent',
+      "      name: '@deepseek-ai/dsh-agent'",
+      '    - id: agent-loop',
+      "      name: '@deepseek-ai/dsh-agent-loop'",
+      '      config:',
+      '        agents: []',
+      '    - id: session-persistence-jsonl',
+      "      name: '@deepseek-ai/dsh-session-persistence-jsonl'",
+      '      config:',
+      "        root: !!js dshHomePath('sessions')",
+    ].join('\n'))
+    const previousHome = process.env.DSH_HOME
+    process.env.DSH_HOME = root
+    try {
+      const supervisor = new WorkerSupervisor({
+        backend: 'worker-ts',
+        commandQueueLimit: 32,
+        eventCredit: 64,
+        replayWindow: 1024,
+        workerProfile: name,
+      })
+      const id = SessionId('worker-profile')
+      const descriptor = await supervisor.create('host', {
+        sessionId: id,
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      expect(descriptor.backend).toBe('worker-ts')
+      expect(descriptor.phase).toBe('ready')
+      await supervisor.whenIdle(id)
+      await supervisor.drain(id)
+      await supervisor.dispose(id)
+      // The composition's own persistence row proves the profile tree — not
+      // the fixture spine — ran: fixture mode only persists when the
+      // supervisor passes a sessionRoot, which this test does not.
+      const sessions = await readdir(join(root, 'sessions'))
+      expect(sessions.length).toBeGreaterThan(0)
+    } finally {
+      if (previousHome === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = previousHome
+    }
+  }, 60_000)
 })

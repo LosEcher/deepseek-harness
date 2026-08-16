@@ -15,6 +15,7 @@
 | `eventCredit` | `64` | 未确认的 `session-event` 额度 |
 | `replayWindow` | `1024` | resume 回放上限；`0` 会被拒绝 |
 | `sessionRoot` | 未设置 | worker 为 drain-and-resume 挂载的 JSONL 根目录 |
+| `workerProfile` | 未设置 | 组合 profile 名称；设置后 worker 挂载完整 profile 组合（真实 adapter、工具、凭据、preset）而非 fixture 主干 |
 
 `local-ts` 在加载时需要 `ctx.agents` 和 `ctx.sessions`。`worker-ts` 不需要。
 
@@ -33,5 +34,5 @@
 ## Known Limitations and Deferred Work
 
 - **已交付 profile 仍默认使用进程内 `ctx.agents`** — 本插件是显式接入，不改变 `web` 或 `headless`。
-- **worker-ts 启动主干加上夹具适配器** — 不是已交付的产品组合。组装快照仍走 `local-ts`，直到 worker 挂载与这些快照相同的插件。
+- **worker-ts 默认启动主干加上夹具适配器** — 设置 `workerProfile` 即可在 worker 内挂载完整组合 profile（真实 LLM adapter、工具、凭据、preset）；已交付 profile 仍按部署显式接入。优先使用执行面 profile（headless）：控制面 profile（web）会挂载监听器与端口。
 - **Host、ACP 和 SDK 入口尚未远程化** — 它们仍在主进程持有活的 `Agent` 对象。
