@@ -314,6 +314,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
       + 'including hidden and ignored files (VCS metadata directories are excluded). '
       + `Up to ${caps.maxResults} paths come back in modification-time order; ${overCapDescription}, `
       + 'says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.',
+    sideEffect: 'read',
     parameters: {
       pattern: {
         type: 'string',

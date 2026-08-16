@@ -4,10 +4,11 @@
  * Turns an external `restart-request` file (touched by dsh-web-restart.sh, or
  * by the daemon on plugin-manifest / git-head reloads) into a *coordinated*
  * exit: the process waits only while a tool's external side effects are in
- * flight, then exits 0 through the ordinary shutdown path. Model wait and
- * pre-step fast-exit as `turn/pending` on that path. The supervisor only
- * waits (with a force-kill backstop). Exit timing lives in the execution
- * surface, not in the shell supervisor.
+ * flight, then exits 0 through the ordinary shutdown path. Model wait, pre-step,
+ * and declared read-only tool batches fast-exit as `turn/pending` on that path
+ * (resume re-issues read calls, so waiting on them only widens the window).
+ * The supervisor only waits (with a force-kill backstop). Exit timing lives in
+ * the execution surface, not in the shell supervisor.
  *
  * Implementation notes:
  * - Process-level plain interval (not a cordis service): it must keep running
@@ -24,8 +25,15 @@ import { join } from 'node:path'
 
 /** Poll cadence for the request file and, once armed, for live activity. */
 export const RESTART_POLL_MS = 1_000
-/** Cap for waiting on in-flight tools before falling back to the drain path. */
-export const RESTART_WAIT_CAP_MS = 5 * 60_000
+/**
+ * Cap for waiting on in-flight WRITE tools before falling back to the drain
+ * path. Read-only tool batches never wait (fast-exit + resume re-issues the
+ * call). 30s matches the agent drain grace: a tool that cannot settle within
+ * one grace window is unlikely to settle at all, and pending-turn resume
+ * re-issues the step after the new process boots — a longer wait only widens
+ * the restart window without buying durability.
+ */
+export const RESTART_WAIT_CAP_MS = 30_000
 /** Signal file the UI touches (POST /restart/immediate) to skip the wait. */
 export const RESTART_IMMEDIATE_FILE = 'restart-immediate'
 

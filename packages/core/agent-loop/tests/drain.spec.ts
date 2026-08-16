@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { CallId, createUserMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -285,6 +285,157 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
     expect(outcome).toBe('pending')
     expect(agent.session.events.some(event => event.type === 'turn/pending')).toBe(false)
+  })
+
+  it('a declared read-only tool batch does not block a restart (hasBlockingActivity false)', async () => {
+    const ctx = await harness(new MockAdapter([
+      toolCallResponse('c-read', 'readonly-slow', {}),
+      textResponse('after-tool'),
+    ]))
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'readonly-slow',
+      description: 'declared read, blocks until released',
+      sideEffect: 'read',
+      parameters: {},
+      async execute() {
+        await blocked
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    const loop = ctx.agentLoop as unknown as {
+      hasBlockingActivity(): boolean
+      create(...args: unknown[]): Agent
+    }
+    const agent = loop.create(SessionId('s-read-block'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    // The read-only call is in flight, but a coordinated restart must NOT
+    // wait on it: interruption is side-effect-free and resume re-issues it.
+    await vi.waitFor(() => { expect((agent as unknown as { activity: string }).activity).toBe('tool-in-flight') })
+    expect(loop.hasBlockingActivity()).toBe(false)
+    release()
+    await waitForStatus(ctx, agent, 'idle')
+  })
+
+  it('a mixed batch with one undeclared tool is blocking (fail-closed write)', async () => {
+    const ctx = await harness(new MockAdapter([
+      [
+        ...toolCallResponse('c-mix-1', 'readonly-slow', {}),
+        // Second tool call, block index 1 (toolCallResponse always uses 0).
+        { type: 'block-start', index: 1, blockType: 'tool-call' },
+        { type: 'tool-call-delta', index: 1, id: CallId('c-mix-2'), name: 'undeclared-slow', argumentsDelta: '{}' },
+        { type: 'block-end', index: 1, block: { type: 'tool-call', id: CallId('c-mix-2'), name: 'undeclared-slow', arguments: '{}' } },
+      ],
+      textResponse('after-tool'),
+    ]))
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'readonly-slow',
+      description: 'declared read',
+      sideEffect: 'read',
+      isConcurrencySafe: () => true,
+      parameters: {},
+      async execute() {
+        await blocked
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    ctx.tools.register(defineContentToolFixture({
+      name: 'undeclared-slow',
+      description: 'no sideEffect declared',
+      isConcurrencySafe: () => true,
+      parameters: {},
+      async execute() {
+        await blocked
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    const loop = ctx.agentLoop as unknown as {
+      hasBlockingActivity(): boolean
+      create(...args: unknown[]): Agent
+    }
+    const agent = loop.create(SessionId('s-mix-block'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await vi.waitFor(() => { expect(loop.hasBlockingActivity()).toBe(true) })
+    release()
+    await waitForStatus(ctx, agent, 'idle')
+    expect(loop.hasBlockingActivity()).toBe(false)
+  })
+
+  it('drainToIdle fast-exits a read-only tool batch as pending without waiting', async () => {
+    const ctx = await harness(new MockAdapter([
+      toolCallResponse('c-read-drain', 'readonly-forever', {}),
+      textResponse('after-tool'),
+    ]))
+    ctx.tools.register(defineContentToolFixture({
+      name: 'readonly-forever',
+      description: 'declared read, never settles',
+      sideEffect: 'read',
+      parameters: {},
+      async execute() {
+        await new Promise<void>(() => {}) // never resolves
+        return [{ type: 'text', text: 'unreachable' }]
+      },
+    }))
+    const agent = await ctx.agentLoop.create(SessionId('s-read-drain'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await vi.waitFor(() => { expect((agent as unknown as { activity: string }).activity).toBe('tool-in-flight') })
+    // A read-only batch drains to 'pending' IMMEDIATELY — no wait for the
+    // never-settling call (resume re-issues it after the new process boots).
+    const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
+    expect(outcome).toBe('pending')
+    const pending = agent.session.events.findLast(e => e.type === 'turn/pending')
+    expect(pending?.type === 'turn/pending' ? pending.data.turn : undefined).toBe(1)
+    // No turn/end was written: the turn stays open for post-resume rebuild.
+    expect(agent.session.events.filter(e => e.type === 'turn/end')).toHaveLength(0)
+  })
+
+  it('markPending dedupes across instances: a resumed pending turn keeps one marker', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('done')]))
+    const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    const { agent } = await ctx.agents.create({
+      sessionId: SessionId('pending-dedupe'),
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: user, surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        // Previous process instance already wrote the fast-exit marker.
+        { type: 'turn/pending', seq: 3, time: 4, data: { turn: 1 } },
+      ],
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    // Resume continues the same turn (Step3): the model answers, the turn
+    // completes — no second turn/pending is written for turn 1.
+    await agent.whenIdle()
+    const markers = agent.session.events.filter(event => event.type === 'turn/pending')
+    expect(markers).toHaveLength(1)
+    const marker = markers[0]
+    expect(marker !== undefined && marker.type === 'turn/pending' ? marker.data.turn : undefined).toBe(1)
+  })
+
+  it('markPending on a resumed turn that drains again writes no duplicate marker', async () => {
+    const adapter = new MockAdapter([delayedTextResponse(120, 'done')])
+    const ctx = await harness(adapter)
+    const user = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    const { agent } = await ctx.agents.create({
+      sessionId: SessionId('pending-dedupe-2'),
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        { type: 'user/message', seq: 1, time: 2, data: user, surfaceOp: 'append' },
+        { type: 'step/start', seq: 2, time: 3, data: { turn: 1, step: 1 } },
+        { type: 'turn/pending', seq: 3, time: 4, data: { turn: 1 } },
+      ],
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
+    // The resumed turn sits in a model wait again; draining must not append a
+    // second turn/pending marker for the same turn.
+    const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
+    expect(outcome).toBe('pending')
+    const markers = agent.session.events.filter(event => event.type === 'turn/pending')
+    expect(markers).toHaveLength(1)
   })
 
   it('markDraining refuses new turns after the in-flight one settles (wake gate)', async () => {

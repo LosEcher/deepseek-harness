@@ -139,3 +139,45 @@ describe('ToolRuntime.executionMode', () => {
     expectTypeOf<ToolExecutionMode>().toEqualTypeOf<{ kind: 'parallel' } | { kind: 'exclusive' }>()
   })
 })
+
+describe('ToolRuntime.executionSideEffect', () => {
+  it('returns read only for an explicit read declaration', async () => {
+    const ctx = await setup()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'readonly',
+      description: 'pure lookup',
+      sideEffect: 'read',
+      parameters: {},
+      async execute() { return [] },
+    }))
+    expect(ctx.tools.executionSideEffect(exec('readonly', {}))).toBe('read')
+  })
+
+  it('fail-closes to write for an undeclared tool', async () => {
+    const ctx = await setup()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'plain',
+      description: 'no sideEffect declaration',
+      parameters: {},
+      async execute() { return [] },
+    }))
+    expect(ctx.tools.executionSideEffect(exec('plain', {}))).toBe('write')
+  })
+
+  it('fail-closes to write for an explicit write declaration', async () => {
+    const ctx = await setup()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'writes',
+      description: 'has external side effects',
+      sideEffect: 'write',
+      parameters: {},
+      async execute() { return [] },
+    }))
+    expect(ctx.tools.executionSideEffect(exec('writes', {}))).toBe('write')
+  })
+
+  it('fail-closes to write for an unknown tool', async () => {
+    const ctx = await setup()
+    expect(ctx.tools.executionSideEffect(exec('nonexistent', {}))).toBe('write')
+  })
+})

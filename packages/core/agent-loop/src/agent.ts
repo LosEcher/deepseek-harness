@@ -90,6 +90,14 @@ export class ReactLoopAgent implements Agent {
    * the driver exits.
    */
   private activity: TurnActivity = 'idle'
+  /**
+   * Side-effect class of the in-flight tool batch, for restart coordination.
+   * `'read'` when every in-flight call is a declared read-only tool (safe to
+   * fast-exit to `turn/pending` immediately); `'write'` when any call may
+   * leave external side effects half-applied. Reclassified at each tool
+   * batch boundary; meaningless when {@link activity} is not `tool-in-flight`.
+   */
+  private inFlightSideEffect: 'read' | 'write' = 'write'
 
   /** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
   readonly scope: Scope
@@ -242,9 +250,12 @@ export class ReactLoopAgent implements Agent {
   /**
    * True while a tool's external side effects are in flight. Model wait and
    * pre-step are not blocking: a coordinated restart may fast-exit them.
+   * A declared read-only tool batch also does not block: interruption is
+   * side-effect-free, so the restart fast-exits to `turn/pending` and resume
+   * re-issues the call.
    */
   hasBlockingActivity(): boolean {
-    return this.activity === 'tool-in-flight'
+    return this.activity === 'tool-in-flight' && this.inFlightSideEffect === 'write'
   }
 
   /** True when the loaded log has an open `turn/pending` tail to continue. */
@@ -291,6 +302,13 @@ export class ReactLoopAgent implements Agent {
       // the caller's cancel closes the turn.
       return 'idle'
     }
+    if (this.activity === 'tool-in-flight' && this.inFlightSideEffect === 'read') {
+      // A declared read-only batch has no external side effects: fast-exit to
+      // turn/pending just like model-wait. Resume re-issues the call, so
+      // waiting for it to settle would only extend the restart window.
+      this.markPending()
+      return 'pending'
+    }
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const settled = await Promise.race([
@@ -314,12 +332,31 @@ export class ReactLoopAgent implements Agent {
   }
 
   /** Append the resumable-tail marker for the open turn (best-effort, idempotent). */
+  /**
+   * Append the resumable-tail marker for the open turn (best-effort,
+   * idempotent). Two dedupe layers: the instance-level `pendingMarkedTurn`
+   * (this driver already marked this turn) and the durable log itself — a
+   * previous process instance may already have written `turn/pending` for the
+   * same turn before this instance resumed it, so the marker is written at
+   * most once across instances (event-sourced dedupe, mirrors the
+   * `dsh-session-store` lease "a second writer cannot acquire a live session"
+   * rule for the fast-exit tail).
+   */
   private markPending(): void {
     if (this.phase.kind !== 'running') return
-    if (this.pendingMarkedTurn === this.phase.turn) return
-    this.pendingMarkedTurn = this.phase.turn
+    const turn = this.phase.turn
+    if (this.pendingMarkedTurn === turn) return
+    // Cross-instance dedupe: a resumed pending turn may already carry its
+    // marker in the durable log. Scan only the session's committed events —
+    // write-behind batches are flushed by the drain fence before process exit,
+    // and a stale marker for the SAME turn is exactly what this dedupes.
+    if (this.session.events.some(event => event.type === 'turn/pending' && event.data.turn === turn)) {
+      this.pendingMarkedTurn = turn
+      return
+    }
+    this.pendingMarkedTurn = turn
     try {
-      this.session.append('turn/pending', { turn: this.phase.turn })
+      this.session.append('turn/pending', { turn })
     } catch (error: unknown) {
       this.loopCtx.logger.warn(
         `agent "${this.id}": turn/pending marker not appended: ${errorChain(error)}`,
@@ -548,6 +585,15 @@ export class ReactLoopAgent implements Agent {
       const toolCalls = message.content.filter(block => block.type === 'tool-call')
       if (toolCalls.length === 0) return { kind: 'completed' }
       this.activity = 'tool-in-flight'
+      // Classify the batch for restart coordination: any call that is not a
+      // declared read-only tool makes the whole batch 'write' (fail-closed).
+      this.inFlightSideEffect = toolCalls.every(call => this.loopCtx.tools.executionSideEffect({
+        callId: call.id,
+        name: call.name,
+        arguments: call.arguments,
+        agent: this,
+        signal,
+      }) === 'read') ? 'read' : 'write'
       const { concluded } = await executeToolCalls(
         this.loopCtx, turn, step, toolCalls, signal,
         context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),

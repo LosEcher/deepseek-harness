@@ -499,6 +499,13 @@ export interface DefineToolOptions<S extends ParameterSchemaSpec, O extends Valu
   /** Optional positive cooperative timeout budget in milliseconds. */
   readonly timeoutMs?: number
   /**
+   * Side-effect class for shutdown/restart ordering (see
+   * {@link ToolDefinition.sideEffect}). `'read'` = pure lookup, safe to
+   * fast-exit mid-flight; omit or `'write'` = interruption can leave external
+   * side effects half-applied. Never model-visible.
+   */
+  readonly sideEffect?: 'read' | 'write'
+  /**
    * Pure classifier for sibling overlap.
    * @param args - typed validated arguments.
    * @returns Whether the call may join a parallel group.
@@ -582,6 +589,7 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
       } : {},
     },
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.sideEffect !== undefined ? { sideEffect: options.sideEffect } : {}),
     async execute(args: unknown, exec: ToolRunContext): Promise<JsonValue> {
       const violations = validate(args)
       if (violations.length > 0) throw new ToolArgsError(violations)

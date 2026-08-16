@@ -284,6 +284,7 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     description: 'Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. '
       + `Returns the first ${caps.maxMatches} matches inline; a capped result reports where the complete match list was saved. `
       + 'Use read on a matched file for surrounding context.',
+    sideEffect: 'read',
     parameters: {
       pattern: { type: 'string', required: true, description: 'Regular expression to search for (ripgrep syntax).' },
       path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it.' },

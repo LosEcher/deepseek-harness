@@ -76,6 +76,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
   ctx.tools.register(defineTool({
     name: 'read',
     description: 'Read a UTF-8 text file and return line-numbered content.',
+    sideEffect: 'read',
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
       offset: { type: 'number', description: '1-based first line to return. Defaults to 1.' },

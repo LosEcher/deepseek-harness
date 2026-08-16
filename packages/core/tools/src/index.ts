@@ -255,6 +255,16 @@ export interface ToolDefinition extends ToolSchema {
    */
   timeoutMs?: number
   /**
+   * Side-effect class for shutdown/restart ordering. `'read'` declares the
+   * tool has no external side effects (pure lookup): a drain may fast-exit it
+   * to `turn/pending` immediately, and resume re-issues the call. Omit or
+   * `'write'` for any tool whose in-flight interruption can leave external
+   * state half-applied — the drain then waits for it to settle, bounded by
+   * the drain grace. This metadata is NEVER sent to the model — `schemas()`
+   * whitelists only name/description/parameters.
+   */
+  sideEffect?: 'read' | 'write'
+  /**
    * Pure synchronous classifier for overlap with sibling tool calls. Only
    * `true` opts in; omission, exceptions, non-`true` returns, and invalid
    * `defineTool` arguments are exclusive. This metadata is never model-visible.
@@ -1285,6 +1295,19 @@ export class ToolRuntime extends Service {
     } catch {
       return { kind: 'exclusive' }
     }
+  }
+
+  /**
+   * Side-effect class of one pending call, through the caller's visible tool
+   * definition. Fail-closed: unknown, hidden, undeclared, or invalid
+   * classifiers are `'write'` (a drain must not fast-exit what it cannot
+   * prove side-effect-free).
+   * @param exec - call name, parsed arguments, and optional agent scope.
+   * @returns `'read'` only when the visible definition declares `sideEffect: 'read'`.
+   */
+  executionSideEffect(exec: ToolExecutionInput): 'read' | 'write' {
+    const tool = this.resolveExecution(exec.name, exec.agent, exec.parent !== undefined)
+    return tool?.sideEffect === 'read' ? 'read' : 'write'
   }
 
   /**
