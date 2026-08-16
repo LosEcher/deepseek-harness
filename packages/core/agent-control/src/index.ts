@@ -141,6 +141,19 @@ export default abstract class AgentControl extends Service {
   abstract onNotification(listener: (notification: AgentControlNotification) => void): () => void
 
   /**
+   * Invoke one Host Remote method inside the generation's own composition —
+   * the worker-local Host surface. worker-ts forwards through the worker's
+   * typert gateway; local-ts holds agents in-process and rejects (Host
+   * methods run directly there).
+   * @param id - target agent whose composition owns the invocation.
+   * @param namespace - Remote namespace selected by the generated descriptor.
+   * @param method - exported Service method name.
+   * @param args - named wire values.
+   * @returns the validated business result.
+   */
+  abstract invokeHost(id: SessionId, namespace: string, method: string, args: Record<string, unknown>): Promise<unknown>
+
+  /**
    * Read-model lookup.
    * @param id - target agent.
    * @returns the current descriptor, or undefined when unknown.

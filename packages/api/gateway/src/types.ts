@@ -3,6 +3,8 @@
  * @module @deepseek-ai/dsh-api-gateway/types
  */
 
+import type { InvocationDescriptor } from '@deepseek-ai/dsh-typert-protocol'
+
 /** One Remote method request after a carrier has decoded its envelope. */
 export interface InvokeRemoteRequest {
   /** Remote namespace selected by the generated descriptor. */
@@ -46,9 +48,27 @@ export interface TypertGateway {
   invoke(request: InvokeRemoteRequest): Promise<unknown>
 }
 
+/**
+ * Optional pre-dispatch hook consulted by the Gateway before local dispatch.
+ * A composition may forward an invocation elsewhere — the Agent worker's own
+ * Gateway (host service) — when the resolved descriptor targets an identity
+ * the main process does not hold live.
+ */
+export interface TypertDispatchHook {
+  /**
+   * Attempt to forward one invocation.
+   * @param request - the decoded invocation.
+   * @param descriptor - the resolved endpoint descriptor.
+   * @returns the forwarded result, or `undefined` to dispatch locally.
+   */
+  tryForward(request: InvokeRemoteRequest, descriptor: InvocationDescriptor): Promise<unknown>
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host dispatcher for Typert Remote calls. */
     typertGateway: TypertGateway
+    /** Optional pre-dispatch forwarder consulted before local dispatch. */
+    typertDispatchHook?: TypertDispatchHook
   }
 }

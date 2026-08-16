@@ -17,6 +17,7 @@ import {
 } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry, { type TypertContribution } from '@deepseek-ai/dsh-typert-registry'
 import TypertGatewayService, { TypertGatewayError } from '@deepseek-ai/dsh-api-gateway'
+import type { InvokeRemoteRequest } from '@deepseek-ai/dsh-api-gateway'
 
 interface FixtureAgent {
   readonly id: string
@@ -1387,3 +1388,37 @@ async function expectCode(
   }
   throw new Error(`expected TypertGatewayError ${code}`)
 }
+
+describe('TypertGatewayService dispatch hook', () => {
+  it('consults an optional pre-dispatch hook before local dispatch', async () => {
+    const { ctx, service } = await setup()
+    registerAgentLookup(ctx, { id: 'agent-1' })
+    registerStrict(ctx, [createDescriptor()])
+    const seen: string[] = []
+    ctx.provide('typertDispatchHook', {
+      tryForward: async (request: InvokeRemoteRequest) => {
+        seen.push(`${request.namespace}/${request.method}`)
+        // Decline when business args are present; otherwise forward.
+        return request.args.request === undefined ? { forwarded: true } : undefined
+      },
+    } as never)
+
+    // Hook forwards: its result wins and the local service is untouched (the
+    // hook also preempts local argument validation — the worker re-validates).
+    await expect(ctx.typertGateway.invoke({
+      namespace: 'goals',
+      method: 'create',
+      args: { agentId: 'agent-1' },
+    })).resolves.toEqual({ forwarded: true })
+    expect(service.calls).toEqual([])
+
+    // Hook declines: local dispatch runs normally.
+    await expect(ctx.typertGateway.invoke({
+      namespace: 'goals',
+      method: 'create',
+      args: { agentId: 'agent-1', request: { title: 'ship' } },
+    })).resolves.toEqual({ agentId: 'agent-1', title: 'ship', scope: 'root' })
+    expect(service.calls).toEqual(['create'])
+    expect(seen).toEqual(['goals/create', 'goals/create'])
+  })
+})

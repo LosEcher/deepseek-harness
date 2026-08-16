@@ -22,9 +22,11 @@ import type {
 
 export type {
   InvokeRemoteRequest,
+  TypertDispatchHook,
   TypertGateway,
   TypertGatewayErrorCode,
 } from './types.ts'
+export { createHostWorkerForwarder } from './host-forwarder.ts'
 
 interface GatewayErrorOptions {
   readonly cause?: unknown
@@ -145,6 +147,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
   async invoke(request: InvokeRemoteRequest): Promise<unknown> {
     const endpoint = endpointOf(request.namespace, request.method)
     const descriptor = this.resolveDescriptor(request.namespace, request.method, endpoint)
+    // Optional pre-dispatch hook: a composition may forward the invocation
+    // elsewhere (the Agent worker's own Gateway) when the main process does
+    // not hold the target identity live.
+    const hook = this.ctx.get('typertDispatchHook')
+    if (hook !== undefined) {
+      const forwarded = await hook.tryForward(request, descriptor)
+      if (forwarded !== undefined) return forwarded
+    }
     assertExactArguments(request.args, descriptor, endpoint)
     const receiverContext = await this.resolveReceiverContext(descriptor, request.args, endpoint)
     const receiver = receiverContext.get(descriptor.service) as unknown

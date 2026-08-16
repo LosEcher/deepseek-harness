@@ -116,6 +116,20 @@ describe('local-ts', () => {
     })))).rejects.toBeInstanceOf(AgentControlError)
   })
 
+  it('rejects host invocation on local-ts generations', async () => {
+    const ctx = await localHarness()
+    const id = SessionId('local-host-guard')
+    await ctx.agentControl.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    // local-ts holds agents in-process: Host methods run directly there, so
+    // the control capability's host invocation surface rejects.
+    await expect(ctx.agentControl.invokeHost(id, 'no/such', 'noSuch', {}))
+      .rejects.toThrow('host invocation requires a worker-ts generation')
+    await ctx.agentControl.dispose(id)
+  })
+
   it('mirrors live session events and status as read-model notifications', async () => {
     const ctx = await localHarness()
     const notifications: AgentControlNotification[] = []

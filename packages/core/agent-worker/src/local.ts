@@ -57,6 +57,14 @@ export class LocalAgentRuntime {
     return () => { this.notificationListeners.delete(listener) }
   }
 
+  /**
+   * Host invocation is worker-ts only: local-ts holds agents in-process, where
+   * Host methods run directly in the composing process.
+   */
+  invokeHost(_id: SessionId, _namespace: string, _method: string, _args: Record<string, unknown>): Promise<unknown> {
+    return Promise.reject(new AgentControlError('unknown-service', 'host invocation requires a worker-ts generation'))
+  }
+
   private notify(notification: AgentControlNotification): void {
     for (const listener of [...this.notificationListeners]) listener(notification)
   }

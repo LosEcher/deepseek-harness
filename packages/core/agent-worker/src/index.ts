@@ -114,6 +114,10 @@ export default class AgentWorker extends AgentControl {
     return this.runtime.onNotification(listener)
   }
 
+  override invokeHost(id: SessionId, namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.runtime.invokeHost(id, namespace, method, args)
+  }
+
   override get(id: SessionId): AgentDescriptor | undefined {
     return this.runtime.get(id)
   }

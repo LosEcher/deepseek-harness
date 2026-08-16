@@ -235,6 +235,10 @@ class StubControl extends AgentControl {
   override onNotification(_listener: (notification: AgentControlNotification) => void): () => void {
     return () => {}
   }
+
+  override async invokeHost(_id: SessionId, _namespace: string, _method: string, _args: Record<string, unknown>): Promise<unknown> {
+    throw new Error('not used in projection tests')
+  }
 }
 
 function descriptorFor(id: SessionId): AgentDescriptor {

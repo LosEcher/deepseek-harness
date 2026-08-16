@@ -12,6 +12,8 @@
 
 Connection 可用时，Host 入口会在 Connection 共享的 `/api` FetchHandler 上注册 trusted-host interceptor。Connection 把这个复合 handler 交给 HTTP bridge；handler 将已认领 endpoint 分发给 Gateway，未认领 endpoint 则交给 API Proxy。直接调用 `invoke()` 会保留业务错误；`TypertGatewayError` 可区分分发、绑定、提供方、查找、Context、参数和编解码器各自负责的故障。resolver 可以用 `TypertLookupFailure` 携带既有 RPC error，使冷恢复失败或 ownership fence 等策略拒绝保持原错误码。
 
+本地派发之前会先咨询可选的前置钩子（`ctx.typertDispatchHook`）：组合可以把调用转发到别处——`createHostWorkerForwarder()` 把 agent 作用域的调用路由进持有该 generation 的 Agent worker（`worker-ts`），由 worker 自己的 Gateway 在 worker 本地活体世界内执行；其余调用照常在主进程派发。
+
 支持取消的 Remote 方法会把 `signal: AbortSignal` 声明为最后一个 Host 参数。signal 是 descriptor 元数据，而不是 wire 参数：Connection 将它提供给 Gateway，Gateway 则在已解码的业务参数之后注入它。SRC 识别这个保留的末位参数名，严格生成还要求它具有全局 `AbortSignal` 类型。
 
 ## Client 服务：`ClientRemote`（ctx key：`remote`）
