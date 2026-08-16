@@ -17,9 +17,14 @@ Abstract service. Load one provider (`dsh-agent-worker`) per context.
 | `cancel` | Idempotent abort |
 | `whenIdle` | Drained-strength quiescence |
 | `flush` / `drain` / `dispose` | Durability and lease release |
+| `onNotification` | Subscribe to the read-model projection: committed `session/event`, `agent/status`, and `agent/drained` notifications (JSON-serializable values only) |
 | `get` / `list` / `roots` / `isOwnedBy` | Read-model queries |
 
 Functions and Cordis contexts never appear in a payload. `runMaintenance` has no wire form.
+
+## Read-model notifications
+
+Main-process consumers that only need a bounded projection (the headless runner, future Host/ACP entrypoints) subscribe with `onNotification`. Both backends emit the same vocabulary: committed `session/event` notifications carry `{ agent, generation, seq, event }`; `agent/status` mirrors idle/running; `agent/drained` reports the generation's release. Worker notifications are flow-controlled by the receiver credit the supervisor replenishes as it forwards.
 
 ## Session ownership
 
@@ -35,5 +40,5 @@ No direct invalidation; the worker-local composition owns any request-prefix cha
 
 ## Known Limitations and Deferred Work
 
-- **Shipped profiles stay on the live `Agent` registry** — Host, ACP, and headless still program `ctx.agents` until those entrypoints are remoted onto this service.
-- **Assembled product snapshots still run in-process** — worker-ts currently boots the spine plus a fixture adapter, not a shipped profile.
+- **Shipped profiles stay on the live `Agent` registry** — Host, ACP still program `ctx.agents` until those entrypoints are remoted onto this service (the headless one-shot already routes through `agentControl`).
+- **Assembled product snapshots still run in-process** — worker-ts defaults to the spine plus a fixture adapter; set the provider's `workerProfile` to mount a full composed profile.

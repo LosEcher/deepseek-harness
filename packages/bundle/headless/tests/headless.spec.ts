@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
+import AgentWorker from '@deepseek-ai/dsh-agent-worker'
 import AgentDefaultModelConfig from '@deepseek-ai/dsh-agent-default-model'
 import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
@@ -105,6 +106,19 @@ async function bench(script: Script): Promise<{
       return { code: await exited, out, err, order }
     },
   }
+}
+
+/** The same bench with the Agent control provider mounted (local-ts). */
+type BenchResult = { code: number; out: string; err: string; order: string[] }
+async function benchControlled(script: Script): Promise<{ ctx: Context; run(): Promise<BenchResult> }> {
+  const benchHarness = await bench(script)
+  await benchHarness.ctx.plugin(AgentWorker, {
+    backend: 'local-ts',
+    commandQueueLimit: 32,
+    eventCredit: 64,
+    replayWindow: 1024,
+  })
+  return benchHarness
 }
 
 describe('headless runner', () => {
@@ -248,5 +262,20 @@ describe('headless runner', () => {
   it('validates config: the task is required', () => {
     expect(() => new Config({} as never)).toThrow()
     expect(new Config({ task: 'x' })).toEqual({ task: 'x' })
+  })
+
+  it('runs the task through the mounted Agent control capability', async () => {
+    const test = await benchControlled({
+      async afterPrompt(session, message) {
+        await Promise.resolve()
+        appendTurn(session, 1, message, 'controlled answer', true)
+      },
+    })
+    const result = await test.run()
+    expect(result.code).toBe(0)
+    expect(result.out).toBe('controlled answer\n')
+    expect(result.err).toBe('')
+    expect(result.order).toContain('flush')
+    await test.ctx.fiber.dispose()
   })
 })

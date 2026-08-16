@@ -13,6 +13,7 @@ import {
   AgentControlError,
   type AgentControlCreateOptions,
   type AgentControlMessage,
+  type AgentControlNotification,
   type AgentControlResumeOptions,
   type AgentDescriptor,
 } from '@deepseek-ai/dsh-agent-control'
@@ -36,6 +37,8 @@ interface WorkerRecord {
   connection: BridgeConnection
   queueDepth: number
   ready: Promise<void>
+  /** Stops the worker-notification forwarder when the generation is retired. */
+  stopNotifications: () => void
 }
 
 /** Main-process supervisor that speaks the worker protocol over stdio. */
@@ -43,11 +46,27 @@ export class WorkerSupervisor {
   private nextGeneration = 1
   private readonly records = new Map<SessionId, WorkerRecord>()
   private readonly digest = agentWorkerManifestDigest()
+  private readonly notificationListeners = new Set<(notification: AgentControlNotification) => void>()
 
   /**
    * @param config - validated provider config.
    */
   constructor(private readonly config: Config) {}
+
+  /**
+   * Subscribe to worker notifications — committed session events, status
+   * mirrors, and drain reports — for every generation this supervisor holds.
+   * @param listener - notification observer.
+   * @returns disposer that unsubscribes.
+   */
+  onNotification(listener: (notification: AgentControlNotification) => void): () => void {
+    this.notificationListeners.add(listener)
+    return () => { this.notificationListeners.delete(listener) }
+  }
+
+  private notify(notification: AgentControlNotification): void {
+    for (const listener of [...this.notificationListeners]) listener(notification)
+  }
 
   /**
    * Spawn a worker and create a session inside it.
@@ -158,6 +177,7 @@ export class WorkerSupervisor {
         record.child.kill('SIGKILL')
       }
     }
+    record.stopNotifications()
     this.records.delete(id)
   }
 
@@ -301,7 +321,7 @@ export class WorkerSupervisor {
       phase: 'ready',
       configDigest: this.digest,
     }
-    const record: WorkerRecord = { descriptor, owner, child, connection, queueDepth: 0, ready }
+    const record: WorkerRecord = { descriptor, owner, child, connection, queueDepth: 0, ready, stopNotifications: () => {} }
     this.records.set(id, record)
     child.once('exit', (code, signal) => {
       if (record.descriptor.phase === 'ready') {
@@ -314,6 +334,39 @@ export class WorkerSupervisor {
       kind: 'stream_credit',
       payload: { generation, id: 'session-event', credit_bytes: this.config.eventCredit },
     })
+    // Forward worker notifications to main-process read models (the P0
+    // bounded projection): committed session events, status mirrors, and the
+    // drain report. Replenish the session-event credit as frames are
+    // forwarded so a long turn never stalls the stream mid-way — the wire
+    // bound still caps what the worker buffers.
+    const stopNotifications = connection.onMessage((message) => {
+      if (message.kind !== 'event_invoke') return
+      const body = isRecord(message.payload.payload) ? message.payload.payload : undefined
+      if (message.payload.event === 'session/event' && body !== undefined) {
+        connection.send({ kind: 'stream_credit', payload: { generation, id: 'session-event', credit_bytes: this.config.eventCredit } })
+        this.notify({
+          kind: 'session/event',
+          agent: id,
+          generation,
+          seq: body.seq as number,
+          event: body.event,
+        })
+        return
+      }
+      if (message.payload.event === 'agent/status' && body !== undefined) {
+        this.notify({
+          kind: 'agent/status',
+          agent: id,
+          generation,
+          status: body.status as 'idle' | 'running',
+        })
+        return
+      }
+      if (message.payload.event === 'agent/drained') {
+        this.notify({ kind: 'agent/drained', agent: id, generation })
+      }
+    })
+    record.stopNotifications = stopNotifications
     return record
   }
 
@@ -330,4 +383,8 @@ function workerArgs(): string[] {
     return ['--import', 'tsx/esm', fileURLToPath(new URL('./worker.ts', import.meta.url))]
   }
   return [fileURLToPath(new URL('./types/worker.js', import.meta.url))]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

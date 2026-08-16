@@ -11,6 +11,7 @@ import {
   assertCanAcquire,
   type AgentControlCreateOptions,
   type AgentControlMessage,
+  type AgentControlNotification,
   type AgentControlResumeOptions,
   type AgentDescriptor,
 } from '@deepseek-ai/dsh-agent-control'
@@ -24,12 +25,15 @@ interface LocalRecord {
   handle: AgentHandle
   owner: string
   queueDepth: number
+  /** Stops the live-agent notification mirror when the generation is retired. */
+  stopNotifications: () => void
 }
 
 /** In-process implementation of AgentControl over `ctx.agents`. */
 export class LocalAgentRuntime {
   private nextGeneration = 1
   private readonly records = new Map<SessionId, LocalRecord>()
+  private readonly notificationListeners = new Set<(notification: AgentControlNotification) => void>()
 
   /**
    * @param agents - live in-process registry.
@@ -41,6 +45,35 @@ export class LocalAgentRuntime {
     private readonly sessions: { flush(session: Agent['session']): Promise<unknown> },
     private readonly config: Config,
   ) {}
+
+  /**
+   * Subscribe to live-agent notifications — committed session events, status
+   * mirrors, and drain reports — for every generation this runtime holds.
+   * @param listener - notification observer.
+   * @returns disposer that unsubscribes.
+   */
+  onNotification(listener: (notification: AgentControlNotification) => void): () => void {
+    this.notificationListeners.add(listener)
+    return () => { this.notificationListeners.delete(listener) }
+  }
+
+  private notify(notification: AgentControlNotification): void {
+    for (const listener of [...this.notificationListeners]) listener(notification)
+  }
+
+  /** Mirror one live generation's session/status events as notifications. */
+  private subscribeNotifications(handle: AgentHandle, generation: number): () => void {
+    const { agent } = handle
+    const stopSession = agent.ctx.on('session/event', (session, event) => {
+      if (session !== agent.session) return
+      this.notify({ kind: 'session/event', agent: agent.id, generation, seq: event.seq, event })
+    })
+    const stopStatus = agent.ctx.on('agent/status', ({ agent: subject, status }) => {
+      if (subject !== agent) return
+      this.notify({ kind: 'agent/status', agent: agent.id, generation, status })
+    })
+    return () => { stopSession(); stopStatus() }
+  }
 
   /**
    * Create a new in-process generation.
@@ -72,7 +105,10 @@ export class LocalAgentRuntime {
       phase: 'ready',
       configDigest: 'local-ts',
     }
-    this.records.set(handle.agent.id, { descriptor, handle, owner, queueDepth: 0 })
+    const record: LocalRecord = { descriptor, handle, owner, queueDepth: 0, stopNotifications: () => {} }
+    // Mirror before the ownership append so the acquire is part of the stream.
+    record.stopNotifications = this.subscribeNotifications(handle, generation)
+    this.records.set(handle.agent.id, record)
     return descriptor
   }
 
@@ -105,7 +141,9 @@ export class LocalAgentRuntime {
       phase: 'ready',
       configDigest: 'local-ts',
     }
-    this.records.set(handle.agent.id, { descriptor, handle, owner, queueDepth: 0 })
+    const record: LocalRecord = { descriptor, handle, owner, queueDepth: 0, stopNotifications: () => {} }
+    record.stopNotifications = this.subscribeNotifications(handle, generation)
+    this.records.set(handle.agent.id, record)
     return descriptor
   }
 
@@ -194,6 +232,7 @@ export class LocalAgentRuntime {
       owner: record.owner,
     })
     await this.sessions.flush(record.handle.agent.session)
+    this.notify({ kind: 'agent/drained', agent: id, generation: record.descriptor.generation })
     await record.handle.dispose()
     record.descriptor = { ...record.descriptor, phase: 'drained', status: 'idle' }
   }
@@ -205,6 +244,7 @@ export class LocalAgentRuntime {
     const record = this.records.get(id)
     if (record === undefined) return
     if (record.descriptor.phase !== 'drained') await this.drain(id)
+    record.stopNotifications()
     this.records.delete(id)
   }
 

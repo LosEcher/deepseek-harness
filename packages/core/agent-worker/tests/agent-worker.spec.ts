@@ -14,8 +14,9 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import AgentWorker, { WorkerSupervisor, type Config } from '@deepseek-ai/dsh-agent-worker'
 import { lastOwnership } from '@deepseek-ai/dsh-agent-control'
-import type { AgentControlMessage } from '@deepseek-ai/dsh-agent-control'
+import type { AgentControlMessage, AgentControlNotification } from '@deepseek-ai/dsh-agent-control'
 import { AgentControlError } from '@deepseek-ai/dsh-agent-control'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
 class FixtureAdapter extends LlmAdapter {
   override async *stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -114,6 +115,34 @@ describe('local-ts', () => {
       source: { kind: 'user' },
     })))).rejects.toBeInstanceOf(AgentControlError)
   })
+
+  it('mirrors live session events and status as read-model notifications', async () => {
+    const ctx = await localHarness()
+    const notifications: AgentControlNotification[] = []
+    const stop = ctx.agentControl.onNotification(notification => notifications.push(notification))
+    const id = SessionId('local-events')
+    const descriptor = await ctx.agentControl.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await ctx.agentControl.followup(id, asControl(createUserMessage({
+      content: [{ type: 'text', text: 'ping' }],
+      source: { kind: 'user' },
+    })))
+    await ctx.agentControl.whenIdle(id)
+    await ctx.agentControl.drain(id)
+    stop()
+    const sessionEvents = notifications.filter(notification =>
+      notification.kind === 'session/event' && notification.agent === id)
+    expect(sessionEvents.length).toBeGreaterThan(0)
+    expect(sessionEvents.some(notification =>
+      notification.kind === 'session/event'
+      && (notification.event as SessionEvent).type === 'turn/end')).toBe(true)
+    expect(notifications.some(notification =>
+      notification.kind === 'agent/status' && notification.agent === id && notification.status === 'running')).toBe(true)
+    expect(notifications.some(notification =>
+      notification.kind === 'agent/drained' && notification.agent === id && notification.generation === descriptor.generation)).toBe(true)
+  })
 })
 
 describe('local-ts drain-and-resume', () => {
@@ -201,6 +230,42 @@ describe('worker-ts', () => {
     })
     expect(second.generation).toBeGreaterThan(first.generation)
     await supervisor.dispose(id)
+  }, 30_000)
+
+  it('forwards worker session events, status mirrors, and drain reports to notification listeners', async () => {
+    const supervisor = new WorkerSupervisor({
+      backend: 'worker-ts',
+      commandQueueLimit: 32,
+      eventCredit: 64,
+      replayWindow: 1024,
+    })
+    const notifications: AgentControlNotification[] = []
+    const stop = supervisor.onNotification(notification => notifications.push(notification))
+    const id = SessionId('worker-events')
+    const descriptor = await supervisor.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await supervisor.followup(id, {
+      id: 'm1',
+      role: 'user',
+      content: [{ type: 'text', text: 'ping' }],
+      source: { kind: 'user' },
+    })
+    await supervisor.whenIdle(id)
+    await supervisor.drain(id)
+    await supervisor.dispose(id)
+    stop()
+    const sessionEvents = notifications.filter(notification =>
+      notification.kind === 'session/event' && notification.agent === id)
+    expect(sessionEvents.length).toBeGreaterThan(0)
+    expect(sessionEvents.some(notification =>
+      notification.kind === 'session/event'
+      && (notification.event as SessionEvent).type === 'turn/end')).toBe(true)
+    expect(notifications.some(notification =>
+      notification.kind === 'agent/status' && notification.agent === id && notification.status === 'running')).toBe(true)
+    expect(notifications.some(notification =>
+      notification.kind === 'agent/drained' && notification.agent === id && notification.generation === descriptor.generation)).toBe(true)
   }, 30_000)
 })
 

@@ -10,6 +10,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {
   AgentControlCreateOptions,
   AgentControlMessage,
+  AgentControlNotification,
   AgentControlResumeOptions,
   AgentDescriptor,
 } from './types.ts'
@@ -19,6 +20,7 @@ export type {
   AgentControlCreateOptions,
   AgentControlErrorCode,
   AgentControlMessage,
+  AgentControlNotification,
   AgentControlPhase,
   AgentControlResumeOptions,
   AgentDescriptor,
@@ -126,6 +128,16 @@ export default abstract class AgentControl extends Service {
    * @param id - target agent.
    */
   abstract dispose(id: SessionId): Promise<void>
+
+  /**
+   * Subscribe to main-process read-model notifications (committed session
+   * events, status mirrors, drain reports) for every generation this provider
+   * holds. Payloads are JSON-serializable values only; live `Session`/`Agent`
+   * objects never appear here.
+   * @param listener - notification observer.
+   * @returns disposer that unsubscribes.
+   */
+  abstract onNotification(listener: (notification: AgentControlNotification) => void): () => void
 
   /**
    * Read-model lookup.

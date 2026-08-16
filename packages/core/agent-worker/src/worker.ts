@@ -123,7 +123,7 @@ let failLoudInstalled = false
 async function bootProfile(name: string): Promise<Context> {
   // Only the app-boot module graph stays dynamic: the fixture spine (the
   // protocol-test default) never pays for it.
-  const { boot, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadProfile } = await import('@deepseek-ai/dsh-app-boot')
+  const { boot, createConsoleLoggerExporter, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadProfile } = await import('@deepseek-ai/dsh-app-boot')
   const { resolveDshHome } = await import('@deepseek-ai/dsh-home-paths')
   if (profileDebug) process.stderr.write(`[worker] profile mode: ${name}\n`)
   // A worker is a long-lived service process: an unhandled rejection must
@@ -153,8 +153,19 @@ async function bootProfile(name: string): Promise<Context> {
   if (profileDebug) process.stderr.write(`[worker] booting ${join(profile.dir, 'cordis.yml')} patches=${patches.length}\n`)
   // Service-process boot: entry-point rows that stay pending (task drivers
   // whose cmdline service this composition does not mount) are fine; failed
-  // loads still fail loud through the loaded-only audit.
-  const result = await boot('agent-worker', join(profile.dir, 'cordis.yml'), patches, undefined, undefined, false)
+  // loads still fail loud through the loaded-only audit. The product bridge
+  // owns stdout, so the composed tree logs through the stderr exporter from
+  // the first mounted row (a single stdout log line would corrupt the frame
+  // stream).
+  const result = await boot(
+    'agent-worker',
+    join(profile.dir, 'cordis.yml'),
+    patches,
+    undefined,
+    undefined,
+    false,
+    createConsoleLoggerExporter({ stderr: true }),
+  )
   if (profileDebug) process.stderr.write('[worker] boot ok\n')
   return result
 }

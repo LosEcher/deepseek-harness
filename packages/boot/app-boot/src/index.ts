@@ -794,8 +794,11 @@ export async function assertEntriesActivated(ctx: Context, binName: string): Pro
  * boot failures with no visible cause. Registering this exporter on the root
  * fiber makes every named logger visible on stdout/stderr, timestamped, on
  * all bins (web/headless). Format: `[HH:MM:SS.mmm] [TYPE:name] args…`.
+ * @param options - `stderr: true` routes every line to stderr — the mode for
+ *   processes whose stdout is reserved for a wire protocol (the Agent worker's
+ *   product bridge), where a single log line would corrupt the frame stream.
  */
-export function createConsoleLoggerExporter(): LoggerExporter {
+export function createConsoleLoggerExporter(options: { stderr?: boolean } = {}): LoggerExporter {
   return {
     colors: 0,
     export(message: LoggerMessage) {
@@ -814,8 +817,9 @@ export function createConsoleLoggerExporter(): LoggerExporter {
       const text = args.join(' ')
       if (!text) return
       const line = `[${ts}] [${message.type.toUpperCase()}${message.name ? `:${message.name}` : ''}] ${text}`
-      // error = severity 0; every higher severity goes to stdout
-      if (message.level <= 0) console.error(line)
+      // error = severity 0; every higher severity goes to stdout unless the
+      // process reserves stdout for a protocol (stderr mode).
+      if (message.level <= 0 || options.stderr === true) console.error(line)
       else console.log(line)
     },
   }
@@ -827,10 +831,14 @@ export async function boot(
   patches?: PatchOptions[],
   prepare?: (ctx: Context) => Promise<void> | void,
   bareModuleBaseUrl?: string,
+  requireActivated = true,
+  loggerExporter: LoggerExporter = createConsoleLoggerExporter(),
 ): Promise<Context> {
   const ctx = new Context()
-  // Surface every `ctx.logger.*` call (see createConsoleLoggerExporter).
-  ctx.logger.exporter(createConsoleLoggerExporter())
+  // Surface every `ctx.logger.*` call (see createConsoleLoggerExporter). A
+  // caller whose stdout is reserved for a wire protocol passes the stderr
+  // variant so composed-tree logging cannot corrupt the frame stream.
+  ctx.logger.exporter(loggerExporter)
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
   // so its failure is host setup, not the plugin tree.
   let stage = 'host preparation failed'
@@ -850,7 +858,15 @@ export async function boot(
     // re-check after every await.
     await ctx.get('loader')?.await()
     if (ctx.get('loader') === undefined) return ctx
-    await assertEntriesActivated(ctx, binName)
+    // A service process (Agent worker) may leave entry-point rows pending
+    // (e.g. a task driver whose cmdline service the worker composition does
+    // not mount): failed loads still fail loud, but pending rows are not an
+    // error unless the caller requires a fully activated tree.
+    if (requireActivated) {
+      await assertEntriesActivated(ctx, binName)
+    } else {
+      assertEntriesLoaded(ctx, binName)
+    }
     return ctx
   } catch (cause) {
     // Root-fiber disposal contains cleanup failures per observer (Cordis

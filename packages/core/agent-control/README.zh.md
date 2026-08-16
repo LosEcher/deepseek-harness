@@ -17,9 +17,14 @@
 | `cancel` | 幂等中止 |
 | `whenIdle` | 达到 drained 强度的静止 |
 | `flush` / `drain` / `dispose` | 持久化与租约释放 |
+| `onNotification` | 订阅读模型投影：已提交的 `session/event`、`agent/status` 与 `agent/drained` 通知（仅 JSON 可序列化值） |
 | `get` / `list` / `roots` / `isOwnedBy` | 读模型查询 |
 
 函数和 Cordis 上下文从不出现在载荷中。`runMaintenance` 没有 wire 形态。
+
+## 读模型通知
+
+只需要有界投影的主进程消费者（headless runner、未来的 Host/ACP 入口）用 `onNotification` 订阅。两个后端发出相同的词汇表：已提交的 `session/event` 通知携带 `{ agent, generation, seq, event }`；`agent/status` 镜像 idle/running；`agent/drained` 报告该 generation 的释放。worker 通知受接收方 credit 流控，supervisor 转发时补给。
 
 ## 会话所有权
 
@@ -35,5 +40,5 @@
 
 ## Known Limitations and Deferred Work
 
-- **已交付 profile 仍走活的 `Agent` 注册表** — Host、ACP 和 headless 仍针对 `ctx.agents` 编程，直到这些入口被远程化到本服务。
-- **组装后的产品快照仍在进程内运行** — worker-ts 当前只启动主干加上夹具适配器，而不是已交付 profile。
+- **已交付 profile 仍走活的 `Agent` 注册表** — Host、ACP 仍针对 `ctx.agents` 编程，直到这些入口被远程化到本服务（headless 一次性入口已改走 `agentControl`）。
+- **组装后的产品快照仍在进程内运行** — worker-ts 默认只启动主干加上夹具适配器；设置 provider 的 `workerProfile` 可挂载完整组合 profile。

@@ -103,6 +103,38 @@ export type AgentControlErrorCode =
   | 'unknown-agent'
   | 'fault'
 
+/**
+ * One worker notification forwarded to main-process read models (the P0
+ * bounded projection). Payloads are JSON-serializable values only; live
+ * `Session`/`Agent` objects never appear here.
+ */
+export type AgentControlNotification =
+  | {
+    /** A session event committed by the generation's sole writer. */
+    kind: 'session/event'
+    /** Agent/session identity. */
+    agent: SessionId
+    /** Generation that committed the event. */
+    generation: number
+    /** Monotonic event sequence. */
+    seq: number
+    /** The committed event (JSON-serializable). */
+    event: unknown
+  }
+  | {
+    /** Mirrored idle/running status. */
+    kind: 'agent/status'
+    agent: SessionId
+    generation: number
+    status: 'idle' | 'running'
+  }
+  | {
+    /** The generation drained: quiescent, flushed, lease released. */
+    kind: 'agent/drained'
+    agent: SessionId
+    generation: number
+  }
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**

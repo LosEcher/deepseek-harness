@@ -12,6 +12,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { ModelSelectionRef } from '@deepseek-ai/dsh-agent'
+import type AgentControl from '@deepseek-ai/dsh-agent-control'
+import type { AgentControlMessage } from '@deepseek-ai/dsh-agent-control'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -87,6 +89,16 @@ function fail(io: HeadlessIo, error: unknown): void {
   io.exit(1)
 }
 
+/** One-shot task message over the control wire. */
+function taskMessage(task: string): AgentControlMessage {
+  return {
+    id: randomUUID(),
+    role: 'user',
+    content: [{ type: 'text', text: task }],
+    source: { kind: 'user' },
+  }
+}
+
 /**
  * Run one task through a freshly created Agent and request process exit.
  * @param ctx - plugin context carrying the Agent, default model, Session, and launcher IO services.
@@ -97,13 +109,18 @@ async function run(ctx: Context, task: string, io: HeadlessIo): Promise<void> {
   // Loader siblings mount concurrently. Await the complete application before
   // creating an Agent so its scoped tools and adapters are not half-composed.
   await ctx.get('loader')?.await()
-  const agents = ctx.get('agents')
   const defaultModel = ctx.get('agentDefaultModel')
-  const sessions = ctx.get('sessions')
   // Early process shutdown can dispose the tree while settlement is pending.
-  if (agents === undefined || defaultModel === undefined || sessions === undefined) return
-
+  if (defaultModel === undefined) return
   const selection = defaultModel.currentSelection()
+  const control = ctx.get('agentControl')
+  if (control !== undefined) {
+    await runControlled(control, selection, task, io)
+    return
+  }
+  const agents = ctx.get('agents')
+  const sessions = ctx.get('sessions')
+  if (agents === undefined || sessions === undefined) return
   // This bundle composes no preset roster, so the model-facing rows sit in the
   // host plane and the agent reads them from the global layer. A deployment
   // that DOES configure one has to join it here first
@@ -126,6 +143,54 @@ async function run(ctx: Context, task: string, io: HeadlessIo): Promise<void> {
   await agent.whenIdle()
   await sessions.flush(agent.session)
   const outcome = summarize(agent.session.events, firstSeq)
+  finish(outcome, io)
+}
+
+/**
+ * Run the task through the Agent control capability (local-ts or worker-ts)
+ * using only the main-process read-model projection: create, send, wait for
+ * quiescence, flush, summarize the committed session-event notifications,
+ * drain, and exit. Model selection is passed explicitly — setup callbacks
+ * never cross the process boundary (P0).
+ * @param control - the mounted Agent control service.
+ * @param selection - the launcher's model selection, passed per-generation.
+ * @param task - one-shot task text.
+ * @param io - process-facing effects.
+ */
+async function runControlled(
+  control: AgentControl,
+  selection: { provider: string; model: string },
+  task: string,
+  io: HeadlessIo,
+): Promise<void> {
+  const sessionId = SessionId(`session-${randomUUID()}`)
+  const events: SessionEvent[] = []
+  const stop = control.onNotification((notification) => {
+    if (notification.kind !== 'session/event' || notification.agent !== sessionId) return
+    events.push(notification.event as SessionEvent)
+  })
+  try {
+    const descriptor = await control.create('headless', {
+      sessionId,
+      meta: { cwd: process.cwd() },
+      agentOptions: { provider: selection.provider, model: selection.model },
+    })
+    await control.whenIdle(descriptor.id)
+    const last = events[events.length - 1]
+    const firstSeq = last === undefined ? 0 : last.seq
+    await control.followup(descriptor.id, taskMessage(task))
+    await control.whenIdle(descriptor.id)
+    await control.flush(descriptor.id)
+    const outcome = summarize(events, firstSeq)
+    await control.drain(descriptor.id)
+    finish(outcome, io)
+  } finally {
+    stop()
+  }
+}
+
+/** Print the run outcome and request the mapped exit code. */
+function finish(outcome: RunOutcome, io: HeadlessIo): void {
   io.stdout.write(outcome.text + '\n')
   if (outcome.reason?.kind === 'error') {
     io.stderr.write(`dsh: ${outcome.reason.error.code}: ${outcome.reason.error.message}\n`)

@@ -2,7 +2,8 @@
 # It mounts no Host, HTTP server, Web runtime, or browser plugin. An ordinary
 # provider plugin injects `cmdlineArgs`, parses the task positional
 # (`dsh --profile headless "<task>"`) and this app's --help, then the direct
-# driver creates an Agent through the core registry and prints its durable result.
+# driver creates an Agent through the Agent control capability and prints its
+# durable result.
 
 - id: system-prompt
   config:
@@ -23,6 +24,16 @@
     # Code Mode is a core execution capability, not a Web component.
     - id: code-runtime
       name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+    # The headless entry drives its task through the Agent control capability
+    # (`ctx.agentControl`); the runner falls back to the core registry only
+    # when no control provider is mounted. Backend is explicit per deployment:
+    # a profile patch may override this row's whole config (id-targeted
+    # replacement) to `backend: worker-ts` plus `workerProfile`.
+    - id: agent-control
+      name: '@deepseek-ai/dsh-agent-worker'
+      config:
+        backend: 'local-ts'
 
     - id: headless-startup
       name: '@deepseek-ai/dsh-headless/startup'

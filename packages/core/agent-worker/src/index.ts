@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentControl, {
   type AgentControlCreateOptions,
   type AgentControlMessage,
+  type AgentControlNotification,
   type AgentControlResumeOptions,
   type AgentDescriptor,
 } from '@deepseek-ai/dsh-agent-control'
@@ -107,6 +108,10 @@ export default class AgentWorker extends AgentControl {
 
   override dispose(id: SessionId): Promise<void> {
     return this.runtime.dispose(id)
+  }
+
+  override onNotification(listener: (notification: AgentControlNotification) => void): () => void {
+    return this.runtime.onNotification(listener)
   }
 
   override get(id: SessionId): AgentDescriptor | undefined {
