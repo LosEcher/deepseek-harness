@@ -1,0 +1,9 @@
+# The dsh-observability bundle patch: one insert row mounting the metrics
+# plugin over dsh-base. Default-off by composition: profiles that want the
+# endpoint include this bundle; nothing in the core depends on it. The plugin
+# needs the web server (route host) and the session store (event feed), so
+# profiles without webServer must not mount it.
+
+- insert:
+    - id: observability
+      name: '@deepseek-ai/dsh-observability'
