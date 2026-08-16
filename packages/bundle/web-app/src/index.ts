@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
+import { createHostWorkerForwarder } from '@deepseek-ai/dsh-api-gateway'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -133,6 +134,11 @@ export const internals: { resolveDistIndex: () => string } = { resolveDistIndex 
  * @param config - validated {@link Config}.
  */
 export function apply(ctx: Context, config: Config): void {
+  // Host RPC forwarding (api-proxy ④b): agent-scoped invocations route into
+  // the worker holding the generation once a deployment selects worker-ts.
+  // Inert before then — no control provider, or local-ts sessions, never
+  // forward, and the Gateway dispatches everything locally.
+  ctx.provide('typertDispatchHook', createHostWorkerForwarder(ctx))
   const runtime = resolveLanTrust(ctx.webServer.host, config.trustedHosts)
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)

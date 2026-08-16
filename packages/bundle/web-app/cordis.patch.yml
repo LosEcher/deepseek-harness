@@ -105,6 +105,15 @@
     - id: api-gateway
       name: '@deepseek-ai/dsh-host-apiproxy'
 
+    # Agent control provider (api-proxy ④): explicit local-ts default keeps
+    # sessions in-process; a deployment patch may replace this row's whole
+    # config with `backend: worker-ts` plus `workerProfile` (e.g. worker-web)
+    # to run Host RPC and api-proxy inside workers.
+    - id: agent-control
+      name: '@deepseek-ai/dsh-agent-worker'
+      config:
+        backend: 'local-ts'
+
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
 

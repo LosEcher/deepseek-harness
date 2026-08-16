@@ -283,6 +283,20 @@ export class WorkerSupervisor {
     return this.call(id, 'invoke', { namespace, method, args }, 'host')
   }
 
+  /**
+   * Invoke one ApiProxy section method inside this worker's own composition
+   * (the worker-local api-proxy surface, api-proxy ④). worker-ts only:
+   * local-ts holds agents in-process, where api-proxy runs directly.
+   * @param id - target agent whose worker owns the invocation.
+   * @param section - ApiProxy section (sessions, host, goals, ...).
+   * @param method - section method name.
+   * @param args - positional call arguments.
+   * @returns the method result.
+   */
+  async invokeApiProxy(id: SessionId, section: string, method: string, args: readonly unknown[]): Promise<unknown> {
+    return this.call(id, 'apiProxy', { section, method, args }, 'host')
+  }
+
   private async spawn(owner: string, id: SessionId): Promise<WorkerRecord> {
     const generation = this.nextGeneration
     this.nextGeneration += 1

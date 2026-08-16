@@ -218,17 +218,38 @@ function emitSessionEvent(seq: number, event: unknown): void {
  * @param body - wire args `{ namespace, method, args }`.
  */
 async function handleHostInvoke(id: string, method: string, body: Record<string, unknown>): Promise<void> {
-  if (method !== 'invoke') throw new AgentControlError('unknown-service', fixtureErrorText('unknown-service'))
   if (ctx === undefined) throw new AgentControlError('unknown-agent', 'unknown agent')
-  const gateway = ctx.get('typertGateway')
-  if (gateway === undefined) {
-    throw new AgentControlError('unknown-service', 'host gateway is not mounted in this composition')
+  if (method === 'invoke') {
+    const gateway = ctx.get('typertGateway')
+    if (gateway === undefined) {
+      throw new AgentControlError('unknown-service', 'host gateway is not mounted in this composition')
+    }
+    const namespace = typeof body.namespace === 'string' ? body.namespace : ''
+    const target = typeof body.method === 'string' ? body.method : ''
+    const args = isRecord(body.args) ? body.args : {}
+    const result = await gateway.invoke({ namespace, method: target, args })
+    reply(id, result)
+    return
   }
-  const namespace = typeof body.namespace === 'string' ? body.namespace : ''
-  const target = typeof body.method === 'string' ? body.method : ''
-  const args = isRecord(body.args) ? body.args : {}
-  const result = await gateway.invoke({ namespace, method: target, args })
-  reply(id, result)
+  if (method === 'apiProxy') {
+    // Direct ApiProxy dispatch: the worker-web composition mounts ctx.apiProxy
+    // (api-proxy ④), and Host clients call its sections through the bridge.
+    const api = ctx.get('apiProxy')
+    if (api === undefined) {
+      throw new AgentControlError('unknown-service', 'api proxy is not mounted in this composition')
+    }
+    const section = typeof body.section === 'string' ? body.section : ''
+    const target = typeof body.method === 'string' ? body.method : ''
+    const args: unknown[] = Array.isArray(body.args) ? [...(body.args as unknown[])] : []
+    const sectionApi = (api as unknown as Record<string, unknown>)[section]
+    if (!isRecord(sectionApi) || typeof sectionApi[target] !== 'function') {
+      throw new AgentControlError('unknown-service', `unknown api-proxy method ${section}/${target}`)
+    }
+    const result = await (sectionApi[target] as (...call: unknown[]) => unknown)(...args)
+    reply(id, result)
+    return
+  }
+  throw new AgentControlError('unknown-service', fixtureErrorText('unknown-service'))
 }
 
 async function handleCall(message: Extract<BridgeMessage, { kind: 'call' }>): Promise<void> {

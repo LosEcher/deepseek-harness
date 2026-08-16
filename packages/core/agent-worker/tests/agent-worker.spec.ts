@@ -116,6 +116,18 @@ describe('local-ts', () => {
     })))).rejects.toBeInstanceOf(AgentControlError)
   })
 
+  it('rejects api-proxy invocation on local-ts generations', async () => {
+    const ctx = await localHarness()
+    const id = SessionId('local-apiproxy-guard')
+    await ctx.agentControl.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await expect(ctx.agentControl.invokeApiProxy(id, 'host', 'describe', []))
+      .rejects.toThrow('api proxy invocation requires a worker-ts generation')
+    await ctx.agentControl.dispose(id)
+  })
+
   it('rejects host invocation on local-ts generations', async () => {
     const ctx = await localHarness()
     const id = SessionId('local-host-guard')
@@ -280,6 +292,23 @@ describe('worker-ts', () => {
       notification.kind === 'agent/status' && notification.agent === id && notification.status === 'running')).toBe(true)
     expect(notifications.some(notification =>
       notification.kind === 'agent/drained' && notification.agent === id && notification.generation === descriptor.generation)).toBe(true)
+  }, 30_000)
+
+  it('rejects api-proxy invocations with a clean error when none is mounted', async () => {
+    const supervisor = new WorkerSupervisor({
+      backend: 'worker-ts',
+      commandQueueLimit: 32,
+      eventCredit: 64,
+      replayWindow: 1024,
+    })
+    const id = SessionId('worker-host-no-apiproxy')
+    await supervisor.create('host', {
+      sessionId: id,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await expect(supervisor.invokeApiProxy(id, 'host', 'describe', []))
+      .rejects.toThrow('api proxy is not mounted')
+    await supervisor.dispose(id)
   }, 30_000)
 
   it('rejects host invocations with a clean error when no gateway is mounted', async () => {
@@ -483,6 +512,14 @@ describe('worker-ts profile mode', () => {
       expect(byId.get('include:api-gateway')?.fiberPhase).toBe('active')
       expect(byId.get('include:directory-picker')?.fiberPhase).toBe('active')
       expect(byId.get('include:plugin-inventory')?.fiberPhase).toBe('active')
+      // Direct ApiProxy dispatch: host.describe runs inside the worker against
+      // its own ctx.apiProxy — the api-proxy ④ invocation surface.
+      const described = await supervisor.invokeApiProxy(id, 'host', 'describe', [{ rpcId: 'bridge', payload: {} }]) as {
+        result: { ok: boolean; value?: { version: string; cwd: string } }
+      }
+      expect(described.result.ok).toBe(true)
+      expect(described.result.value?.cwd).toBe(process.cwd())
+      expect(typeof described.result.value?.version).toBe('string')
       await supervisor.dispose(id)
     } finally {
       if (previousHome === undefined) delete process.env.DSH_HOME

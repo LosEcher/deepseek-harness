@@ -26,15 +26,17 @@ function agentScopeWire(descriptor: InvocationDescriptor): string | undefined {
 }
 
 /**
- * Create the worker-forwarding dispatch hook for one Host context.
+ * Create the worker-forwarding dispatch hook for one Host context. The
+ * control provider is resolved per call, so composition order is irrelevant
+ * (the hook may be provided before or after the control row mounts).
  * @param ctx - owning Host Context (Agent control optional).
  * @returns the hook, or one that never forwards when no control provider is
  *   mounted (the Gateway then dispatches everything locally).
  */
 export function createHostWorkerForwarder(ctx: Context): TypertDispatchHook {
-  const control: AgentControl | undefined = ctx.get('agentControl')
   return {
-    async tryForward(request: InvokeRemoteRequest, descriptor: InvocationDescriptor): Promise<unknown | undefined> {
+    async tryForward(request: InvokeRemoteRequest, descriptor: InvocationDescriptor): Promise<unknown> {
+      const control: AgentControl | undefined = ctx.get('agentControl')
       if (control === undefined) return undefined
       const wire = agentScopeWire(descriptor)
       if (wire === undefined) return undefined

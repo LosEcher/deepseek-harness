@@ -118,6 +118,10 @@ export default class AgentWorker extends AgentControl {
     return this.runtime.invokeHost(id, namespace, method, args)
   }
 
+  override invokeApiProxy(id: SessionId, section: string, method: string, args: readonly unknown[]): Promise<unknown> {
+    return this.runtime.invokeApiProxy(id, section, method, args)
+  }
+
   override get(id: SessionId): AgentDescriptor | undefined {
     return this.runtime.get(id)
   }

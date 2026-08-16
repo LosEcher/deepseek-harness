@@ -29,7 +29,7 @@ export const AGENT_COMMANDS = new Set([
 ])
 
 /** Command methods on the host service (worker-local Host dispatch). */
-export const HOST_COMMANDS = new Set(['invoke'])
+export const HOST_COMMANDS = new Set(['invoke', 'apiProxy'])
 
 /** Default bounded replay window when a resume omits one. */
 export const DEFAULT_REPLAY_WINDOW = 1024

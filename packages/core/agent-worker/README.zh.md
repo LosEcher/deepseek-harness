@@ -25,7 +25,7 @@
 
 ## Host 调用
 
-`supervisor.invokeHost(id, namespace, method, args)` 把一次 Host Remote 调用路由进 worker 自身的组合（product bridge 上的 `host` service）：worker 内的 typert 网关——任何组合 profile 都由 `dsh-base` 挂载——从自己的描述符目录解析端点，因此 Host RPC 方法体可以针对 worker 内的活体 `Agent` 执行，无需远程对象外观。仅 worker-ts：local-ts 在进程内持有 agent，Host 方法直接运行。
+`supervisor.invokeHost(id, namespace, method, args)` 把一次 Host Remote 调用路由进 worker 自身的组合（product bridge 上的 `host` service）：worker 内的 typert 网关——任何组合 profile 都由 `dsh-base` 挂载——从自己的描述符目录解析端点，因此 Host RPC 方法体可以针对 worker 内的活体 `Agent` 执行，无需远程对象外观。`supervisor.invokeApiProxy(id, section, method, args)` 把一次 ApiProxy 段方法派发到 worker 挂载的 `ctx.apiProxy`（worker-web 组合，api-proxy ④）。仅 worker-ts：local-ts 在进程内持有 agent，Host 方法直接运行。
 
 ## Model Experience
 

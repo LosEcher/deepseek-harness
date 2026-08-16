@@ -239,6 +239,10 @@ class StubControl extends AgentControl {
   override async invokeHost(_id: SessionId, _namespace: string, _method: string, _args: Record<string, unknown>): Promise<unknown> {
     throw new Error('not used in projection tests')
   }
+
+  override async invokeApiProxy(_id: SessionId, _section: string, _method: string, _args: readonly unknown[]): Promise<unknown> {
+    throw new Error('not used in projection tests')
+  }
 }
 
 function descriptorFor(id: SessionId): AgentDescriptor {

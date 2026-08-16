@@ -154,6 +154,19 @@ export default abstract class AgentControl extends Service {
   abstract invokeHost(id: SessionId, namespace: string, method: string, args: Record<string, unknown>): Promise<unknown>
 
   /**
+   * Invoke one ApiProxy section method inside the generation's own
+   * composition — the worker-local api-proxy surface (api-proxy ④). worker-ts
+   * dispatches through the worker's mounted `ctx.apiProxy`; local-ts rejects
+   * (its agents are in-process, where api-proxy runs directly).
+   * @param id - target agent whose composition owns the invocation.
+   * @param section - ApiProxy section (sessions, host, goals, ...).
+   * @param method - section method name.
+   * @param args - positional call arguments.
+   * @returns the method result.
+   */
+  abstract invokeApiProxy(id: SessionId, section: string, method: string, args: readonly unknown[]): Promise<unknown>
+
+  /**
    * Read-model lookup.
    * @param id - target agent.
    * @returns the current descriptor, or undefined when unknown.

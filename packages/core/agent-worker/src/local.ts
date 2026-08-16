@@ -65,6 +65,14 @@ export class LocalAgentRuntime {
     return Promise.reject(new AgentControlError('unknown-service', 'host invocation requires a worker-ts generation'))
   }
 
+  /**
+   * ApiProxy invocation is worker-ts only: local-ts holds agents in-process,
+   * where api-proxy runs directly in the composing process.
+   */
+  invokeApiProxy(_id: SessionId, _section: string, _method: string, _args: readonly unknown[]): Promise<unknown> {
+    return Promise.reject(new AgentControlError('unknown-service', 'api proxy invocation requires a worker-ts generation'))
+  }
+
   private notify(notification: AgentControlNotification): void {
     for (const listener of [...this.notificationListeners]) listener(notification)
   }
