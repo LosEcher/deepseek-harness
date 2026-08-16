@@ -31,6 +31,18 @@ The `MetricsRegistry` is a pure, dependency-free class (unit-tested); the plugin
 
 **Persist a metrics projection (token-meter shape).** Rejected: process-scoped counters rebuilt from events on restart are the deliberate semantics here; the durable read model is the event log itself.
 
+
+## GUI surface (added same day)
+
+The bundle also ships a client half (`dsh.client` declaration, `exports["./client"]`,
+esbuild bundle with inlined css-modules, jsx automatic — the standard DSH client
+build template) registering a `conversation.view` tab '观测'. It polls the new
+structured `/observability/summary` JSON endpoint (same fold as `/metrics`) every
+5s and renders summary cards plus per-preset / per-route / per-tool / per-event
+distributions, theme-aware via design tokens only. The client face is
+type-checked (tsconfig jsx/DOM + react devDeps), so the strict-TS and lint gates
+cover it.
+
 ## Consequences
 
 Profiles that include `@deepseek-ai/dsh-observability` expose `GET /metrics` on the web server with the series above; nothing else changes. The `turn/pending` gap is closed for metrics consumers (GUI presentation remains a separate gap). Items P2–P3 of the borrow list are unchanged.
