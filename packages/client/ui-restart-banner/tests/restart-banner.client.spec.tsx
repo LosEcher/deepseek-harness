@@ -39,13 +39,14 @@ describe('RestartBanner', () => {
   it('renders the banner with the cap-derived wait bound while armed', () => {
     render(
       <RestartBanner
-        hostStatus={fakeHostStatus({ restartPending: { sinceMs: 0, capMs: 30_000 }, reachable: true })}
+        hostStatus={fakeHostStatus({ restartPending: { sinceMs: Date.now() - 3_000, capMs: 30_000 }, reachable: true })}
         t={t}
       />,
     )
     expect(screen.getByRole('status')).toBeTruthy()
     expect(screen.getByText('DSH 正在重启…')).toBeTruthy()
-    expect(screen.getByText(/30 秒/)).toBeTruthy()
+    expect(screen.getByText(/已等待 \d+ 秒/)).toBeTruthy()
+    expect(screen.getByText(/最多等待 30 秒/)).toBeTruthy()
   })
 
   it('hides again when the restart window clears', () => {

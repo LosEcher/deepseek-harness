@@ -69,6 +69,11 @@ export class HostStatusRuntime {
     this.stopped = false
     void this.poll()
     this.timer = setInterval(() => { void this.poll() }, HOST_STATUS_POLL_MS)
+    // A hidden tab does not need the restart window: pause polling while the
+    // document is invisible and resume (with an immediate poll) on return.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange)
+    }
   }
 
   /** Stop polling and reset to the disconnected projection. */
@@ -78,7 +83,24 @@ export class HostStatusRuntime {
       clearInterval(this.timer)
       this.timer = undefined
     }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange)
+    }
     this.status.set({ restartPending: undefined, reachable: false })
+  }
+
+  /** Pause on hide; resume with an immediate poll on show. */
+  private onVisibilityChange = (): void => {
+    if (this.stopped) return
+    if (document.visibilityState === 'hidden') {
+      if (this.timer !== undefined) {
+        clearInterval(this.timer)
+        this.timer = undefined
+      }
+    } else if (this.timer === undefined) {
+      void this.poll()
+      this.timer = setInterval(() => { void this.poll() }, HOST_STATUS_POLL_MS)
+    }
   }
 
   /** One describe round-trip; failures project unreachable without throwing. */

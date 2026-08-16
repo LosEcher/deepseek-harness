@@ -105,6 +105,45 @@ describe('HostStatusRuntime', () => {
     expect(describe.mock.calls.length).toBe(calls)
   })
 
+  it('pauses polling while the document is hidden and resumes with an immediate poll on show', async () => {
+    vi.useFakeTimers()
+    const ctx = new Context()
+    const describe = vi.fn(() => describeResponse({ sinceMs: 1, capMs: 2 }))
+    const listeners = new Set<() => void>()
+    const fakeDocument = {
+      visibilityState: 'visible',
+      addEventListener: (_type: string, fn: () => void): void => { listeners.add(fn) },
+      removeEventListener: (_type: string, fn: () => void): void => { listeners.delete(fn) },
+    }
+    vi.stubGlobal('document', fakeDocument)
+    try {
+      const runtime = new HostStatusRuntime(ctx, stubApi(() => describe()))
+      runtime.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(describe).toHaveBeenCalledTimes(1)
+
+      // Hidden: the poll interval is torn down; describe stops being called.
+      fakeDocument.visibilityState = 'hidden'
+      listeners.forEach((fn) => { fn() })
+      const calls = describe.mock.calls.length
+      await vi.advanceTimersByTimeAsync(HOST_STATUS_POLL_MS * 3)
+      expect(describe.mock.calls.length).toBe(calls)
+
+      // Visible again: one immediate poll, then the interval resumes.
+      fakeDocument.visibilityState = 'visible'
+      listeners.forEach((fn) => { fn() })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(describe.mock.calls.length).toBe(calls + 1)
+      await vi.advanceTimersByTimeAsync(HOST_STATUS_POLL_MS)
+      expect(describe.mock.calls.length).toBe(calls + 2)
+
+      runtime.stop()
+      expect(listeners.size).toBe(0) // visibility listener removed on teardown
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('poll responses never overlap (a slow describe skips the next tick)', async () => {
     vi.useFakeTimers()
     const ctx = new Context()
