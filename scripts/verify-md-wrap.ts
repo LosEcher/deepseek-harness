@@ -26,6 +26,7 @@ const PATTERNS = [
   'packages/**/system-prompt.expected.md',
   'AGENTS.md',
   'packages/AGENTS.md',
+  'packages/RULE.md',
 ]
 
 /** A located hard-wrap: a prose paragraph spanning more than one source line. */
