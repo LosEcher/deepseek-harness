@@ -112,13 +112,18 @@ export class MetricsRegistry {
       case 'assistant/message': {
         const usage = event.data.usage
         if (usage === undefined) break
+        // Token usage folds by provider/model route (the usage/cost cube
+        // projection): kind + route form the series key.
+        const source = event.data.message.source
+        const provider = source?.kind === 'model' ? (source.provider ?? '') : ''
+        const model = source?.kind === 'model' ? (source.model ?? '') : ''
         const input = usage.inputTokens
         const output = usage.outputTokens
         if (Number.isFinite(input) && input >= 0) {
-          this.tokensByKind.set('input', (this.tokensByKind.get('input') ?? 0) + input)
+          this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + input)
         }
         if (Number.isFinite(output) && output >= 0) {
-          this.tokensByKind.set('output', (this.tokensByKind.get('output') ?? 0) + output)
+          this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + output)
         }
         break
       }
@@ -188,9 +193,17 @@ export class MetricsRegistry {
     )
     counter(
       METRIC_NAMES.llmTokensTotal,
-      'Token usage recorded on assistant messages since process start, by kind.',
+      'Token usage recorded on assistant messages since process start, by route and kind.',
       [...this.tokensByKind.entries()]
-        .map(([kind, value]) => [`{kind="${kind}"}`, value]),
+        .map(([key, value]) => {
+          const [kind, provider, model] = key.split('\u0000')
+          const providerValue = provider ?? ''
+          const modelValue = model ?? ''
+          const labels = providerValue === '' && modelValue === ''
+            ? `{kind="${kind}"}`
+            : `{kind="${kind}",model="${escapeLabel(modelValue)}",provider="${escapeLabel(providerValue)}"}`
+          return [labels, value] as [string, number]
+        }),
     )
     counter(
       METRIC_NAMES.toolCallsTotal,
