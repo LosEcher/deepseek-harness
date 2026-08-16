@@ -2,6 +2,11 @@
 
 Status: proposed
 
+> Update 2026-08-16: item 1 (P1 `/metrics`) implemented as the
+> `@deepseek-ai/dsh-observability` bundle (see
+> `.agents/notes/implemented/feature/2026-08-16-observability-metrics-endpoint.md`),
+> including the `turn/pending` metric surface. Items 2–5 unchanged.
+
 English | [中文](2026-08-16-observability-borrow-from-los.zh.md)
 
 Date: 2026-08-16
