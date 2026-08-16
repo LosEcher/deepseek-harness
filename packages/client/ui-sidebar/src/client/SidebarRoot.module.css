@@ -258,6 +258,11 @@
 
 .footerActions {
   display: flex;
+  /* Multi-registrant safety: sidebar.footer.action is a list slot; a single
+   * full-width entry (e.g. a plugin footer button styled width:100%) would
+   * push later entries past the column edge and out of view. Wrapping keeps
+   * every entry visible, stacking vertically when one entry fills a row. */
+  flex-wrap: wrap;
 }
 
 .collapsed .footArea {
