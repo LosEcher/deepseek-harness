@@ -12,6 +12,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 
@@ -21,6 +22,18 @@ export const name = 'observability'
 /** Declared service dependencies: the session store feeds events; the web server hosts the route. */
 export const inject = ['sessions', 'webServer']
 
+/** Plugin config: an optional USD price table enables cost estimation. */
+export interface Config {
+  /** USD per 1M tokens, keyed by `provider/model` route. */
+  prices?: LlmPriceTable
+}
+
+export const Config: z<Config> = z.object({
+  prices: z.dict(z.object({
+    inputPerMTok: z.number(),
+    outputPerMTok: z.number(),
+  }), z.string()).default({}),
+})
 /** Per-session turn cursor used to count resumable pending tails. */
 interface TurnCursor {
   openTurn: number | null
@@ -43,11 +56,54 @@ export interface ObservabilitySummary {
   activeSessions: { preset: string; count: number }[]
   pendingTurns: number
   compactions: number
-  llmCalls: { provider: string; model: string; reasoningEffort?: string; count: number }[]
-  tokens: { kind: 'input' | 'output'; provider?: string; model?: string; tokens: number }[]
+  llmCalls: { provider: string; model: string; reasoningEffort?: string; purpose: LlmPurpose; count: number }[]
+  tokens: { kind: 'input' | 'output'; provider?: string; model?: string; purpose: LlmPurpose; tokens: number }[]
   toolCalls: { tool: string; count: number }[]
   events: { type: string; count: number }[]
   totalEvents: number
+  /** Per-(provider, model, purpose) usage cube: calls, tokens, and estimated cost when a price table is configured. */
+  usage: { provider: string; model: string; purpose: LlmPurpose; calls: number; inputTokens: number; outputTokens: number; cost?: number }[]
+}
+
+/**
+ * Provider-neutral classification of an LLM call's purpose, mirroring
+ * {@link GenerateOptions.purpose}: ordinary conversation turns (`assistant`),
+ * compaction summarization, and auxiliary session-title requests. R-DSH-01:
+ * per-purpose attribution is the precondition for cost explainability.
+ */
+export type LlmPurpose = 'assistant' | 'compaction' | 'session-title'
+
+/**
+ * Local shape of the plugin-extended `compaction/summary` event (declared
+ * here to avoid a hard dependency on dsh-compaction; only the attribution
+ * fields are read).
+ */
+interface CompactionSummaryEvent {
+  type: 'compaction/summary'
+  data: {
+    provider: string
+    model: string
+    usage?: { inputTokens: number; outputTokens: number }
+  }
+}
+
+/**
+ * Local shape of the plugin-extended `session/title-llm-request` event
+ * (declared here to avoid a hard dependency on dsh-session-title-llm).
+ */
+interface TitleLlmRequestEvent {
+  type: 'session/title-llm-request'
+  data: {
+    route: { provider: string; model: string }
+  }
+}
+
+/** The event union the registry folds: core events plus the two attributed plugin events. */
+type FoldedEvent = SessionEvent | CompactionSummaryEvent | TitleLlmRequestEvent
+
+/** Per-provider/model price table (USD per 1M tokens) for cost estimation. */
+export interface LlmPriceTable {
+  [route: string]: { inputPerMTok: number; outputPerMTok: number }
 }
 
 /**
@@ -62,7 +118,14 @@ export class MetricsRegistry {
   private readonly llmCalls = new Map<string, number>()
   private readonly tokensByKind = new Map<string, number>()
   private readonly toolCalls = new Map<string, number>()
+  private readonly usageByPurpose = new Map<string, { calls: number; inputTokens: number; outputTokens: number }>()
   private compactions = 0
+  private readonly prices: LlmPriceTable
+
+  /** Create the registry; an optional price table enables cost estimation. */
+  constructor(prices: LlmPriceTable = {}) {
+    this.prices = prices
+  }
 
   /** Track one live session (its preset labels its active-session series). */
   sessionEntered(session: Session): void {
@@ -108,35 +171,72 @@ export class MetricsRegistry {
   }
 
   /** Fold one session event into the derived counters. */
-  observe(session: Session, event: SessionEvent): void {
+  observe(session: Session, event: FoldedEvent): void {
     this.eventsByType.set(event.type, (this.eventsByType.get(event.type) ?? 0) + 1)
-    this.foldCursor(session, event)
+    // The turn cursor only understands core turn-boundary events; the two
+    // attributed plugin events are log-only and never turn-boundary markers.
+    this.foldCursor(session, event as SessionEvent)
     switch (event.type) {
       case 'session/end-seed':
         this.compactions += 1
         break
       case 'request/header': {
+        // Main-loop conversation requests carry no GenerateOptions.purpose, so
+        // they attribute to the `assistant` purpose (R-DSH-01).
         const { provider, model, reasoningEffort } = event.data.header.config
         const key = `${provider}\u0000${model}\u0000${reasoningEffort ?? ''}`
         this.llmCalls.set(key, (this.llmCalls.get(key) ?? 0) + 1)
+        this.foldUsage(provider, model, 'assistant', 1, 0, 0)
         break
       }
       case 'assistant/message': {
         const usage = event.data.usage
         if (usage === undefined) break
         // Token usage folds by provider/model route (the usage/cost cube
-        // projection): kind + route form the series key.
+        // projection): kind + route form the series key. Main-loop responses
+        // attribute to the `assistant` purpose.
         const source = event.data.message.source
         const provider = source.provider
         const model = source.model
         const input = usage.inputTokens
         const output = usage.outputTokens
-        if (Number.isFinite(input) && input >= 0) {
-          this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + input)
+        const finiteInput = Number.isFinite(input) && input >= 0 ? input : 0
+        const finiteOutput = Number.isFinite(output) && output >= 0 ? output : 0
+        this.foldUsage(provider, model, 'assistant', 0, finiteInput, finiteOutput)
+        if (finiteInput > 0) {
+          this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + finiteInput)
         }
-        if (Number.isFinite(output) && output >= 0) {
-          this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + output)
+        if (finiteOutput > 0) {
+          this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + finiteOutput)
         }
+        break
+      }
+      case 'compaction/summary': {
+        // Compaction summarization calls carry their own provider/model/usage
+        // on the summary event (they do not pass through request/header).
+        const { provider, model } = event.data
+        this.foldUsage(provider, model, 'compaction', 1, 0, 0)
+        const usage = event.data.usage
+        if (usage !== undefined) {
+          const input = usage.inputTokens
+          const output = usage.outputTokens
+          const finiteInput = Number.isFinite(input) && input >= 0 ? input : 0
+          const finiteOutput = Number.isFinite(output) && output >= 0 ? output : 0
+          this.foldUsage(provider, model, 'compaction', 0, finiteInput, finiteOutput)
+          if (finiteInput > 0) {
+            this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + finiteInput)
+          }
+          if (finiteOutput > 0) {
+            this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + finiteOutput)
+          }
+        }
+        break
+      }
+      case 'session/title-llm-request': {
+        // Auxiliary title requests are logged with their route but no usage
+        // (they are dispatched before token accounting exists); count the call.
+        const { provider, model } = event.data.route
+        this.foldUsage(provider, model, 'session-title', 1, 0, 0)
         break
       }
       case 'tool/call':
@@ -145,6 +245,23 @@ export class MetricsRegistry {
       default:
         break
     }
+  }
+
+  /** Fold one (provider, model, purpose) row of the usage cube. */
+  private foldUsage(
+    provider: string,
+    model: string,
+    purpose: LlmPurpose,
+    calls: number,
+    inputTokens: number,
+    outputTokens: number,
+  ): void {
+    const key = `${provider}\u0000${model}\u0000${purpose}`
+    const row = this.usageByPurpose.get(key) ?? { calls: 0, inputTokens: 0, outputTokens: 0 }
+    row.calls += calls
+    row.inputTokens += inputTokens
+    row.outputTokens += outputTokens
+    this.usageByPurpose.set(key, row)
   }
 
   /** Number of live sessions currently parked on a `turn/pending` tail. */
@@ -171,6 +288,7 @@ export class MetricsRegistry {
             provider: provider ?? '',
             model: model ?? '',
             ...(effort !== undefined && effort !== '' ? { reasoningEffort: effort } : {}),
+            purpose: 'assistant' as const,
             count,
           }
         })
@@ -182,6 +300,7 @@ export class MetricsRegistry {
             kind: kind as 'input' | 'output',
             ...(provider !== undefined && provider !== '' ? { provider } : {}),
             ...(model !== undefined && model !== '' ? { model } : {}),
+            purpose: 'assistant' as const,
             tokens,
           }
         })
@@ -194,7 +313,36 @@ export class MetricsRegistry {
         .sort((a, b) => b.count - a.count)
         .slice(0, 12),
       totalEvents: [...this.eventsByType.values()].reduce((sum, count) => sum + count, 0),
+      usage: [...this.usageByPurpose.entries()]
+        .map(([key, row]) => {
+          const [provider, model, purpose] = key.split('\u0000')
+          const entry = {
+            provider: provider ?? '',
+            model: model ?? '',
+            purpose: purpose as LlmPurpose,
+            calls: row.calls,
+            inputTokens: row.inputTokens,
+            outputTokens: row.outputTokens,
+          }
+          const cost = this.estimateCost(entry.provider, entry.model, row)
+          return cost === undefined ? entry : { ...entry, cost }
+        })
+        .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens)),
     }
+  }
+
+  /** Estimate USD cost for one usage row when a price table is configured. */
+  private estimateCost(
+    provider: string,
+    model: string,
+    row: { inputTokens: number; outputTokens: number },
+  ): number | undefined {
+    const route = `${provider}/${model}`
+    const price = this.prices[route]
+    if (price === undefined) return undefined
+    const input = row.inputTokens / 1_000_000 * price.inputPerMTok
+    const output = row.outputTokens / 1_000_000 * price.outputPerMTok
+    return Math.round((input + output) * 1_000_000) / 1_000_000
   }
 
   /** Render all series in Prometheus text exposition format (0.0.4). */
@@ -280,9 +428,9 @@ function escapeLabel(value: string): string {
 }
 
 /** The composable plugin: wire the registry to session lifecycle + events and mount the route. */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: Config = {}): void {
   ctx.effect(() => {
-    const registry = new MetricsRegistry()
+    const registry = new MetricsRegistry(config.prices ?? {})
     const stopCreated = ctx.on('session/created', (session) => { registry.sessionEntered(session) })
     const stopDisposed = ctx.on('session/disposed', (session) => { registry.sessionLeft(session) })
     const stopEvent = ctx.on('session/event', (session, event) => { registry.observe(session, event) })

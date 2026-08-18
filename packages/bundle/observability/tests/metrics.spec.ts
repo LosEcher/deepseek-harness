@@ -120,6 +120,120 @@ describe('MetricsRegistry', () => {
     const sorted = [...keys].sort((a, b) => a.localeCompare(b))
     expect(keys).toEqual(sorted)
   })
+
+  it('attributes llm usage by purpose across assistant, compaction, and session-title (R-DSH-01)', () => {
+    const registry = new MetricsRegistry()
+    const a = stubSession('a')
+    registry.sessionEntered(a)
+    // Assistant conversation: request/header + assistant/message usage.
+    registry.observe(a, event({
+      type: 'request/header',
+      data: { reason: 'initial', header: { config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } } },
+    }))
+    registry.observe(a, event({
+      type: 'assistant/message',
+      data: {
+        turn: 1, step: 1,
+        message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }),
+        usage: { inputTokens: 100, outputTokens: 20 },
+      },
+    }))
+    // Compaction summarization carries its own route + usage.
+    registry.observe(a, {
+      seq: 0, time: 0,
+      type: 'compaction/summary',
+      data: {
+        compactionId: 'c1' as never,
+        summary: [{ type: 'text', text: 'sum' }],
+        shadowedRange: { start: 1, end: 3 },
+        shadowedSeqs: [1, 2, 3],
+        shadowedTokenCount: 500,
+        provider: 'deepseek-official',
+        model: 'deepseek-v4-flash',
+        llmStreamCall: true,
+        rawOutput: [{ type: 'text', text: 'sum' }],
+        usage: { inputTokens: 2000, outputTokens: 100 },
+      },
+    } as never)
+    // Session-title auxiliary request carries a route, no usage.
+    registry.observe(a, {
+      seq: 0, time: 0,
+      type: 'session/title-llm-request',
+      data: {
+        titleProvider: 'llm' as never,
+        messageSeqs: [1],
+        route: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        system: 'title',
+        messages: [],
+        maxTokens: 64,
+      },
+    } as never)
+    const usage = registry.summary().usage
+    expect(usage).toContainEqual({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      purpose: 'assistant',
+      calls: 1,
+      inputTokens: 100,
+      outputTokens: 20,
+    })
+    expect(usage).toContainEqual({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      purpose: 'compaction',
+      calls: 1,
+      inputTokens: 2000,
+      outputTokens: 100,
+    })
+    expect(usage).toContainEqual({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      purpose: 'session-title',
+      calls: 1,
+      inputTokens: 0,
+      outputTokens: 0,
+    })
+  })
+
+  it('estimates cost from a configured price table only (R-DSH-01)', () => {
+    const registry = new MetricsRegistry({
+      'mock/mock': { inputPerMTok: 1, outputPerMTok: 2 },
+    })
+    const a = stubSession('a')
+    registry.sessionEntered(a)
+    registry.observe(a, event({
+      type: 'assistant/message',
+      data: {
+        turn: 1, step: 1,
+        message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'mock', model: 'mock' } }),
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000 },
+      },
+    }))
+    // Priced route carries an estimated cost.
+    expect(registry.summary().usage).toContainEqual({
+      provider: 'mock',
+      model: 'mock',
+      purpose: 'assistant',
+      calls: 0,
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      cost: 2, // 1 * $1/MTok + 0.5 * $2/MTok
+    })
+    // Unpriced route omits cost entirely.
+    const bare = new MetricsRegistry()
+    bare.sessionEntered(a)
+    bare.observe(a, event({
+      type: 'assistant/message',
+      data: {
+        turn: 1, step: 1,
+        message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'other', model: 'm' } }),
+        usage: { inputTokens: 10, outputTokens: 5 },
+      },
+    }))
+    const bareRow = bare.summary().usage.find(row => row.provider === 'other')
+    expect(bareRow).toMatchObject({ provider: 'other', model: 'm', purpose: 'assistant' })
+    expect('cost' in (bareRow ?? {})).toBe(false)
+  })
 })
 
 describe('the mounted /metrics route', () => {
@@ -189,7 +303,7 @@ describe('the mounted /metrics route', () => {
     expect(summary.activeSessions).toEqual([{ preset: 'unset', count: 1 }])
     expect(summary.pendingTurns).toBe(1)
     expect(summary.llmCalls).toEqual([]) // no request/header appended
-    expect(summary.tokens).toContainEqual({ kind: 'input', provider: 'mock', model: 'mock', tokens: 10 })
+    expect(summary.tokens).toContainEqual({ kind: 'input', provider: 'mock', model: 'mock', purpose: 'assistant', tokens: 10 })
     expect(summary.toolCalls).toEqual([{ tool: 'edit', count: 1 }])
     expect(summary.totalEvents).toBe(4)
   })
