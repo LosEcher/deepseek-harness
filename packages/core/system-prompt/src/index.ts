@@ -130,6 +130,27 @@ export const PERSONA_SECTION = 'deployment:persona'
 /** Prompt order of the persona slot; the first section a model reads. */
 export const PERSONA_ORDER = 0
 
+/** Built-in system-prompt section name carrying the current UTC time into every assembly. */
+export const CLOCK_SECTION_NAME = 'runtime:clock'
+
+/**
+ * Prompt order of the clock section slot; read right after the persona, so
+ * deadline arithmetic never silently lands in the past.
+ */
+export const CLOCK_SECTION_ORDER = 10
+
+/**
+ * Current UTC time as an ISO-8601 instant at minute precision.
+ *
+ * Minute precision is deliberate: repeated assemblies within the same minute
+ * render identical clock text, so the request header stays stable and is not
+ * re-logged per turn; a model-visible time is at most 60s stale, which is the
+ * freshness bound the clock injection contract holds.
+ */
+export function currentUtcTime(): string {
+  return new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString()
+}
+
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
 
@@ -188,6 +209,12 @@ export interface Config {
   includeHarnessIdentity?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
+  /**
+   * Include the current UTC time as a system-prompt section (default true).
+   * A compatibility deployment that pins its own complete prompt can turn it
+   * off; without it, deadline arithmetic has no clock to anchor on.
+   */
+  includeClock?: boolean
   /**
    * Deployment-wide order-0 persona template. A scoped section named
    * `deployment:persona` shadows it; `{{variable}}` references are strict.
@@ -339,6 +366,7 @@ export class SystemPrompt extends Service {
   static Config: z<Config> = z.object({
     includeHarnessIdentity: z.boolean().default(true),
     includeRuntimeContext: z.boolean().default(true),
+    includeClock: z.boolean().default(true),
     persona: z.string().default(''),
     // Preserve omission because an explicit empty order lacks the rest marker.
     toolOrder: z.array(z.string()).default(undefined as unknown as string[]),
@@ -367,6 +395,18 @@ export class SystemPrompt extends Service {
       // The fallback narrows the optional input type; the schema already defaults it.
       text: config.persona ?? '',
     })
+    // Inject the current UTC time as the first section after the persona, so
+    // every request's system prompt carries a fresh clock (minute precision
+    // keeps the request header stable within a minute, avoiding per-turn
+    // request/header re-logs). This lives in the system prompt, not the
+    // runtime-context snapshot, so it never re-emits snapshot user messages.
+    if (config.includeClock ?? true) {
+      this.section({
+        name: CLOCK_SECTION_NAME,
+        order: CLOCK_SECTION_ORDER,
+        text: () => `Current time (UTC ISO-8601): ${currentUtcTime()}`,
+      })
+    }
     if (!(config.includeRuntimeContext ?? true)) this.suppressRuntimeContext()
   }
 

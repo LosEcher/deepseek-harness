@@ -1,22 +1,47 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import SystemPrompt, { AssembleContext, PromptAssembly, renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, {
+  AssembleContext,
+  CLOCK_SECTION_NAME,
+  PromptAssembly,
+  currentUtcTime,
+  renderContextSnapshot,
+  renderPrompt,
+} from '@deepseek-ai/dsh-system-prompt'
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`
- * (order −100) and `deployment:persona` (order 0, from config). Tests about
+ * (order −100), `deployment:persona` (order 0, from config), and the
+ * `runtime:clock` section (order 10, minute-precision UTC). Tests about
  * registry MECHANICS strip them with {@link contributed} to stay focused on
  * their own sections; the built-ins' behavior is pinned by its own describe.
  */
-const BUILT_IN = ['harness:identity', 'deployment:persona']
+const BUILT_IN = ['harness:identity', 'deployment:persona', CLOCK_SECTION_NAME]
 const IDENTITY = 'You are an AI agent powered by DeepSeek Harness.'
+/** The clock section line: minute-precision UTC ISO-8601. */
+const CLOCK_TEXT = /^Current time \(UTC ISO-8601\): \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/
+/** Escape a literal string for embedding in a RegExp. */
+function esc(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+/**
+ * Build an exact renderPrompt matcher: prose prefix, optional middle content
+ * (order-0 sections, which sort before the clock at order 10), the clock line,
+ * then an optional regex suffix (order-10+ sections). Keeps lines under max-len.
+ */
+function promptWithClock(prefix: string, middle?: RegExp, suffix?: RegExp): RegExp {
+  const clock = 'Current time \\(UTC ISO-8601\\): \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00\\.000Z'
+  const mid = middle === undefined ? '' : `\\n\\n${middle.source}`
+  const tail = suffix === undefined ? '' : `\\n\\n${suffix.source}`
+  return new RegExp(`^${esc(prefix)}${mid}\\n\\n${clock}${tail}$`)
+}
 function contributed(assembly: PromptAssembly): PromptAssembly['sections'] {
   return assembly.sections.filter(section => !BUILT_IN.includes(section.name))
 }
 
 describe('SystemPrompt', () => {
   describe('built-in sections', () => {
-    it('registers the harness identity and the configured deployment persona', async () => {
+    it('registers the harness identity, the configured deployment persona, and the clock', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt, { persona: 'You are DeepSeek Harness.' })
 
@@ -24,8 +49,9 @@ describe('SystemPrompt', () => {
       expect(assembly.sections.map(s => s.name)).toEqual([
         'harness:identity',
         'deployment:persona',
+        CLOCK_SECTION_NAME,
       ])
-      expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.`)
+      expect(renderPrompt(assembly)).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.\n\nYou are DeepSeek Harness.'))
       // The names are reserved by the plugin — one owner per section.
       expect(() => ctx.systemPrompt.section({ name: 'deployment:persona', order: 0, text: 'imposter' }))
         .toThrow('prompt section "deployment:persona" is already registered')
@@ -34,7 +60,7 @@ describe('SystemPrompt', () => {
     it('renders no persona section for a persona-less deployment (empty default)', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(IDENTITY)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.'))
     })
 
     it('can omit the harness identity for a deployment that owns the complete persona', async () => {
@@ -45,8 +71,8 @@ describe('SystemPrompt', () => {
       })
 
       const assembly = await ctx.systemPrompt.assemble()
-      expect(assembly.sections.map(section => section.name)).toEqual(['deployment:persona'])
-      expect(renderPrompt(assembly)).toBe('You are a helpful software engineer assistant.')
+      expect(assembly.sections.map(section => section.name)).toEqual(['deployment:persona', CLOCK_SECTION_NAME])
+      expect(renderPrompt(assembly)).toMatch(promptWithClock('You are a helpful software engineer assistant.'))
     })
 
     it('can suppress runtime context without evaluating providers or accepting waterfall additions', async () => {
@@ -73,7 +99,7 @@ describe('SystemPrompt', () => {
       // skips the schema, so the ctor's `?? ''` narrowing is what fires.
       const ctx = new Context()
       const service = new SystemPrompt(ctx, {})
-      expect(renderPrompt(await service.assemble())).toBe(IDENTITY)
+      expect(renderPrompt(await service.assemble())).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.'))
     })
   })
 
@@ -88,15 +114,21 @@ describe('SystemPrompt', () => {
     ctx.systemPrompt.tools(() => ({ schemas: [{ name: 'echo', description: 'echo back', parameters: {} }] }))
 
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona', 'rules', 'cwd'])
-    expect(assembly.sections.map(s => s.text)).toEqual([IDENTITY, 'You are DeepSeek Harness.', 'Be precise.', 'cwd: /tmp'])
+    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona', CLOCK_SECTION_NAME, 'rules', 'cwd'])
+    expect(assembly.sections.map(s => s.text)).toEqual([
+      IDENTITY,
+      'You are DeepSeek Harness.',
+      expect.stringMatching(CLOCK_TEXT),
+      'Be precise.',
+      'cwd: /tmp',
+    ])
     expect(assembly.contexts).toEqual([
       { name: 'earlier', text: 'context 1' },
       { name: 'later', text: 'context 2' },
     ])
     expect(assembly.tools).toEqual([{ name: 'echo', description: 'echo back', parameters: {} }])
     expect(assembly.variables).toEqual({})
-    expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\nBe precise.\n\ncwd: /tmp`)
+    expect(renderPrompt(assembly)).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.\n\nYou are DeepSeek Harness.', undefined, /Be precise\.\n\ncwd: \/tmp/))
     expect(renderContextSnapshot(assembly)).toBe('Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\ncontext 1\n\ncontext 2')
   })
 
@@ -265,8 +297,8 @@ describe('SystemPrompt', () => {
 
     const passed: AssembleContext = {}
     const assembly = await ctx.systemPrompt.assemble(passed)
-    expect(seen).toEqual([['harness:identity', 'deployment:persona', 'base', 'from-a']])
-    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona', 'base', 'from-a'])
+    expect(seen).toEqual([['harness:identity', 'deployment:persona', 'base', CLOCK_SECTION_NAME, 'from-a']])
+    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona', 'base', CLOCK_SECTION_NAME, 'from-a'])
     expect(contexts[0]).toBe(passed) // the caller's context reaches listeners
   })
 
@@ -326,7 +358,7 @@ describe('SystemPrompt', () => {
     firstParameters.properties['leak'] = { type: 'string' }
 
     const second = await ctx.systemPrompt.assemble()
-    expect(second.sections.map(section => section.name)).toEqual(['harness:identity', 'deployment:persona', 'base'])
+    expect(second.sections.map(section => section.name)).toEqual(['harness:identity', 'deployment:persona', 'base', CLOCK_SECTION_NAME])
     expect(second.sections[0]!.text).toBe(IDENTITY)
     expect(second.contexts).toEqual([])
     expect(second.tools).toEqual([{ name: 't', description: 'tool', parameters: { type: 'object', properties: {} } }])
@@ -354,6 +386,21 @@ describe('SystemPrompt', () => {
     ctx.systemPrompt.context({ name: 'policy', order: 1, text: 'Mode: {{mode}}.' })
     expect(renderContextSnapshot(await ctx.systemPrompt.assemble()))
       .toBe('Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nMode: read-only.')
+  })
+
+  it('injects a fresh current UTC time into every assembly (R-DSH-02)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    const clock = (await ctx.systemPrompt.assemble()).sections.find(section => section.name === CLOCK_SECTION_NAME)
+    expect(clock).toBeDefined()
+    expect(clock?.name).toBe(CLOCK_SECTION_NAME)
+    expect(clock?.text).toMatch(CLOCK_TEXT)
+    const parsed = Date.parse(clock!.text.replace('Current time (UTC ISO-8601): ', ''))
+    expect(Number.isFinite(parsed)).toBe(true)
+    expect(Date.now() - parsed).toBeLessThanOrEqual(60_000)
+    expect(Date.now() - parsed).toBeGreaterThanOrEqual(0)
+    // Minute precision keeps repeated assemblies within one minute identical.
+    expect(currentUtcTime()).toBe(currentUtcTime())
   })
 
   it('attributes context interpolation failures to the contributing context', () => {
@@ -482,7 +529,7 @@ describe('SystemPrompt', () => {
       ctx.systemPrompt.variable('model', () => 'deepseek-v4')
       ctx.systemPrompt.variable('cwd', () => '/work')
 
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nYou run on deepseek-v4 in /work.`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.', /You run on deepseek-v4 in \/work\./))
     })
 
     it('lets a waterfall listener add or override variables before render', async () => {
@@ -493,7 +540,7 @@ describe('SystemPrompt', () => {
         assembly.variables['extra'] = 'from-waterfall'
         return next()
       })
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nfrom-waterfall`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.', /from-waterfall/))
     })
 
     it('throws on a reference to an unregistered variable, listing what exists', async () => {
@@ -566,7 +613,7 @@ describe('SystemPrompt', () => {
       await ctx.plugin(SystemPrompt)
       ctx.systemPrompt.section({ name: 's', order: 0, text: '{{constructor}}' })
       ctx.systemPrompt.variable('constructor', () => 'own-value')
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nown-value`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toMatch(promptWithClock('You are an AI agent powered by DeepSeek Harness.\n\nown-value'))
     })
 
     it('never re-scans substituted values (a value containing {{sneaky}} stays literal)', () => {

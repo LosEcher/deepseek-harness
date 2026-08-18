@@ -713,6 +713,7 @@ describe('dsh-agent-spine-demo bundle', () => {
     const ctx = await mount({
       includeHarnessIdentity: false,
       includeRuntimeContext: false,
+      includeClock: false,
       persona: 'You are a helpful software engineer assistant.',
       workspaceContext: false,
       skills: { enabled: false },
