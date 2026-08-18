@@ -196,6 +196,13 @@ export interface PiAiCompatProfile {
   thinkingFormat?: PiAiThinkingFormat
   /** Whether the endpoint accepts `reasoning_effort`; absent keeps the catalog entry's, then pi-ai's baseURL-derived guess. */
   supportsReasoningEffort?: boolean
+  /**
+   * Merge consecutive user messages into one before sending. Gateways that
+   * truncate the conversation to the last user turn (e.g. los
+   * openai-compat-route) drop the real question when a client appends
+   * runtime context blocks after it as separate user messages.
+   */
+  mergeUserTurns?: boolean
 }
 
 /** One configured model entry: an id plus the catalog fields it overrides. */

@@ -84,10 +84,11 @@ function piContext(options: GenerateOptions, messages: PiMessage[]): PiContext {
   }
 }
 
-function textOnlyContext(options: GenerateOptions): PiContext {
+function textOnlyContext(options: GenerateOptions, opts?: ToPiContextOptions): PiContext {
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
-  for (const message of options.messages) {
+  const sourceMessages = opts?.mergeUserTurns === true ? mergeAdjacentUserMessages(options.messages) : options.messages
+  for (const message of sourceMessages) {
     if (contentHasImage(message.content)) {
       throw new LlmError('pi-ai image conversion requires the durable attachment service', 'UNSUPPORTED_CONTENT')
     }
@@ -121,30 +122,71 @@ function textOnlyContext(options: GenerateOptions): PiContext {
   return piContext(options, messages)
 }
 
+export interface ToPiContextOptions {
+  /**
+   * Merge consecutive user messages into one before conversion. Gateways
+   * that truncate the conversation to the last user turn (e.g. los
+   * openai-compat-route) drop the real question when runtime context blocks
+   * are appended after it as separate user messages; merging keeps the
+   * question visible. Tool results are never merged into user text.
+   */
+  mergeUserTurns?: boolean
+}
+
+function isAttachmentStore(value: unknown): value is AttachmentStore {
+  return typeof value === 'object' && value !== null && 'readImage' in value
+}
+
+function mergeAdjacentUserMessages(messages: readonly Message[]): Message[] {
+  const out: Message[] = []
+  for (const message of messages) {
+    const last = out[out.length - 1]
+    if (message.role === 'user' && last !== undefined && last.role === 'user') {
+      out[out.length - 1] = { ...last, content: [...last.content, ...message.content] }
+    } else {
+      out.push(message)
+    }
+  }
+  return out
+}
+
 /**
  * Convert text-only harness history to a synchronous pi-ai Context. Tool
  * result names are recovered from preceding assistant tool calls.
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
+ * @param opts - conversion options (e.g. merging adjacent user turns).
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  */
-export function toPiContext(options: GenerateOptions): PiContext
+export function toPiContext(options: GenerateOptions, opts?: ToPiContextOptions): PiContext
 /**
  * Convert harness history to a pi-ai Context while resolving durable images.
  * Tool result names are recovered from preceding assistant tool calls.
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
  * @param attachments - durable byte resolver for image references.
+ * @param opts - conversion options (e.g. merging adjacent user turns).
  * @returns the asynchronously resolved pi-ai context.
  */
-export function toPiContext(options: GenerateOptions, attachments: AttachmentStore): Promise<PiContext>
-export function toPiContext(options: GenerateOptions, attachments?: AttachmentStore): PiContext | Promise<PiContext> {
-  return attachments === undefined ? textOnlyContext(options) : toPiContextWithImages(options, attachments)
+export function toPiContext(options: GenerateOptions, attachments: AttachmentStore, opts?: ToPiContextOptions): Promise<PiContext>
+export function toPiContext(
+  options: GenerateOptions,
+  arg2?: AttachmentStore | ToPiContextOptions,
+  arg3?: ToPiContextOptions,
+): PiContext | Promise<PiContext> {
+  if (arg2 === undefined) return textOnlyContext(options, arg3)
+  if (isAttachmentStore(arg2)) return toPiContextWithImages(options, arg2, arg3)
+  return textOnlyContext(options, arg2)
 }
 
-async function toPiContextWithImages(options: GenerateOptions, attachments: AttachmentStore): Promise<PiContext> {
+async function toPiContextWithImages(
+  options: GenerateOptions,
+  attachments: AttachmentStore,
+  opts?: ToPiContextOptions,
+): Promise<PiContext> {
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
+  const sourceMessages = opts?.mergeUserTurns === true ? mergeAdjacentUserMessages(options.messages) : options.messages
 
-  for (const message of options.messages) {
+  for (const message of sourceMessages) {
     if (message.role === 'system') {
       if (contentHasImage(message.content)) {
         throw new LlmError('pi-ai cannot represent an image in an in-history system message', 'UNSUPPORTED_CONTENT')

@@ -183,4 +183,51 @@ describe('pi-ai request context conversion', () => {
       history('assistant', [{ type: 'image', attachment: ref }]),
     )).toThrow(/assistant image output/)
   })
+
+  it('merges adjacent user messages when mergeUserTurns is set (last-user-turn gateways)', () => {
+    const context = toPiContext(request([
+      user([{ type: 'text', text: '真实任务：发布 scheduler' }]),
+      user([{ type: 'text', text: 'runtime context 注入块' }]),
+      user([{ type: 'text', text: 'context bundle 注入块' }]),
+    ]), { mergeUserTurns: true })
+
+    expect(context.messages).toEqual([
+      {
+        role: 'user',
+        content: '真实任务：发布 schedulerruntime context 注入块context bundle 注入块',
+        timestamp: 0,
+      },
+    ])
+  })
+
+  it('does not merge user messages around tool results when mergeUserTurns is set', () => {
+    const callId = CallId('call-merge-guard')
+    const context = toPiContext(request([
+      user([{ type: 'text', text: 'before tool' }]),
+      history('assistant', [{ type: 'tool-call', id: callId, name: 'lookup', arguments: '{}' }]),
+      user([
+        { type: 'text', text: 'after tool' },
+        {
+          type: 'tool-result',
+          toolCallId: callId,
+          content: [{ type: 'text', text: '' }],
+        },
+      ]),
+    ]), { mergeUserTurns: true })
+
+    expect(context.messages.map(m => m.role)).toEqual(['user', 'assistant', 'user', 'toolResult'])
+    expect(context.messages[0].content).toBe('before tool')
+  })
+
+  it('keeps separate user messages when mergeUserTurns is absent', () => {
+    const context = toPiContext(request([
+      user([{ type: 'text', text: 'first' }]),
+      user([{ type: 'text', text: 'second' }]),
+    ]))
+
+    expect(context.messages).toEqual([
+      { role: 'user', content: 'first', timestamp: 0 },
+      { role: 'user', content: 'second', timestamp: 0 },
+    ])
+  })
 })

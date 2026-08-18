@@ -188,6 +188,10 @@ const thinkingBudgets = z.object({
 const compatProfile: z<PiAiCompatProfile> = z.object({
   thinkingFormat: z.union(SUPPORTED_THINKING_FORMATS),
   supportsReasoningEffort: z.boolean(),
+  // Gateways that only keep the last user turn (los openai-compat-route)
+  // drop the real question when runtime context blocks are appended after
+  // it as separate user messages; merging keeps the question visible.
+  mergeUserTurns: z.boolean(),
 })
 
 /**

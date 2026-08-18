@@ -307,9 +307,14 @@ export class PiAiAdapter extends LlmAdapter {
       if (containsImage && attachments === undefined) {
         throw new LlmError('pi-ai image input requires the durable attachment service', 'UNSUPPORTED_CONTENT')
       }
-      const context = attachments === undefined
-        ? toPiContext(options)
-        : await toPiContext(options, attachments)
+      const mergeOptions = profile.compat?.mergeUserTurns === true ? { mergeUserTurns: true } : undefined
+      const context = mergeOptions === undefined
+        ? attachments === undefined
+          ? toPiContext(options)
+          : await toPiContext(options, attachments)
+        : attachments === undefined
+          ? toPiContext(options, mergeOptions)
+          : await toPiContext(options, attachments, mergeOptions)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
