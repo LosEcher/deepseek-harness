@@ -425,7 +425,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   const stopRestartCoordinator = startRestartCoordinator({
     dshHome: resolveDshHome(),
     getAgentLoop: () => (app.current as unknown as
-      | { agentLoop?: { markDraining(): void; hasBlockingActivity(): boolean } }
+      | { agentLoop?: { markDraining(): void; hasBlockingActivity(): boolean; abortBlockingActivity?(): void } }
       | undefined)?.agentLoop,
     interrupt,
     isShuttingDown: () => signalShutdown.signal.aborted,

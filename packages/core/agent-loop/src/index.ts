@@ -741,6 +741,17 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
+   * O6: abort every live machine's in-flight write tool when the restart
+   * coordinator judges them stuck (blocking past the stuck window). Best-effort:
+   * cooperative tools fail fast, so the next {@link hasBlockingActivity} poll
+   * sees no blocking activity and the coordinated restart exits before the wait
+   * cap. Tools that ignore their signal are bounded by the cap instead.
+   */
+  abortBlockingActivity(): void {
+    for (const machine of this.liveMachines) machine.abortBlockingActivity()
+  }
+
+  /**
    * Create an agent and session under one caller-supplied identity, owned by
    * the accessing fiber. Constructor-driven config calls mint a fresh combined
    * id before entering this boundary.

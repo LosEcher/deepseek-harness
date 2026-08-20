@@ -200,6 +200,55 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     expect(loop.hasBlockingActivity()).toBe(false)
   })
 
+  it('abortBlockingActivity is a no-op at idle (O6)', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('unused')]))
+    const loop = ctx.agentLoop as unknown as { abortBlockingActivity(): void }
+    const agent = await ctx.agentLoop.create(SessionId('s-abort-idle'), { provider: 'mock', model: 'mock' })
+    await waitForStatus(ctx, agent, 'idle')
+    expect(() => loop.abortBlockingActivity()).not.toThrow()
+  })
+
+  it('abortBlockingActivity aborts an in-flight write tool and settles the turn (O6)', async () => {
+    const ctx = await harness(new MockAdapter([
+      toolCallResponse('c-stuck', 'stuck', {}),
+      textResponse('after-tool'),
+    ]))
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'stuck',
+      description: 'cooperative: aborts on signal, otherwise blocks',
+      parameters: {},
+      async execute(_args, exec) {
+        await Promise.race([
+          blocked,
+          new Promise<void>((resolve) => {
+            exec.signal?.addEventListener('abort', () => resolve(), { once: true })
+          }),
+        ])
+        if (exec.signal?.aborted) {
+          throw new Error('aborted')
+        }
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    const loop = ctx.agentLoop as unknown as {
+      abortBlockingActivity(): void
+      hasBlockingActivity(): boolean
+      create(...args: unknown[]): Agent
+    }
+    const agent = loop.create(SessionId('s-abort-stuck'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await vi.waitFor(() => expect(loop.hasBlockingActivity()).toBe(true))
+    loop.abortBlockingActivity()
+    // Cooperative tool fails fast on abort; the turn settles without the manual release.
+    await waitForStatus(ctx, agent, 'idle')
+    expect(loop.hasBlockingActivity()).toBe(false)
+    release() // release the never-awaited blocker so the fixture teardown is clean
+    expect(agent.session.events.some(event =>
+      event.type === 'turn/end' && event.data.reason?.kind === 'aborted')).toBe(true)
+  })
+
   it('shutdownDrain logs a rejected session flush and still returns', async () => {
     const adapter = new MockAdapter([delayedTextResponse(60, 'done')])
     const ctx = await harness(adapter)

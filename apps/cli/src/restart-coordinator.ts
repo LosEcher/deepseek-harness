@@ -34,6 +34,13 @@ export const RESTART_POLL_MS = 1_000
  * the restart window without buying durability.
  */
 export const RESTART_WAIT_CAP_MS = 30_000
+/**
+ * O6: 卡死工具判定窗口（ms）。armed 后若 write 工具在途持续超过该窗口仍未
+ * settle，判定「可能卡死」并主动 abort（协作式工具快速失败，activityDone 提前
+ * settle，下一轮 no-blocking 即退出）。对比 cap 兜底（30s 后再 drain），把忙碌
+ * 重启窗口从 ~60s 压到 ~15s。不协作工具（忽略 abort）仍由 cap 兜底。
+ */
+export const STUCK_JUDGE_MS = 5_000
 /** Signal file the UI touches (POST /restart/immediate) to skip the wait. */
 export const RESTART_IMMEDIATE_FILE = 'restart-immediate'
 
@@ -41,6 +48,8 @@ export const RESTART_IMMEDIATE_FILE = 'restart-immediate'
 export interface RestartCoordinatorAgentLoop {
   markDraining(): void
   hasBlockingActivity(): boolean
+  /** O6: best-effort abort of the in-flight write tool when judged stuck. */
+  abortBlockingActivity?(): void
 }
 
 export interface RestartCoordinatorOptions {
@@ -56,6 +65,8 @@ export interface RestartCoordinatorOptions {
   record?: (message: string) => void
   pollMs?: number
   waitCapMs?: number
+  /** O6: stuck-tool judgment window; defaults to {@link STUCK_JUDGE_MS}. */
+  stuckJudgeMs?: number
 }
 
 /**
@@ -76,6 +87,10 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
   let armed = false
   let waitingSince = 0
   let disposed = false
+  // O6: 连续在途（write 工具卡死）的起始时刻；0 = 当前无阻塞。abort 只触发一次。
+  let blockingSince = 0
+  let stuckAborted = false
+  const stuckJudgeMs = options.stuckJudgeMs ?? STUCK_JUDGE_MS
   const stateFile = join(dshHome, 'restart-pending')
 
   /** Best-effort state file for UI observers (restart banner): present while
@@ -142,10 +157,25 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
     }
     const agentLoop = getAgentLoop()
     if (agentLoop === undefined || !agentLoop.hasBlockingActivity()) {
+      // 无阻塞：复位卡死判定状态（供下一次 armed 窗口使用）。
+      blockingSince = 0
+      stuckAborted = false
       log(`no blocking activity after ${Math.round((Date.now() - waitingSince) / 1000)}s; exiting`)
       stop()
       interrupt(0)
       return
+    }
+    // O6: 卡死判定——write 工具在途持续超过 stuckJudgeMs 仍未 settle，主动 abort。
+    if (blockingSince === 0) {
+      blockingSince = Date.now()
+    } else if (!stuckAborted && Date.now() - blockingSince >= stuckJudgeMs) {
+      stuckAborted = true
+      try {
+        agentLoop.abortBlockingActivity?.()
+        log(`stuck write tool judged after ${Math.round(stuckJudgeMs / 1000)}s; aborted, awaiting settle`)
+      } catch {
+        // Best-effort abort; the wait cap below still bounds the window.
+      }
     }
     if (Date.now() - waitingSince >= waitCapMs) {
       log(`wait cap ${Math.round(waitCapMs / 1000)}s reached with in-flight tools; draining now`)

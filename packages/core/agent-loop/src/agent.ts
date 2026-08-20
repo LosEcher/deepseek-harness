@@ -258,6 +258,21 @@ export class ReactLoopAgent implements Agent {
     return this.activity === 'tool-in-flight' && this.inFlightSideEffect === 'write'
   }
 
+  /**
+   * O6: abort the in-flight write tool batch when the restart coordinator
+   * judges it stuck (blocking past {@link STUCK_JUDGE_MS}). Aborting the phase
+   * signal makes cooperative tools fail fast; `activityDone` settles and the
+   * coordinator's next poll sees no blocking activity and exits. A tool that
+   * ignores its signal keeps running and is bounded by the coordinator's wait
+   * cap instead. The turn stays open as `turn/pending` only when the drain
+   * fast-exit runs; a hard abort closes it as `aborted` (resume re-derives a
+   * clean boundary via repair). Best-effort: a live turn is required.
+   */
+  abortBlockingActivity(): void {
+    if (this.phase.kind !== 'running' || this.activity !== 'tool-in-flight') return
+    this.phase.abort.abort({ kind: 'hook', reason: 'restart-stuck-tool' } satisfies AgentCancelCause)
+  }
+
   /** True when the loaded log has an open `turn/pending` tail to continue. */
   hasPendingResume(): boolean {
     return this.pendingResume !== undefined
