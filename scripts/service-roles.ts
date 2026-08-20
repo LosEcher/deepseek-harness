@@ -252,6 +252,14 @@ export const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns live Agent handles, the create/resume factory seam, and process-local initiator propagation.',
   },
   {
+    key: 'agentTeams',
+    pkg: 'agent-team',
+    title: 'Agent Teams coordination domain',
+    mode: 'core',
+    consumers: ['tool-agent-team'],
+    note: 'Owns the implicit-root roster, durable peer mailbox, shared task DAG, and continuable-child lifecycle; tool-agent-team contributes the scoped model policy and controls.',
+  },
+  {
     key: 'agentControl',
     pkg: 'agent-control',
     title: 'Process-safe Agent control',
@@ -368,6 +376,14 @@ export const SERVICE_ROLES: ServiceRole[] = [
     implementations: ['code-runtime-worker'],
     consumers: ['tools'],
     note: 'Runs one model-written program against host-provided async bindings; backends differ by substrate and language (the tool registry consumes it for Code Mode).',
+  },
+  {
+    key: 'fileReferences',
+    pkg: 'file-reference',
+    title: 'File reference discovery',
+    mode: 'seam',
+    implementations: ['file-reference-local'],
+    note: 'The interface returns path-only completion candidates within the addressed Agent cwd through its unary Remote contract; providers own namespace access and ranking without reading file contents.',
   },
   {
     key: 'fs',

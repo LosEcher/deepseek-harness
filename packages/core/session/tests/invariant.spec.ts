@@ -280,7 +280,7 @@ describe('session-log invariants', () => {
         content: [{
           ...original.data.message.content[0],
           content: [{ type: 'text', text: 'pruned' }],
-        }],
+        }] satisfies typeof original.data.message.content,
       }),
     }, {
       surfaceOp: { op: 'replace', start: original.seq, end: original.seq },
@@ -319,7 +319,7 @@ describe('session-log invariants', () => {
         content: [{
           ...original.data.message.content[0],
           content: [{ type: 'text', text: 'pruned' }],
-        }],
+        }] satisfies typeof original.data.message.content,
       }),
     }, {
       surfaceOp: { op: 'replace', start: original.seq, end: original.seq },

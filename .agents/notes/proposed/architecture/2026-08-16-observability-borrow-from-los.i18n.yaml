@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-16-observability-borrow-from-los.md
-2026-08-16-observability-borrow-from-los.md: 8c379b7e7005e26500ca41a7b786576602a006a3
+2026-08-16-observability-borrow-from-los.md: edd4f3edef1983b544ffcbdbe934537c8db5056a
 2026-08-16-observability-borrow-from-los.zh.md: e55c385615aaa1b7030a9c6d15cd5594f28a1a90

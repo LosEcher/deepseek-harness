@@ -4,7 +4,7 @@
  * @module dsh-llm-pi-ai/context
  */
 
-import { CallId, contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
+import { CallId, contentHasImage, LlmError, offloadRequestImages } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { Context as PiContext, ImageContent, Message as PiMessage, TextContent, Tool as PiTool } from '@earendil-works/pi-ai'
@@ -24,6 +24,18 @@ function toolResultText(blocks: readonly ContentBlock[]): string {
   return blocks.map(block => block.type === 'text'
     ? block.text
     : block.type === 'tool-result' ? toolResultText(block.content) : '').join('')
+}
+
+/** Reject image roles that pi-ai cannot replay before request-size offloading can replace them. */
+function assertSupportedImageRoles(messages: readonly Message[]): void {
+  for (const message of messages) {
+    if (message.role !== 'user' && contentHasImage(message.content)) {
+      throw new LlmError(
+        `pi-ai cannot represent an image in an in-history ${message.role} message`,
+        'UNSUPPORTED_CONTENT',
+      )
+    }
+  }
 }
 
 async function userContent(
@@ -84,7 +96,7 @@ function piContext(options: GenerateOptions, messages: PiMessage[]): PiContext {
   }
 }
 
-function textOnlyContext(options: GenerateOptions, opts?: ToPiContextOptions): PiContext {
+function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: string) => void, opts?: ToPiContextOptions): PiContext {
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
   const sourceMessages = opts?.mergeUserTurns === true ? mergeAdjacentUserMessages(options.messages) : options.messages
@@ -97,7 +109,7 @@ function textOnlyContext(options: GenerateOptions, opts?: ToPiContextOptions): P
       continue
     }
     if (message.role === 'assistant') {
-      const assistant = toPiAssistant(message)
+      const assistant = toPiAssistant(message, onReplayDegrade)
       for (const block of assistant.content) if (block.type === 'toolCall') toolNames.set(CallId(block.id), block.name)
       messages.push(assistant)
       continue
@@ -133,10 +145,6 @@ export interface ToPiContextOptions {
   mergeUserTurns?: boolean
 }
 
-function isAttachmentStore(value: unknown): value is AttachmentStore {
-  return typeof value === 'object' && value !== null && 'readImage' in value
-}
-
 function mergeAdjacentUserMessages(messages: readonly Message[]): Message[] {
   const out: Message[] = []
   for (const message of messages) {
@@ -154,43 +162,53 @@ function mergeAdjacentUserMessages(messages: readonly Message[]): Message[] {
  * Convert text-only harness history to a synchronous pi-ai Context. Tool
  * result names are recovered from preceding assistant tool calls.
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
+ * @param attachments - durable byte resolver for image references; omission selects the synchronous conversion.
+ * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
+ * @param maxRequestImageBytes - request-level bound on base64-encoded image payload; omission leaves every image in place.
  * @param opts - conversion options (e.g. merging adjacent user turns).
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  */
-export function toPiContext(options: GenerateOptions, opts?: ToPiContextOptions): PiContext
-/**
- * Convert harness history to a pi-ai Context while resolving durable images.
- * Tool result names are recovered from preceding assistant tool calls.
- * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
- * @param attachments - durable byte resolver for image references.
- * @param opts - conversion options (e.g. merging adjacent user turns).
- * @returns the asynchronously resolved pi-ai context.
- */
-export function toPiContext(options: GenerateOptions, attachments: AttachmentStore, opts?: ToPiContextOptions): Promise<PiContext>
 export function toPiContext(
   options: GenerateOptions,
-  arg2?: AttachmentStore | ToPiContextOptions,
-  arg3?: ToPiContextOptions,
+  attachments?: undefined,
+  onReplayDegrade?: (reason: string) => void,
+  maxRequestImageBytes?: number,
+  opts?: ToPiContextOptions,
+): PiContext
+export function toPiContext(
+  options: GenerateOptions,
+  attachments: AttachmentStore,
+  onReplayDegrade?: (reason: string) => void,
+  maxRequestImageBytes?: number,
+  opts?: ToPiContextOptions,
+): Promise<PiContext>
+export function toPiContext(
+  options: GenerateOptions,
+  attachments?: AttachmentStore,
+  onReplayDegrade?: (reason: string) => void,
+  maxRequestImageBytes?: number,
+  opts?: ToPiContextOptions,
 ): PiContext | Promise<PiContext> {
-  if (arg2 === undefined) return textOnlyContext(options, arg3)
-  if (isAttachmentStore(arg2)) return toPiContextWithImages(options, arg2, arg3)
-  return textOnlyContext(options, arg2)
+  return attachments === undefined
+    ? textOnlyContext(options, onReplayDegrade, opts)
+    : toPiContextWithImages(options, attachments, onReplayDegrade, maxRequestImageBytes, opts)
 }
 
 async function toPiContextWithImages(
   options: GenerateOptions,
   attachments: AttachmentStore,
+  onReplayDegrade?: (reason: string) => void,
+  maxRequestImageBytes?: number,
   opts?: ToPiContextOptions,
 ): Promise<PiContext> {
+  assertSupportedImageRoles(options.messages)
+  const requestMessages = offloadRequestImages(options.messages, maxRequestImageBytes)
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
-  const sourceMessages = opts?.mergeUserTurns === true ? mergeAdjacentUserMessages(options.messages) : options.messages
+  const sourceMessages = opts?.mergeUserTurns === true ? mergeAdjacentUserMessages(requestMessages) : requestMessages
 
   for (const message of sourceMessages) {
     if (message.role === 'system') {
-      if (contentHasImage(message.content)) {
-        throw new LlmError('pi-ai cannot represent an image in an in-history system message', 'UNSUPPORTED_CONTENT')
-      }
       // pi-ai has a single systemPrompt slot; in-history system messages are
       // folded into user messages to preserve order (rare in practice — the
       // harness sends the system prompt via options.system).
@@ -198,7 +216,7 @@ async function toPiContextWithImages(
       continue
     }
     if (message.role === 'assistant') {
-      const assistant = toPiAssistant(message)
+      const assistant = toPiAssistant(message, onReplayDegrade)
       for (const block of assistant.content) {
         if (block.type === 'toolCall') toolNames.set(CallId(block.id), block.name)
       }
@@ -208,7 +226,9 @@ async function toPiContextWithImages(
     // user role: text + tool results (each result becomes its own message).
     const regular = message.content.filter(block => block.type !== 'tool-result')
     const content = await userContent(regular, attachments)
-    const results = message.content.filter(block => block.type === 'tool-result')
+    const results = message.content.filter((block): block is Extract<ContentBlock, { type: 'tool-result' }> => (
+      block.type === 'tool-result'
+    ))
     if (content.length > 0 || results.length === 0) {
       messages.push({ role: 'user', content, timestamp: 0 })
     }
