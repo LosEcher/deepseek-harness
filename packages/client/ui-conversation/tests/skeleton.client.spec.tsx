@@ -217,6 +217,7 @@ function mount(
             seatOwners.push({ key, owner: seatOwner })
             return null
           }) as InputBarProps['renderSlot']}
+          hostStatus={undefined}
           {...bar}
         />
       )

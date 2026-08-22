@@ -93,6 +93,8 @@ interface BenchOptions {
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
   toggleCommandMenu?: (selection: { start: number; end: number }) => void
+  /** Host-status face (the provisional-composer posture); absent = no face. */
+  hostStatus?: InputBarProps['hostStatus']
 }
 
 /** One pending queue row (the runtime snapshot shape, as the dock tests build it). */
@@ -191,6 +193,7 @@ function bench(over?: BenchOptions) {
     t: over?.t ?? makeTranslate(zh, commonZh),
     renderSlot,
     variant: over?.variant ?? 'composer',
+    hostStatus: over?.hostStatus ?? undefined,
     ...(over?.inert === true ? { disabled: true } : {}),
     ...(over?.workspacePickerOpen !== undefined ? { workspacePickerOpen: over.workspacePickerOpen } : {}),
     ...(over?.onRequestWorkspace !== undefined ? { onRequestWorkspace: over.onRequestWorkspace } : {}),
@@ -388,6 +391,31 @@ describe('image draft rail', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('refuses sends with a queued notice while a coordinated restart is armed (provisional composer)', () => {
+    const hostStatus = {
+      status: createSnapshotStore({ restartPending: { sinceMs: 1, capMs: 30_000 }, reachable: true }),
+    }
+    const result = bench({ hostStatus: hostStatus as unknown as InputBarProps['hostStatus'], draft: 'hello' })
+    const { view, textarea, sink } = result
+    // Enter: refused with an explanatory toast, the draft stays editable.
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(sink).not.toHaveBeenCalled()
+    expect(view.getByRole('alert').textContent).toContain('正在重启，消息将在恢复后发送')
+    expect(result.shell.snapshot.draft).toBe('hello')
+    // The send button surfaces the same notice.
+    fireEvent.click(view.getByRole('button', { name: '发送消息' }))
+    expect(sink).not.toHaveBeenCalled()
+    // Once the restart clears, Enter sends normally again.
+    act(() => {
+      ;(hostStatus.status as ReturnType<typeof createSnapshotStore>).set({
+        restartPending: undefined,
+        reachable: true,
+      })
+    })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(sink).toHaveBeenCalled()
   })
 
   it('announces a rejected attachment-slot intake through the same toast', () => {

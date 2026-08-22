@@ -109,6 +109,19 @@ function selectApproval({ interactions }: ComposerChainProps): ApprovalWait | nu
   return interactions.find((i): i is ApprovalWait => i.kind === 'approval') ?? null
 }
 
+/**
+ * Best-effort host-status face for the provisional-composer posture: the
+ * runtime provides `hostStatus` once connected; absent until then (and for
+ * non-web surfaces) the composer keeps its plain behavior.
+ */
+function hostStatusFace(ctx: Context): ComposerBarInjected['hostStatus'] {
+  try {
+    return ctx.get('hostStatus') as ComposerBarInjected['hostStatus']
+  } catch {
+    return undefined
+  }
+}
+
 /** Mounts the conversation plugin.
  * @param ctx - Client root context.
  */
@@ -300,6 +313,8 @@ export function apply(ctx: Context): void {
           stop: undefined,
           command: undefined,
           hooks: { notices: ABSENT_NOTICES, lexicon: ABSENT_LEXICON, menuLauncher: ABSENT_MENU_LAUNCHER },
+          // Best-effort: the runtime provides hostStatus once connected.
+          hostStatus: hostStatusFace(ctx),
         }
       }
       const conversation = concreteConversation(ctx)
@@ -359,6 +374,7 @@ export function apply(ctx: Context): void {
           lexicon: shell.lexicon,
           menuLauncher: inputTriggers?.launcher ?? ABSENT_MENU_LAUNCHER,
         },
+        hostStatus: hostStatusFace(ctx),
       }
     },
   }, InputBar)

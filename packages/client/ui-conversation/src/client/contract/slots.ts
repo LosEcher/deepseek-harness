@@ -570,6 +570,20 @@ export interface ComposerBarInjected {
     /** Source name opened by the programmatic menu launcher, or null. */
     menuLauncher: ObservableSnapshot<string | null>
   }
+  /**
+   * Host lifecycle state (the coordinated-restart window), for the
+   * provisional-composer posture: while the host drains for a restart the
+   * draft stays editable but sends are refused with a queued-notice instead
+   * of the silent-accept path. Absent when no host-status service is composed.
+   */
+  hostStatus:
+    | {
+      status: {
+        subscribe(listener: () => void): () => void
+        getSnapshot(): { restartPending?: { sinceMs: number; capMs: number } | undefined }
+      }
+    }
+    | undefined
 }
 
 /**

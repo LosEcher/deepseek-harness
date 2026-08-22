@@ -6,7 +6,7 @@
  * region-slot content) ride the owner props. Session facts
  * (running/removed/promptError) are self-selected via useSession. */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
@@ -42,7 +42,7 @@ export function InputBar({
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
-  placeholder, accessory, overlay, leftItems, rightItems, footer,
+  placeholder, accessory, overlay, leftItems, rightItems, footer, hostStatus,
 }: InputBarProps) {
   const input = useInput(s => s)
   const notice = useNotices(s => s)
@@ -52,6 +52,14 @@ export function InputBar({
   const running = useSession(s => s.running) ?? false
   const subagent = useSession(s => s.subagent) ?? null
   const removed = useSession(s => s.removed) ?? false
+  // Provisional-composer posture: while the host drains for a coordinated
+  // restart the draft stays editable, but sends are refused with a queued
+  // notice instead of the silent-accept path (the durable inbox would hold
+  // the message with no feedback until the next wake).
+  const restartPending = useSyncExternalStore(
+    hostStatus === undefined ? () => () => {} : (listener: () => void) => hostStatus.status.subscribe(listener),
+    () => hostStatus?.status.getSnapshot().restartPending ?? undefined,
+  )
   // Plan mode swaps the textarea placeholder (the projection is the folded
   // host value; owner-prop placeholders — hero, session-unavailable — win).
   const planActive = useProjection('plan', plan => plan !== undefined && (plan.pending ? !plan.active : plan.active))
@@ -350,6 +358,12 @@ export function InputBar({
     e.preventDefault()
     if (e.repeat) return // held-down Enter must not machine-gun sends
     if (locked || machineBusy) return
+    if (restartPending !== undefined) {
+      // Provisional-composer posture: sends are refused while the host
+      // drains; the draft stays editable and the queued notice explains why.
+      showToast(t('input.restartQueued'))
+      return
+    }
     const accelerated = e.ctrlKey || e.metaKey
     // Empty-draft accelerated Enter acts on the queue instead of the (empty)
     // draft: the machine rejects empty drafts, so the gesture steers every
@@ -499,6 +513,10 @@ export function InputBar({
       return
     }
     if (inputActions === undefined) return // absent machine: the button is disabled
+    if (restartPending !== undefined) {
+      showToast(t('input.restartQueued'))
+      return
+    }
     /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
     if (!empty && !disabled && !machineBusy) inputActions.submit()
   }
