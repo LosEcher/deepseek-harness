@@ -90,6 +90,31 @@ describe('HostStatusRuntime', () => {
     runtime.stop()
   })
 
+  it('projects a completed-restart trace from describe', async () => {
+    const ctx = new Context()
+    const runtime = new HostStatusRuntime(ctx, stubApi(() => ({
+      rpcId: RpcId('r'),
+      result: {
+        ok: true as const,
+        value: {
+          version: '0-test',
+          cwd: '/tmp',
+          attachedSessions: 0,
+          canOpenPath: false,
+          restartExited: { exitedAt: 456 },
+        },
+      },
+    })))
+    runtime.start()
+    await settle()
+    expect(runtime.status.getSnapshot()).toEqual({
+      restartPending: undefined,
+      restartExited: { exitedAt: 456 },
+      reachable: true,
+    })
+    runtime.stop()
+  })
+
   it('stop() resets to the disconnected projection and halts polling', async () => {
     vi.useFakeTimers()
     const ctx = new Context()

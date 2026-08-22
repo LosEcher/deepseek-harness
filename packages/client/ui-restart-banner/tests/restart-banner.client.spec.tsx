@@ -4,7 +4,7 @@
  * title/body with the cap-derived seconds while armed, and hides again when
  * the window clears.
  */
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/src/client/contract/store.ts'
@@ -25,21 +25,33 @@ afterEach(() => {
 })
 
 /** A host-status face with a scripted snapshot store (no polling). */
-function fakeHostStatus(state: Parameters<HostStatusRuntime['status']['set']>[0]) {
+function fakeHostStatus(
+  state: Parameters<HostStatusRuntime['status']['set']>[0],
+  requestRestartImmediate = (): Promise<boolean> => Promise.resolve(true),
+) {
   const store = createSnapshotStore(state)
-  return { status: store } as unknown as HostStatusRuntime
+  return { status: store, requestRestartImmediate } as unknown as HostStatusRuntime
 }
 
 describe('RestartBanner', () => {
-  it('renders nothing while no restart is armed', () => {
-    const { container } = render(<RestartBanner hostStatus={fakeHostStatus({ restartPending: undefined, reachable: true })} t={t} />)
+  it('renders nothing while no restart is armed and no exit trace is fresh', () => {
+    const { container } = render(
+      <RestartBanner
+        hostStatus={fakeHostStatus({ restartPending: undefined, restartExited: undefined, reachable: true })}
+        t={t}
+      />,
+    )
     expect(container.firstChild).toBeNull()
   })
 
   it('renders the banner with the cap-derived wait bound while armed', () => {
     render(
       <RestartBanner
-        hostStatus={fakeHostStatus({ restartPending: { sinceMs: Date.now() - 3_000, capMs: 30_000 }, reachable: true })}
+        hostStatus={fakeHostStatus({
+          restartPending: { sinceMs: Date.now() - 3_000, capMs: 30_000 },
+          restartExited: undefined,
+          reachable: true,
+        })}
         t={t}
       />,
     )
@@ -49,12 +61,62 @@ describe('RestartBanner', () => {
     expect(screen.getByText(/最多等待 30 秒/)).toBeTruthy()
   })
 
+  it('renders a restart-now button while armed and calls the runtime on click (O7)', () => {
+    const requestRestartImmediate = vi.fn(() => Promise.resolve(true))
+    render(
+      <RestartBanner
+        hostStatus={fakeHostStatus(
+          { restartPending: { sinceMs: Date.now(), capMs: 30_000 }, restartExited: undefined, reachable: true },
+          requestRestartImmediate,
+        )}
+        t={t}
+      />,
+    )
+    const button = screen.getByRole('button', { name: '立即重启' })
+    button.click()
+    expect(requestRestartImmediate).toHaveBeenCalledOnce()
+  })
+
+  it('renders a one-shot restart-completed notice while the exit trace is fresh', () => {
+    render(
+      <RestartBanner
+        hostStatus={fakeHostStatus({
+          restartPending: undefined,
+          restartExited: { exitedAt: Date.now() - 1_000 },
+          reachable: true,
+        })}
+        t={t}
+      />,
+    )
+    expect(screen.getByRole('status')).toBeTruthy()
+    expect(screen.getByText('重启完成')).toBeTruthy()
+    expect(screen.getByText(/自动续跑/)).toBeTruthy()
+  })
+
+  it('ignores a stale restart-exited trace', () => {
+    render(
+      <RestartBanner
+        hostStatus={fakeHostStatus({
+          restartPending: undefined,
+          restartExited: { exitedAt: Date.now() - 120_000 },
+          reachable: true,
+        })}
+        t={t}
+      />,
+    )
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('hides again when the restart window clears', () => {
     const ctx = new Context()
-    const runtime = fakeHostStatus({ restartPending: { sinceMs: 0, capMs: 5_000 }, reachable: true })
+    const runtime = fakeHostStatus({ restartPending: { sinceMs: 0, capMs: 5_000 }, restartExited: undefined, reachable: true })
     const { rerender, container } = render(<RestartBanner hostStatus={runtime} t={t} />)
     expect(container.firstChild).not.toBeNull()
-    ;(runtime.status as ReturnType<typeof createSnapshotStore>).set({ restartPending: undefined, reachable: true })
+    ;(runtime.status as ReturnType<typeof createSnapshotStore>).set({
+      restartPending: undefined,
+      restartExited: undefined,
+      reachable: true,
+    })
     rerender(<RestartBanner hostStatus={runtime} t={t} />)
     expect(container.firstChild).toBeNull()
     void ctx

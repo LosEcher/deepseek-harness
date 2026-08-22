@@ -143,6 +143,7 @@ export class FakeApiClient implements IApiClient {
 
   readonly host: IApiClient['host'] = {
     describe: payload => this.record('host.describe', payload, this.onDescribe(payload)),
+    requestRestartImmediate: payload => this.record('host.requestRestartImmediate', payload, Promise.resolve(ok({ ok: true as const }))),
     pickDirectory: payload => this.record('host.pickDirectory', payload, this.onPickDirectory(payload)),
     listDirectory: payload => this.record('host.listDirectory', payload, this.onListDirectory(payload)),
     createDirectory: payload => this.record('host.createDirectory', payload, this.onCreateDirectory(payload)),

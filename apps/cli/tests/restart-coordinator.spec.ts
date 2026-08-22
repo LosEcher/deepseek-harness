@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -279,6 +279,45 @@ describe('restart coordinator immediate signal', () => {
     timers.push(stop as unknown as ReturnType<typeof setInterval>)
     vi.advanceTimersByTime(5_000)
     expect(interrupt).not.toHaveBeenCalled()
+    rmSync(dshHome, { recursive: true, force: true })
+  })
+
+  it('writes a restart-exited trace on the coordinated exit path (armed)', () => {
+    vi.useFakeTimers()
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
+    writeFileSync(join(dshHome, 'restart-request'), '')
+    const interrupt = vi.fn()
+    const stop = startRestartCoordinator({
+      dshHome,
+      getAgentLoop: () => fakeAgentLoop(() => false),
+      interrupt,
+      pollMs: 1_000,
+      waitCapMs: 300_000,
+    })
+    timers.push(stop as unknown as ReturnType<typeof setInterval>)
+    vi.advanceTimersByTime(1_000) // consume + arm + no blocking → exits
+    expect(interrupt).toHaveBeenCalledOnce()
+    const exited = join(dshHome, 'restart-exited')
+    expect(existsSync(exited)).toBe(true)
+    expect(JSON.parse(readFileSync(exited, 'utf8'))).toMatchObject({ exitedAt: expect.any(Number) })
+    rmSync(dshHome, { recursive: true, force: true })
+  })
+
+  it('an external shutdown never writes a restart-exited trace (not armed)', () => {
+    vi.useFakeTimers()
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-restart-'))
+    const interrupt = vi.fn()
+    const stop = startRestartCoordinator({
+      dshHome,
+      getAgentLoop: () => fakeAgentLoop(() => false),
+      interrupt,
+      pollMs: 1_000,
+      waitCapMs: 300_000,
+      isShuttingDown: () => true,
+    })
+    timers.push(stop as unknown as ReturnType<typeof setInterval>)
+    vi.advanceTimersByTime(1_000) // isShuttingDown → stop() without arming
+    expect(existsSync(join(dshHome, 'restart-exited'))).toBe(false)
     rmSync(dshHome, { recursive: true, force: true })
   })
 })

@@ -43,6 +43,8 @@ export const RESTART_WAIT_CAP_MS = 30_000
 export const STUCK_JUDGE_MS = 5_000
 /** Signal file the UI touches (POST /restart/immediate) to skip the wait. */
 export const RESTART_IMMEDIATE_FILE = 'restart-immediate'
+/** Exit trace written on the coordinated-restart path, read by the next boot. */
+export const RESTART_EXITED_FILE = 'restart-exited'
 
 /** The agent-loop surface the coordinator needs (see AgentLoop). */
 export interface RestartCoordinatorAgentLoop {
@@ -85,6 +87,7 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
   const waitCapMs = options.waitCapMs ?? RESTART_WAIT_CAP_MS
   const requestFile = join(dshHome, 'restart-request')
   const immediateFile = join(dshHome, RESTART_IMMEDIATE_FILE)
+  const exitedFile = join(dshHome, RESTART_EXITED_FILE)
   const log = (message: string): void => {
     options.logger?.info?.(`dsh: restart: ${message}`)
     options.record?.(`restart coordinated: ${message}`)
@@ -119,6 +122,17 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
 
   function stop(): void {
     if (!disposed) {
+      if (armed) {
+        // Exit trace for the next boot: the shell surfaces a one-shot
+        // "restart completed" notice once the host comes back. Written only
+        // on the coordinated-restart path (armed) — an external shutdown
+        // must not look like a restart.
+        try {
+          writeFileSync(exitedFile, JSON.stringify({ exitedAt: Date.now() }))
+        } catch {
+          // Best-effort observability; never fail the restart over it.
+        }
+      }
       clearState()
       try {
         unlinkSync(immediateFile)

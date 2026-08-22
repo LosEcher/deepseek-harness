@@ -23,6 +23,9 @@ export const hostDescribeValueSchema = z.object({
     sinceMs: z.number().int().nonnegative(),
     capMs: z.number().int().nonnegative(),
   }).optional(),
+  restartExited: z.object({
+    exitedAt: z.number().int().nonnegative(),
+  }).optional(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.describe'>>>
 
 /** host.pickDirectory request payload (empty object literal). */
@@ -77,3 +80,11 @@ export const hostOpenPathRequestSchema = z.object({
 export const hostOpenPathValueSchema = z.object({
   opened: z.literal(true),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.openPath'>>>
+
+/** host.requestRestartImmediate request payload (empty object literal). */
+export const hostRequestRestartImmediateRequestSchema = z.object({}) satisfies z.ZodType<Wire<RequestPayload<'host.requestRestartImmediate'>>>
+
+/** host.requestRestartImmediate response value. */
+export const hostRequestRestartImmediateValueSchema = z.object({
+  ok: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.requestRestartImmediate'>>>

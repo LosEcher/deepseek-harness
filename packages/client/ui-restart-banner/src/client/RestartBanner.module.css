@@ -13,6 +13,39 @@
   line-height: 1.4;
 }
 
+/* The "restart now" button opts back in to interaction (O7). */
+.action {
+  pointer-events: auto;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--dsw-alias-state-warn-secondary);
+  border-radius: 4px;
+  background: var(--dsw-alias-state-warn-secondary);
+  color: var(--dsw-alias-state-warn-label);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* One-shot "restart completed" notice (success tone, still click-through). */
+.exited {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-state-success-secondary);
+  border-radius: 6px;
+  background: var(--dsw-alias-state-success-tertiary);
+  color: var(--dsw-alias-state-success-label);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .title {
   font-weight: 600;
 }

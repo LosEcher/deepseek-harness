@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { mkdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -599,6 +599,27 @@ function readRestartPendingDefault(): { sinceMs: number; capMs: number } | undef
   }
 }
 
+/**
+ * Default coordinated-restart exit-trace reader: the coordinator writes
+ * `$DSH_HOME/restart-exited` right before exiting through the coordinated
+ * restart path. The shell shows a one-shot "restart completed" notice while
+ * the trace is fresh; the file itself is kept (a stale trace is simply
+ * ignored by the client's freshness check).
+ */
+function readRestartExitedDefault(): { exitedAt: number } | undefined {
+  try {
+    const path = join(resolveDshHome(), 'restart-exited')
+    if (!existsSync(path)) return undefined
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    const { exitedAt } = parsed as { exitedAt?: unknown }
+    if (typeof exitedAt !== 'number') return undefined
+    return { exitedAt }
+  } catch {
+    return undefined
+  }
+}
+
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
 export interface ApiProxyDefaults {
   /**
@@ -641,6 +662,13 @@ export interface ApiProxyDefaults {
    * @returns the pending restart window, or undefined when no restart is armed.
    */
   readRestartPending?: () => { sinceMs: number; capMs: number } | undefined
+  /**
+   * Coordinated-restart exit-trace reader. Absent, `host.describe` reads
+   * `$DSH_HOME/restart-exited` (the restart coordinator's exit marker)
+   * itself. Injectable for carrier tests that run outside a real home.
+   * @returns the exit trace, or undefined when absent.
+   */
+  readRestartExited?: () => { exitedAt: number } | undefined
 }
 
 /** The tool/call payload fields the presenter path reads. */
@@ -1083,6 +1111,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
     ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES
   const readRestartPending = defaults.readRestartPending ?? readRestartPendingDefault
+  const readRestartExited = defaults.readRestartExited ?? readRestartExitedDefault
   /** The seed model each create/resume declares; re-read so it never goes stale. */
   const agentOptions = (): AgentOptions => {
     const { provider, model } = defaults.defaultModelSelection()
@@ -2871,6 +2900,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // TODO: version should read apps/cli's package.json; placeholder for now.
         const selection = defaults.defaultModelSelection()
         const restartPending = readRestartPending()
+        const restartExited = readRestartExited()
         return Promise.resolve(ok(request, {
           version: '0.0.1',
           // Same source as session.create's fallback: the UI's default project
@@ -2884,7 +2914,25 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           home: homedir(),
           canOpenPath: canOpenPaths(),
           ...restartPending === undefined ? {} : { restartPending },
+          ...restartExited === undefined ? {} : { restartExited },
         }))
+      },
+
+      requestRestartImmediate(request) {
+        // The restart coordinator (a CLI process-level interval) polls this
+        // file on its next tick and drains immediately — the O7 "restart now"
+        // path. Best-effort: a failed write is an internal error, and the
+        // coordinator may already be exiting anyway.
+        try {
+          writeFileSync(join(resolveDshHome(), 'restart-immediate'), String(Date.now()))
+          return Promise.resolve(ok(request, { ok: true }))
+        } catch (error: unknown) {
+          return Promise.resolve(err(request, {
+            code: 'internal',
+            message: errorChain(error),
+            details: {},
+          }))
+        }
       },
 
       async pickDirectory(request, signal) {

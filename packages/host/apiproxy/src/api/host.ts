@@ -60,7 +60,25 @@ export interface HostApi {
      * UI may surface a "restarting" banner while this is present.
      */
     restartPending?: { sinceMs: number; capMs: number }
+    /**
+     * Trace of the most recent coordinated restart (the coordinator's exit
+     * marker). Present when the host last exited through the coordinated
+     * restart path; the shell shows a one-shot "restart completed" notice
+     * while the trace is fresh (a stale trace is ignored client-side).
+     */
+    restartExited?: { exitedAt: number }
   }>>
+
+  /**
+   * Ask the host to skip the coordinated-restart wait and drain immediately.
+   * Writes the `restart-immediate` signal file the restart coordinator polls
+   * on its next tick (the UI's immediate-restart button). Best-effort: the
+   * coordinator may already be exiting or the write may fail; the response
+   * reports whether the signal was delivered.
+   */
+  requestRestartImmediate(
+    request: RpcRequest<{}>,
+  ): Promise<RpcResponse<{ ok: true }>>
 
   /**
    * Open the operating system's single-directory picker; cancellation returns

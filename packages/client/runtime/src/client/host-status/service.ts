@@ -26,15 +26,31 @@ export interface RestartPendingView {
   capMs: number
 }
 
+/** Trace of a completed coordinated restart, surfaced once after reconnection. */
+export interface RestartExitedView {
+  /** Host clock time when the coordinator drained and exited. */
+  exitedAt: number
+}
+
 /** Immutable host-status projection consumed by the shell. */
 export interface HostStatusState {
   /** Present while the host has armed a coordinated restart. */
   restartPending: RestartPendingView | undefined
+  /**
+   * Present when the host booted after a coordinated restart (the
+   * coordinator's exit trace). The shell shows a one-shot "restart
+   * completed" notice while it is fresh.
+   */
+  restartExited: RestartExitedView | undefined
   /** Whether the last describe poll succeeded (false while disconnected). */
   reachable: boolean
 }
 
-const INITIAL: HostStatusState = { restartPending: undefined, reachable: false }
+const INITIAL: HostStatusState = {
+  restartPending: undefined,
+  restartExited: undefined,
+  reachable: false,
+}
 
 /** Poll cadence for the restart window (the window is seconds-long). */
 export const HOST_STATUS_POLL_MS = 2_000
@@ -86,7 +102,7 @@ export class HostStatusRuntime {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange)
     }
-    this.status.set({ restartPending: undefined, reachable: false })
+    this.status.set({ restartPending: undefined, restartExited: undefined, reachable: false })
   }
 
   /** Pause on hide; resume with an immediate poll on show. */
@@ -112,18 +128,29 @@ export class HostStatusRuntime {
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can run during the await.
       if (this.stopped) return
       if (!response.result.ok) {
-        this.status.set({ restartPending: undefined, reachable: false })
+        this.status.set({ restartPending: undefined, restartExited: undefined, reachable: false })
         return
       }
       this.status.set({
         restartPending: response.result.value.restartPending,
+        restartExited: response.result.value.restartExited,
         reachable: true,
       })
     } catch {
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can run during the await.
-      if (!this.stopped) this.status.set({ restartPending: undefined, reachable: false })
+      if (!this.stopped) this.status.set({ restartPending: undefined, restartExited: undefined, reachable: false })
     } finally {
       this.polling = false
     }
+  }
+
+  /**
+   * Ask the host to drain immediately (O7): skips the coordinated-restart
+   * wait by writing the `restart-immediate` signal. Returns whether the
+   * signal was delivered. The banner's "restart now" button calls this.
+   */
+  async requestRestartImmediate(): Promise<boolean> {
+    const response = await this.api.host.requestRestartImmediate({})
+    return response.result.ok
   }
 }
