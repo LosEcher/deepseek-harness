@@ -24,6 +24,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { assertSupportedJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { JsonSchemaNode, JsonValue } from '@deepseek-ai/dsh-tools'
+import type { CachedToolEntry } from './catalog.ts'
 
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
@@ -162,6 +163,12 @@ export function publicToolName(serverName: string, rawName: string): string {
  * @param opts - Bridge options: server namespace and per-call timeout.
  * @param previous - Disposer map from the prior sync generation; disposed
  *   during the swap phase (only after the fetch phase succeeded).
+ * @param getClient - Resolves the live client for tool definitions; absent,
+ *   definitions capture the connected `client` (the eager path). A lazy
+ *   start passes the connection holder so cached definitions resolve the
+ *   current client once it connects.
+ * @param onCatalog - Optional sink for the post-filter definitions (the
+ *   fast-start catalog cache); invoked after a successful swap.
  * @returns A map of registered public tool names to their unregister
  *   disposers — the exact set of live registrations owned by this server.
  */
@@ -170,9 +177,12 @@ export async function syncTools(
   ctx: Context,
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
+  getClient?: () => Client | undefined,
+  onCatalog?: (entries: CachedToolEntry[]) => void,
 ): Promise<ToolDisposers> {
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
+  const cachedEntries: CachedToolEntry[] = []
   let cursor: string | undefined
   let listedCount = 0
   do {
@@ -189,17 +199,27 @@ export async function syncTools(
           `mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`,
         )
       }
+      const structuredSchema = supportedOutputSchema(tool.outputSchema)
+      const entry: CachedToolEntry = {
+        publicName,
+        rawName: tool.name,
+        description: truncateDescription(tool.description ?? '', opts.descriptionMaxLength),
+        parameters: tool.inputSchema,
+        ...structuredSchema === undefined ? {} : { structuredSchema },
+        taskRequired: tool.execution?.taskSupport === 'required',
+      }
       definitions.set(publicName, createDefinition(
-        client,
+        getClient ?? (() => client),
         ctx,
         publicName,
         tool.name,
-        truncateDescription(tool.description ?? '', opts.descriptionMaxLength),
-        tool.inputSchema,
-        supportedOutputSchema(tool.outputSchema),
-        tool.execution?.taskSupport === 'required',
+        entry.description,
+        entry.parameters,
+        structuredSchema,
+        entry.taskRequired,
         opts,
       ))
+      cachedEntries.push(entry)
     }
     cursor = response.nextCursor
   } while (cursor)
@@ -225,6 +245,8 @@ export async function syncTools(
     if (opts.registrationFailure === 'throw') throw error
     return new Map()
   }
+  // The catalog reflects what is actually registered (post filter/truncation).
+  onCatalog?.(cachedEntries)
   return disposers
 }
 
@@ -266,7 +288,10 @@ function supportedOutputSchema(candidate: unknown): JsonSchemaNode | undefined {
 
 /**
  * Build one generation-local tool definition and its execution-local rich projections.
- * @param client - connected MCP client used for calls.
+ * @param getClient - Resolves the live connected client used for calls. A lazy
+ *   start passes the connection holder, so cached definitions resolve the
+ *   current client once it connects; until then, calling reports a clear
+ *   not-connected error.
  * @param ctx - plugin context carrying optional attachment and model services.
  * @param publicName - registry-qualified public tool name.
  * @param rawName - MCP wire tool name.
@@ -278,7 +303,7 @@ function supportedOutputSchema(candidate: unknown): JsonSchemaNode | undefined {
  * @returns a complete ToolRuntime definition.
  */
 function createDefinition(
-  client: Client,
+  getClient: () => Client | undefined,
   ctx: Context,
   publicName: string,
   rawName: string,
@@ -294,7 +319,7 @@ function createDefinition(
     description,
     parameters,
     output: createOutput(rawName, structuredSchema),
-    execute: createExecutor(client, ctx, rawName, taskRequired, opts, projections),
+    execute: createExecutor(getClient, ctx, rawName, taskRequired, opts, projections),
     finalizeContent(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>) {
       const projection = projections.get(exec)
       if (projection === undefined) return undefined
@@ -305,6 +330,49 @@ function createDefinition(
       return projection.content
     },
   }
+}
+
+/**
+ * Register a cached (fast-start) tool generation. The schemas come from the
+ * catalog cache, so no server process is spawned and no `tools/list` is
+ * issued; the live sync replaces this generation (its disposers are passed as
+ * the sync's `previous`) once the real connection settles.
+ *
+ * @param ctx - plugin context carrying the `tools` registry.
+ * @param opts - bridge options (server namespace, timeout, allow/deny).
+ * @param entries - the cached, post-filter definitions.
+ * @param getClient - the connection holder; `undefined` until the server connects.
+ * @returns disposers for the registered cached tools.
+ */
+export function registerCachedTools(
+  ctx: Context,
+  opts: ToolBridgeOptions,
+  entries: CachedToolEntry[],
+  getClient: () => Client | undefined,
+): ToolDisposers {
+  const disposers: ToolDisposers = new Map()
+  try {
+    for (const entry of entries) {
+      disposers.set(entry.publicName, ctx.tools.register(createDefinition(
+        getClient,
+        ctx,
+        entry.publicName,
+        entry.rawName,
+        entry.description,
+        entry.parameters,
+        entry.structuredSchema === undefined ? undefined : supportedOutputSchema(entry.structuredSchema),
+        entry.taskRequired,
+        opts,
+      )))
+    }
+  } catch (error) {
+    // A conflict on a cached registration rolls back the whole generation:
+    // the model sees either the full cached set or none of it.
+    for (const dispose of disposers.values()) dispose()
+    ctx.logger.error(`mcp-client(${opts.serverName}): cached tool registration failed, no cached tools registered: ${String(error)}`)
+    return new Map()
+  }
+  return disposers
 }
 
 /** Build the canonical result schema and existing Native text projection. */
@@ -337,7 +405,7 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
  * the ToolRuntime's catch path produces an `isError` result for the model.
  */
 function createExecutor(
-  client: Client,
+  getClient: () => Client | undefined,
   ctx: Context,
   rawName: string,
   taskRequired: boolean,
@@ -347,6 +415,15 @@ function createExecutor(
   return async (args: unknown, exec: ToolExecution) => {
     if (taskRequired) {
       throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
+    }
+    const client = getClient()
+    if (client === undefined) {
+      // Lazy start: the cached schema is visible to the model, but the server
+      // has not connected yet (still starting, or down after give-up). Say so
+      // explicitly instead of leaking an undefined client into the SDK.
+      throw new Error(
+        `MCP server "${opts.serverName}" is not connected; "${rawName}" becomes available once the server connects`,
+      )
     }
     // The agent loop passes `JSON.parse(model_arguments)` which is usually an
     // object, but can be any JSON value if the model misbehaves (outputs a bare

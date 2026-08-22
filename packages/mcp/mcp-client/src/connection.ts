@@ -22,6 +22,8 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { createTransport } from './transport.ts'
 import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
+import { writeCatalog } from './catalog.ts'
+import type { CachedToolEntry } from './catalog.ts'
 import type { Config } from './index.ts'
 
 /** Automatic reconnect policy for one MCP server connection. */
@@ -104,11 +106,50 @@ export interface ConnectionHandle {
    */
   ready: Promise<ConnectionOutcome>
   /**
+   * The current connected client, or undefined while connecting/backing off.
+   * Tool definitions resolve calls through this so cached (lazy-start)
+   * schemas can call once the server connects.
+   */
+  getClient(): Client | undefined
+  /**
    * Stop reconnection, close the live client, wait for the in-flight attempt
    * and queued tool syncs to quiesce, then unregister every tool this server
    * still owns.
    */
   dispose(): Promise<void>
+}
+
+/**
+ * Optional lazy-start wiring for {@link startConnection}: the catalog cache
+ * lets a plugin instance register the model-facing schemas without spawning
+ * the server or waiting for `tools/list`, and the live sync replaces them.
+ */
+export interface ConnectionExtras {
+  /** Shared current-client holder; cached definitions resolve calls through it. */
+  clientHolder?: { current: Client | undefined }
+  /** Registrations owned before the first sync (cached fast-start tools). */
+  initialDisposers?: ToolDisposers
+  /** When set, successful syncs persist the post-filter tool list here. */
+  catalog?: { cacheDir: string; fingerprint: string }
+}
+
+/**
+ * Build the shared bridge options for one server (namespace, timeout,
+ * allow/deny, description cap) — used both by the connection supervisor and
+ * by the lazy-start cached registration.
+ *
+ * @param config - resolved plugin config.
+ * @returns resolved bridge options.
+ */
+export function buildToolBridgeOptions(config: Config): ToolBridgeOptions {
+  return {
+    registrationFailure: 'contain',
+    serverName: config.serverName,
+    toolCallTimeoutMs: config.toolCallTimeoutMs,
+    ...(config.toolAllow !== undefined ? { toolAllow: config.toolAllow } : {}),
+    ...(config.toolDeny !== undefined ? { toolDeny: config.toolDeny } : {}),
+    ...(config.descriptionMaxLength !== undefined ? { descriptionMaxLength: config.descriptionMaxLength } : {}),
+  }
 }
 
 /**
@@ -118,24 +159,28 @@ export interface ConnectionHandle {
  * @param ctx - Cordis context providing the `tools` registry and logger.
  * @param config - Resolved plugin config selecting the transport and server identity.
  * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
- * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
+ * @param extras - Optional lazy-start wiring (client holder, cached initial
+ *   registrations, catalog persistence).
+ * @returns Handle with a `ready` promise for startup-await, `getClient` for
+ *   tool-call resolution, and a `dispose` for teardown.
  */
-export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
+export function startConnection(
+  ctx: Context,
+  config: Config,
+  policy: ResolvedReconnectPolicy,
+  extras: ConnectionExtras = {},
+): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
-  const opts: ToolBridgeOptions = {
-    registrationFailure: 'contain',
-    serverName: config.serverName,
-    toolCallTimeoutMs: config.toolCallTimeoutMs,
-    ...(config.toolAllow !== undefined ? { toolAllow: config.toolAllow } : {}),
-    ...(config.toolDeny !== undefined ? { toolDeny: config.toolDeny } : {}),
-    ...(config.descriptionMaxLength !== undefined ? { descriptionMaxLength: config.descriptionMaxLength } : {}),
-  }
+  const opts = buildToolBridgeOptions(config)
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
   // and reconnect syncs always contain conflicts.
   const startupOpts: ToolBridgeOptions = config.failOnStartupError
     ? { ...opts, registrationFailure: 'throw' }
     : opts
+  // Lazy start shares the current client through the holder so cached
+  // definitions can resolve calls once the server connects.
+  const holder = extras.clientHolder ?? { current: undefined as Client | undefined }
 
   let disposed = false
   /** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
@@ -143,7 +188,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   /** Close signal paired with {@link client}; captured by dispose before current ownership is cleared. */
   let clientClosed: Promise<void> | undefined
   /** Live tool registrations owned by this server; only {@link enqueueSync} and dispose swap it. */
-  let disposers: ToolDisposers = new Map()
+  let disposers: ToolDisposers = extras.initialDisposers ?? new Map()
   let reconnectTimer: NodeJS.Timeout | undefined
   /** Consecutive failed connection attempts within the current outage. */
   let failedAttempts = 0
@@ -162,10 +207,22 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
    * generation and leak another).
    */
   let syncChain: Promise<void> = Promise.resolve()
+  const catalogTarget = extras.catalog
   function enqueueSync(generation: Client, syncOpts: ToolBridgeOptions = opts): Promise<void> {
     const run = syncChain.then(async () => {
       if (!isCurrent(generation)) return
-      disposers = await syncTools(generation, ctx, syncOpts, disposers)
+      disposers = await syncTools(
+        generation,
+        ctx,
+        syncOpts,
+        disposers,
+        () => holder.current,
+        catalogTarget === undefined
+          ? undefined
+          : (entries: CachedToolEntry[]) => {
+            writeCatalog(catalogTarget.cacheDir, config.serverName, catalogTarget.fingerprint, entries)
+          },
+      )
     })
     // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
     syncChain = run.catch(() => {})
@@ -177,6 +234,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     if (!isCurrent(generation)) return
     client = undefined
     clientClosed = undefined
+    if (holder.current === generation) holder.current = undefined
     scheduleReconnect()
   }
 
@@ -304,6 +362,10 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     }
     if (!isCurrent(generation)) return
     connectedAt = Date.now()
+    // Only a successfully connected generation is callable: cached (lazy)
+    // tool definitions resolve calls through the holder, so while a
+    // connection attempt is in flight they report a clear not-connected error.
+    holder.current = generation
     if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
   }
 
@@ -327,6 +389,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
 
   return {
     ready,
+    getClient: () => holder.current,
     async dispose(): Promise<void> {
       disposed = true
       if (reconnectTimer !== undefined) {
@@ -337,6 +400,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       const currentClosed = clientClosed
       client = undefined
       clientClosed = undefined
+      holder.current = undefined
       if (current !== undefined) {
         try { await current.close() } catch { /* transport already gone */ }
         if (currentClosed !== undefined && !await waitForClose(currentClosed)) {

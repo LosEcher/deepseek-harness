@@ -3,6 +3,9 @@
  * Isolated file so vi.mock of the MCP SDK doesn't pollute other test suites.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -55,6 +58,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 // vi.mock is hoisted above static imports, so the module under test sees the
 // mocked SDK even through a static import.
 import { apply, name, inject, Config as ConfigSchema } from '@deepseek-ai/dsh-mcp-client/src/index.ts'
+import { catalogFingerprint, writeCatalog } from '@deepseek-ai/dsh-mcp-client/src/catalog.ts'
 
 // ---- Helpers ----
 
@@ -399,5 +403,64 @@ describe('apply (plugin lifecycle)', () => {
 
     expect(mockConnect).toHaveBeenCalled()
     expect(ctx.tools.get('mcp__web__remote')).toBeDefined()
+  })
+
+  it('lazy start activates without waiting for the initial connection', async () => {
+    // Isolate the catalog cache (a real ~/.dsh cache would register tools).
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-mcp-lazy-'))
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = dshHome
+    try {
+      const connection: PromiseWithResolvers<void> = Promise.withResolvers()
+      mockConnect.mockImplementation(async () => { await connection.promise })
+      const fiber = ctx.plugin({ name: 'mcp-client-lifecycle', inject, apply }, { ...stdioConfig, lazy: true })
+      let activated = false
+      const activation = Promise.resolve(fiber).then(() => { activated = true })
+      // Activation completes while the connection is still hanging: the host
+      // boot no longer waits for this MCP server.
+      await activation
+      expect(activated).toBe(true)
+      expect(mockConnect).toHaveBeenCalled()
+      // Tools land once the background sync settles.
+      expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+      connection.resolve()
+      await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
+      await fiber.dispose()
+    } finally {
+      if (prev === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = prev
+      rmSync(dshHome, { recursive: true, force: true })
+    }
+  })
+
+  it('lazy start registers cached tools immediately and reports not-connected calls', async () => {
+    const dshHome = mkdtempSync(join(tmpdir(), 'dsh-mcp-lazy-'))
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = dshHome
+    try {
+      const fp = catalogFingerprint(stdioConfig)
+      writeCatalog(join(dshHome, 'cache', 'mcp-catalog'), 'srv', fp, [{
+        publicName: 'mcp__srv__cached',
+        rawName: 'cached',
+        description: 'cached tool',
+        parameters: { type: 'object' },
+        taskRequired: false,
+      }])
+      const connection: PromiseWithResolvers<void> = Promise.withResolvers()
+      mockConnect.mockImplementation(async () => { await connection.promise })
+      await apply(ctx, { ...stdioConfig, lazy: true })
+      // The cached schema is model-visible before any connection exists.
+      const cached = ctx.tools.get('mcp__srv__cached')
+      expect(cached).toBeDefined()
+      // Calling before the server connects fails with a clear message.
+      await expect(cached!.execute({}, {} as never)).rejects.toThrow(/not connected/)
+      connection.resolve()
+      // The live sync replaces the cached generation with the real tools.
+      await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
+    } finally {
+      if (prev === undefined) delete process.env.DSH_HOME
+      else process.env.DSH_HOME = prev
+      rmSync(dshHome, { recursive: true, force: true })
+    }
   })
 })

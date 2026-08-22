@@ -15,9 +15,15 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
+import { RECONNECT_DEFAULTS, buildToolBridgeOptions, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import { catalogFingerprint, readCatalog } from './catalog.ts'
+import { registerCachedTools } from './tools.ts'
+import type { ToolDisposers } from './tools.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
 
@@ -68,6 +74,16 @@ export interface StdioConfig {
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /**
+   * Lazy start: do not block plugin activation on the initial connection.
+   * The fiber activates immediately; the server connects in the background
+   * and its tools register when the sync lands. With a warm tool-catalog
+   * cache the model-facing schemas are registered from cache right away
+   * (calls fail with a clear not-connected error until the server connects).
+   * `failOnStartupError` loses its fiber-rejection meaning under lazy — the
+   * failure is logged and the reconnect loop continues.
+   */
+  lazy?: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
   /**
@@ -104,6 +120,8 @@ export interface StreamableHttpConfig {
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** Lazy start: activate without waiting for the initial connection. See {@link StdioConfig.lazy}. */
+  lazy?: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
   /**
@@ -142,6 +160,7 @@ export const Config = z.union([
     cwd: z.string().default(''),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    lazy: z.boolean().default(false),
     reconnect: Reconnect,
     toolAllow: z.array(String),
     toolDeny: z.array(String),
@@ -154,6 +173,7 @@ export const Config = z.union([
     headers: z.dict(String).default({}),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    lazy: z.boolean().default(false),
     reconnect: Reconnect,
     toolAllow: z.array(String),
     toolDeny: z.array(String),
@@ -171,6 +191,11 @@ export const Config = z.union([
  * @param config - resolved transport and server namespace configuration.
  * @returns startup readiness after connection and initial tool discovery settle.
  */
+/** Catalog cache location: `$DSH_HOME/cache/mcp-catalog` (env or the default home). */
+function catalogCacheDir(): string {
+  return join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'cache', 'mcp-catalog')
+}
+
 export async function apply(ctx: Context, config: Config): Promise<void> {
   // Fail loud at load: reconnect misconfiguration (including programmatic
   // construction that bypassed Schemastery) rejects THIS instance before any
@@ -194,22 +219,61 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     return () => void names.delete(config.serverName)
   }, 'mcp-client.serverName')
 
+  // Lazy start (W-DSH-2): the catalog cache lets the fiber register the
+  // model-facing schemas without spawning the server or waiting for
+  // `tools/list`, so plugin activation no longer blocks the host boot on
+  // MCP servers. The live sync replaces the cached generation once the real
+  // connection settles (its disposers ride as the sync's `previous`).
+  const lazy = config.lazy === true
+  const holder: { current: Client | undefined } = { current: undefined }
+  let initialDisposers: ToolDisposers | undefined
+  if (lazy) {
+    const cacheDir = catalogCacheDir()
+    const fingerprint = catalogFingerprint(config)
+    const cached = readCatalog(cacheDir, config.serverName)
+    if (cached !== undefined && cached.fingerprint === fingerprint && cached.tools.length > 0) {
+      initialDisposers = registerCachedTools(
+        ctx,
+        buildToolBridgeOptions(config),
+        cached.tools,
+        () => holder.current,
+      )
+    }
+  }
+
   // The supervisor owns the client/transport generations, the reconnect
   // loop, and the live tool registrations; disposal stops reconnection,
   // quiesces in-flight work, and unregisters the current generation.
-  const connection = startConnection(ctx, config, reconnect)
+  const connection = startConnection(ctx, config, reconnect, {
+    clientHolder: holder,
+    ...(initialDisposers !== undefined ? { initialDisposers } : {}),
+    ...(lazy ? { catalog: { cacheDir: catalogCacheDir(), fingerprint: catalogFingerprint(config) } } : {}),
+  })
 
   ctx.effect(() => {
     return () => connection.dispose()
   }, 'mcp-client.connection')
 
-  // Block plugin activation on the initial connection + tool discovery so
-  // Cordis consumers observe the tools immediately after the fiber activates.
-  // When failOnStartupError is true, a failed initial attempt rejects the
-  // fiber (Cordis rolls it back); otherwise the error is logged and the
-  // supervisor enters its reconnect loop.
-  const outcome = await connection.ready
-  if (outcome.error !== undefined && config.failOnStartupError) {
-    throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error })
+  if (!lazy) {
+    // Block plugin activation on the initial connection + tool discovery so
+    // Cordis consumers observe the tools immediately after the fiber activates.
+    // When failOnStartupError is true, a failed initial attempt rejects the
+    // fiber (Cordis rolls it back); otherwise the error is logged and the
+    // supervisor enters its reconnect loop.
+    const outcome = await connection.ready
+    if (outcome.error !== undefined && config.failOnStartupError) {
+      throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error })
+    }
+    return
   }
+  // Lazy: activation does not wait; a failed first attempt is logged by the
+  // supervisor and the reconnect loop continues. `failOnStartupError` loses
+  // its fiber-rejection meaning here (the fiber is already active).
+  void connection.ready.then((outcome) => {
+    if (outcome.error !== undefined) {
+      ctx.logger.warn(
+        `mcp-client(${config.serverName}): lazy start — initial connection failed; tools unavailable until it connects: ${String(outcome.error)}`,
+      )
+    }
+  })
 }
