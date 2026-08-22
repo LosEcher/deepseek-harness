@@ -868,13 +868,31 @@ function listProjectionsFor(ctx: Context, meta: SessionHeader, session: Session 
   }
 }
 
-/** Projection baseline for a detached history tail without Agent activation. */
+/**
+ * Projection baseline for a detached history tail without Agent activation.
+ * Folds incrementally over the persisted projection cache's identity-checked
+ * checkpoint (W-DSH-3): only events after the cache watermark are refolded,
+ * so a large cold history read pays the fold cost of the tail alone. Falls
+ * back to a full fold when the cache has no usable row for this lifecycle.
+ * @param ctx - context carrying the projection registry and cache.
+ * @param meta - the detached session's header (identity witness for the cache).
+ * @param events - the fully inspected log events.
+ * @returns the projection block, or undefined when no registry is composed.
+ */
 function detachedProjectionsFor(
   ctx: Context,
+  meta: SessionHeader,
   events: readonly SessionEvent[],
 ): SessionProjectionsBlock | undefined {
   const registry = ctx.get('sessionProjections')
   if (registry === undefined) return undefined
+  const checkpoint = ctx.get('sessionProjectionCache')?.checkpointFor(meta)
+  if (checkpoint !== undefined) {
+    const floor = registry.restoreFloor(checkpoint)
+    if (floor !== undefined) {
+      return registry.restore(checkpoint, events, floor).snapshot
+    }
+  }
   return registry.restore({}, events, 0).snapshot
 }
 
@@ -1569,7 +1587,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     includeProjections: boolean,
   ): { events: SessionEvent[]; projections?: SessionProjectionsBlock } {
     if (source.kind === 'detached') {
-      const projections = includeProjections ? detachedProjectionsFor(ctx, source.events) : undefined
+      const projections = includeProjections ? detachedProjectionsFor(ctx, source.header, source.events) : undefined
       return { events: source.events, ...projections === undefined ? {} : { projections } }
     }
     const events = [...source.session.events]
@@ -2667,7 +2685,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             header = inspected.meta
             events = inspected.events
             projections = beforeSeq === undefined
-              ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.events))
+              ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.meta, inspected.events))
               : undefined
           } catch (error: unknown) {
             if (signal?.aborted) {

@@ -130,6 +130,20 @@ export class SessionProjectionCache extends Service {
   }
 
   /**
+   * The identity-checked stored checkpoint rows for one session — the raw
+   * fold input a cold transcript read folds its tail over (W-DSH-3). Zero
+   * I/O like {@link cachedSnapshot}; absent or bound to an unrelated log
+   * lifecycle reads as undefined. A callers folds only the events after the
+   * checkpoint's watermark, so a large cold history read refolds just the
+   * tail instead of the whole log.
+   * @param meta - the session's header (identity witness; no log read).
+   * @returns the stored checkpoint rows, or undefined when absent/unrelated.
+   */
+  checkpointFor(meta: SessionHeader): ProjectionCheckpoint | undefined {
+    return this.recordFor(meta.id, identityOf(meta))?.rows
+  }
+
+  /**
    * Durably checkpoint one live session NOW (both mandatory points call
    * this; tests and carriers may too). The registry cut is snapshotted at
    * this boundary (states are live references), then the whole record is

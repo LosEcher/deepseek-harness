@@ -363,6 +363,25 @@ describe('SessionProjectionCache cold read', () => {
     expect(cache.cachedSnapshot(headerOf(SessionId('never-cached')))).toBeUndefined()
   })
 
+  it('checkpointFor serves identity-checked rows for the cold-fold tail and refuses unrelated lifecycles', async () => {
+    const pool = new MemoryMediaPool()
+    const logs = new Map<string, SessionEvent[]>()
+    const { cache, ctx: c } = await harness({ pool, logs })
+    const id = SessionId('cp-check')
+    const session = await c.sessions.create(id)
+    mark(session, ['a'])
+    mark(session, ['b'])
+    endTurn(session)
+    await cache.write(session)
+    // The raw fold input a cold transcript read folds its tail over.
+    const marksRow = cache.checkpointFor(session.header)?.['cache-test/marks']
+    expect(marksRow?.val).toEqual({ marks: ['b'] })
+    // A recreated id (different createdAt): the record is unrelated — no rows.
+    expect(cache.checkpointFor({ ...session.header, createdAt: session.header.createdAt + 1 })).toBeUndefined()
+    // Unknown id: no rows.
+    expect(cache.checkpointFor(headerOf(SessionId('never-cached')))).toBeUndefined()
+  })
+
   it('holds the not-found contract with zero registered units, and dates the empty cut for a present log', async () => {
     // Same composition minus any registered unit: restoreFloor is undefined,
     // yet coldSnapshot must still reject for an absent log (probe read) and
