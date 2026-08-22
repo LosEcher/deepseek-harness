@@ -502,3 +502,133 @@ describe('restart-coordination gates (markDraining / hasLiveActivity)', () => {
     expect(agent.status).toBe('idle')
   })
 })
+
+describe('O5/O6 restart fixes', () => {
+  it('drainToIdle fast-exits a pre-step turn as pending (O5: pre-step gap not cut)', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('done')]))
+    // Hold the turn inside the pre-step assembly (before any model request),
+    // reproducing the instant right after a write tool settles.
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    ctx.on('agent/pre-step', async (_payload, next) => {
+      await gate
+      return next()
+    })
+    const agent = await ctx.agentLoop.create(SessionId('s-prestep-drain'), { provider: 'mock', model: 'mock' })
+    const running = waitForStatus(ctx, agent, 'running')
+    send(agent, 'go')
+    await running
+    await vi.waitFor(() => { expect((agent as unknown as { activity: string }).activity).toBe('pre-step') })
+
+    const outcome = await (agent as unknown as Drainable).drainToIdle(5_000)
+    expect(outcome).toBe('pending')
+    const pending = agent.session.events.findLast(e => e.type === 'turn/pending')
+    expect(pending?.type === 'turn/pending' ? pending.data.turn : undefined).toBe(1)
+    // No turn/end was written: the turn stays open for post-resume rebuild.
+    expect(agent.session.events.filter(e => e.type === 'turn/end')).toHaveLength(0)
+    release()
+    await waitForStatus(ctx, agent, 'idle')
+  })
+
+  it('resuming a pre-step drain with no pending input closes the turn cleanly (O5 resume guard)', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('should-not-be-called')]))
+    const { agent } = await ctx.agents.create({
+      sessionId: SessionId('s-resume-empty-input'),
+      seed: [
+        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+        // The pre-drain claim splice consumed the input; only the pending
+        // marker survives. Resume must close the turn cleanly instead of
+        // issuing an empty model request.
+        { type: 'turn/pending', seq: 1, time: 2, data: { turn: 1 } },
+      ],
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await agent.whenIdle()
+    // No model request was issued for the empty resumed turn.
+    expect(agent.session.events.some(event => event.type === 'request/header')).toBe(false)
+    const end = agent.session.events.findLast(event => event.type === 'turn/end')
+    expect(end?.type === 'turn/end' ? end.data : undefined).toMatchObject({
+      turn: 1,
+      reason: { kind: 'completed' },
+    })
+  })
+
+  it('clearDraining reopens the turn gate after an armed restart that did not exit', async () => {
+    const ctx = await harness(new MockAdapter([textResponse('done'), textResponse('done-2')]))
+    const loop = ctx.agentLoop as unknown as {
+      markDraining(): void
+      clearDraining(): void
+      create(...args: unknown[]): Agent & { hasLiveActivity(): boolean }
+    }
+    const agent = loop.create(SessionId('s-clear-drain'), { provider: 'mock', model: 'mock' })
+    loop.markDraining()
+    send(agent, 'before-clear')
+    await new Promise<void>((resolve) => { setTimeout(resolve, 60) })
+    expect(agent.hasLiveActivity()).toBe(false)
+    // The coordinator's stop() after a failed interrupt reopens the gate.
+    loop.clearDraining()
+    send(agent, 'after-clear')
+    await waitForStatus(ctx, agent, 'idle')
+    // Both queued messages were processed: no silent wedge for the process lifetime.
+    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(2)
+    const end = agent.session.events.findLast(event => event.type === 'turn/end')
+    expect(end?.type === 'turn/end' ? end.data.reason : undefined).toMatchObject({ kind: 'completed' })
+  })
+
+  it('abortBlockingActivity targets only the machine stuck longest (O5 companion D)', async () => {
+    const ctx = await harness(new MockAdapter([
+      // Global script order: agent A's first model call consumes entry 0,
+      // agent B's first model call consumes entry 1.
+      toolCallResponse('c-a', 'stuck-a', {}),
+      toolCallResponse('c-b', 'stuck-b', {}),
+      textResponse('after-a'),
+      textResponse('after-b'),
+    ]))
+    let releaseA!: () => void
+    const blockedA = new Promise<void>((resolve) => { releaseA = resolve })
+    let releaseB!: () => void
+    const blockedB = new Promise<void>((resolve) => { releaseB = resolve })
+    const cooperative = (name: string, blocked: Promise<void>, label: string) =>
+      defineContentToolFixture({
+        name,
+        description: 'cooperative: aborts on signal, otherwise blocks',
+        parameters: {},
+        async execute(_args, exec) {
+          await Promise.race([
+            blocked,
+            new Promise<void>((resolve) => {
+              exec.signal?.addEventListener('abort', () => resolve(), { once: true })
+            }),
+          ])
+          if (exec.signal?.aborted) throw new Error(`aborted-${label}`)
+          return [{ type: 'text', text: 'ok' }]
+        },
+      })
+    ctx.tools.register(cooperative('stuck-a', blockedA, 'a'))
+    ctx.tools.register(cooperative('stuck-b', blockedB, 'b'))
+    const loop = ctx.agentLoop as unknown as {
+      abortBlockingActivity(): void
+      create(...args: unknown[]): Agent
+    }
+    const a = loop.create(SessionId('s-target-a'), { provider: 'mock', model: 'mock' })
+    const b = loop.create(SessionId('s-target-b'), { provider: 'mock', model: 'mock' })
+    send(a, 'go a')
+    await vi.waitFor(() => { expect((a as unknown as { activity: string }).activity).toBe('tool-in-flight') })
+    await new Promise<void>((resolve) => { setTimeout(resolve, 40) }) // A blocks first
+    send(b, 'go b')
+    await vi.waitFor(() => { expect((b as unknown as { activity: string }).activity).toBe('tool-in-flight') })
+
+    loop.abortBlockingActivity()
+    // Only A (stuck longest) is aborted; B's signal stays clean.
+    expect((a as unknown as { phase: { abort: AbortController } }).phase.abort.signal.aborted).toBe(true)
+    expect((b as unknown as { phase: { abort: AbortController } }).phase.abort.signal.aborted).toBe(false)
+    releaseB()
+    await waitForStatus(ctx, b, 'idle')
+    expect(b.session.events.some(event =>
+      event.type === 'turn/end' && event.data.reason?.kind === 'completed')).toBe(true)
+    releaseA()
+    await waitForStatus(ctx, a, 'idle')
+    expect(a.session.events.some(event =>
+      event.type === 'turn/end' && event.data.reason?.kind === 'aborted')).toBe(true)
+  })
+})

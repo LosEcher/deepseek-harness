@@ -98,6 +98,11 @@ export class ReactLoopAgent implements Agent {
    * batch boundary; meaningless when {@link activity} is not `tool-in-flight`.
    */
   private inFlightSideEffect: 'read' | 'write' = 'write'
+  /**
+   * O6 (targeted abort): wall-clock start of the current in-flight write
+   * batch, for judging which machine is stuck. 0 while not blocking.
+   */
+  private blockingSince = 0
 
   /** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
   readonly scope: Scope
@@ -242,6 +247,16 @@ export class ReactLoopAgent implements Agent {
     this.draining = true
   }
 
+  /**
+   * Reopen the turn gate after an armed restart that did not actually exit
+   * (failed interrupt, supervisor race). Draining has no other reset path —
+   * without this, the process lifetime is wedged and every new wake is
+   * silently refused.
+   */
+  clearDraining(): void {
+    this.draining = false
+  }
+
   /** True while a turn is live (pre-step / model-wait / tool-in-flight). */
   hasLiveActivity(): boolean {
     return this.phase.kind !== 'idle'
@@ -256,6 +271,16 @@ export class ReactLoopAgent implements Agent {
    */
   hasBlockingActivity(): boolean {
     return this.activity === 'tool-in-flight' && this.inFlightSideEffect === 'write'
+  }
+
+  /**
+   * How long the current in-flight write batch has been blocking (0 when not
+   * blocking). Lets the loop abort only the stuck machine instead of every
+   * live machine's write tool (O5 companion finding D).
+   */
+  blockingAgeMs(): number {
+    if (this.activity !== 'tool-in-flight' || this.inFlightSideEffect !== 'write') return 0
+    return Math.max(0, Date.now() - this.blockingSince)
   }
 
   /**
@@ -312,10 +337,14 @@ export class ReactLoopAgent implements Agent {
       return 'pending'
     }
     if (this.activity === 'pre-step') {
-      // No model request issued yet: nothing worth resuming (the claimed
-      // input stays in the durable inbox). Keep the old no-step contract —
-      // the caller's cancel closes the turn.
-      return 'idle'
+      // O5: the pre-step gap (the instant right after a write tool settles,
+      // before the next model request) is a live turn — cutting it as 'idle'
+      // closes the turn as aborted and loses the in-flight work. Mark it
+      // resumable instead: a resumed turn re-claims whatever is still pending,
+      // and the empty-input guard in turn() closes the turn cleanly when
+      // nothing remains (the claimed input was consumed by its splice).
+      this.markPending()
+      return 'pending'
     }
     if (this.activity === 'tool-in-flight' && this.inFlightSideEffect === 'read') {
       // A declared read-only batch has no external side effects: fast-exit to
@@ -398,6 +427,7 @@ export class ReactLoopAgent implements Agent {
         const { turn, wakeRequested } = this.phase
         this.setPhase({ kind: 'idle', lastTurn: turn })
         this.activity = 'idle'
+        this.blockingSince = 0
         if (!this.draining && wakeRequested && this.inbox.hasPending) this.wakeDriver()
       }
     }
@@ -488,6 +518,14 @@ export class ReactLoopAgent implements Agent {
           return false
         }
         if (turnEnds && decision.messages.length === 0) break
+        // O5 resume guard: a resumed pre-step drain with no step started yet
+        // may find nothing pending (the pre-drain claim splice already
+        // consumed the input). Close the turn cleanly instead of issuing an
+        // empty model request.
+        if (resuming !== undefined && phase.step === 0 && decision.messages.length === 0 && !this.inbox.hasPending) {
+          turnEnds = { kind: 'completed' }
+          return false
+        }
         // A removed waking message or an enter decision rewritten to empty
         // still owns the initial turn boundary, but it spends no model call.
         if (phase.step === 0 && decision.messages.length === 0) {
@@ -667,10 +705,14 @@ export class ReactLoopAgent implements Agent {
         agent: this,
         signal,
       }) === 'read') ? 'read' : 'write'
+      // O6: anchor the blocking window so the loop can abort the machine that
+      // has been stuck the longest instead of every live write tool.
+      if (this.inFlightSideEffect === 'write') this.blockingSince = Date.now()
       const { concluded } = await executeToolCalls(
         this.loopCtx, turn, step, toolCalls, signal,
         context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),
       )
+      this.blockingSince = 0
       this.activity = 'pre-step'
       return concluded ? { kind: 'completed' } : null
     }

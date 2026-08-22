@@ -730,6 +730,17 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
+   * Reopen the loop-level turn gate after an armed restart that did not
+   * actually exit (failed interrupt, supervisor race). Without it, agents
+   * created during the failed window stay wedged for the process lifetime
+   * (draining has no other reset path).
+   */
+  clearDraining(): void {
+    this.draining = false
+    for (const machine of this.liveMachines) machine.clearDraining()
+  }
+
+  /**
    * True while any live machine has a tool's external side effects in flight.
    * Model wait and pre-step do not block a coordinated restart.
    */
@@ -741,14 +752,26 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
-   * O6: abort every live machine's in-flight write tool when the restart
-   * coordinator judges them stuck (blocking past the stuck window). Best-effort:
-   * cooperative tools fail fast, so the next {@link hasBlockingActivity} poll
-   * sees no blocking activity and the coordinated restart exits before the wait
-   * cap. Tools that ignore their signal are bounded by the cap instead.
+   * O6: abort the in-flight write tool of the machine that has been blocking
+   * longest when the restart coordinator judges tools stuck (blocking past
+   * the stuck window). Targeted, not global: a healthy but slow write tool on
+   * another machine must not be collateral damage (O5 companion finding D).
+   * Best-effort: cooperative tools fail fast, so the next
+   * {@link hasBlockingActivity} poll sees no blocking activity and the
+   * coordinated restart exits before the wait cap. Tools that ignore their
+   * signal are bounded by the cap instead.
    */
   abortBlockingActivity(): void {
-    for (const machine of this.liveMachines) machine.abortBlockingActivity()
+    let stuck: ReactLoopAgent | undefined
+    let oldest = 0
+    for (const machine of this.liveMachines) {
+      const age = machine.blockingAgeMs()
+      if (age > oldest) {
+        oldest = age
+        stuck = machine
+      }
+    }
+    stuck?.abortBlockingActivity()
   }
 
   /**

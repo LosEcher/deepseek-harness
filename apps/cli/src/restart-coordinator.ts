@@ -50,6 +50,12 @@ export interface RestartCoordinatorAgentLoop {
   hasBlockingActivity(): boolean
   /** O6: best-effort abort of the in-flight write tool when judged stuck. */
   abortBlockingActivity?(): void
+  /**
+   * Reopen the turn gate if the armed restart does not actually exit
+   * (failed interrupt, supervisor race) — otherwise live sessions stay
+   * silently wedged for the process lifetime.
+   */
+  clearDraining?(): void
 }
 
 export interface RestartCoordinatorOptions {
@@ -119,6 +125,11 @@ export function startRestartCoordinator(options: RestartCoordinatorOptions): () 
       } catch {
         // Already gone; a stale immediate signal must not leak into a later boot.
       }
+      // O5 companion (C): if the armed restart does not actually exit (failed
+      // interrupt, supervisor race), reopen the turn gate so live sessions are
+      // not silently wedged for the process lifetime. Harmless on the normal
+      // exit path — the process is about to terminate.
+      getAgentLoop()?.clearDraining?.()
     }
     disposed = true
     clearInterval(timer)
