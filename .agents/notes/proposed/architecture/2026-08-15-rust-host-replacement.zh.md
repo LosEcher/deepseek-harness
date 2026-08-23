@@ -142,6 +142,13 @@ ledger 上的 `migrated` 表示已出厂的默认 Provider 是 Rust。TypeScript
 
 [`native/dsh/migration/package-map.json`](../../../../native/dsh/migration/package-map.json) 是机器可读 ledger，[`docs/rust-migration-matrix.md`](../../../../docs/rust-migration-matrix.md) 是其生成的人类视图，由 [`scripts/gen-rust-migration-ledger.ts`](../../../../scripts/gen-rust-migration-ledger.ts) 生成。维护者编辑 [`native/dsh/migration/overrides.json`](../../../../native/dsh/migration/overrides.json)。[ledger Agent Note](../../implemented/process/2026-08-15-rust-migration-ledger.md) 负责该生成器。`removeAfter` 不是移除 Node 的门；本提案不安排删除 TypeScript 实现。
 
+### 外部设计参考（2026-08-23）
+
+InstantDB（`instantdb/instant`，Apache-2.0；OpenAI 2026-08-22 收购团队；完整分析见 `dsfolder/INSTANTDB-ANALYSIS-2026-08-23.md`）验证并锐化了本笔记触及的两个语义。二者都是参考形态而非待导入代码——实现顺序仍以 TypeScript 为准（先做 Step 3），Rust 重实现只在上述阶段门禁内进行。
+
+- **幂等续传协议（Step 3；未来任何 P5 重实现）。** InstantDB 客户端 `SyncTable` 协议是可重连流上 exactly-once 重发的行业参照：每条客户端消息带客户端生成的 `client-event-id`（服务端按它去重）；每个订阅持有持久化的 `tx-id` 游标加服务端签发的 `token`；重连时客户端发 `resync-table {subscription-id, tx-id, token}`，服务端从该游标续推（见 `client/packages/core/src/SyncTable.ts` 与 `Connection.ts`）。Step 3 chunk 去重、pending marker 去重及任何 Rust 重实现必须匹配该形态：客户端生成幂等键 + 持久化游标 + 服务端按序去重。
+- **派生搜索/索引投影（candidate work queue 第 2 项）。** InstantDB 在 Postgres 上跑多租户 triple store（EAV），自管列、partial index 实现唯一约束、count-min sketch 恢复 planner 统计。该模式对应 `dsh-session-index`：在权威会话日志之上做一次性派生数据库，生成 `(session_id, event_id, attr, value)` 行加生成列与索引，而不是特制查询端点；其查询引擎把形状查询编译成 SQL 计划（pg_hint_plan）——是把 `SessionQuery` 编译成针对派生库的 SQL 的先例。
+
 ## 考虑过的替代方案
 
 **替换 Node 进程根并移除 JavaScript 运行时（此前的 P5–P9 宿主替换计划）。** 作为完成条件否决：它会收回 `apply(ctx)`、HMR、`!!js` 和 `dsh-tool-cordis`。Rust Provider 不要求那次收回。
