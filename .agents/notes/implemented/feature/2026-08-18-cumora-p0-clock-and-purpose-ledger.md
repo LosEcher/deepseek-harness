@@ -48,10 +48,27 @@ three event sources:
 | `session-title` | `session/title-llm-request` | calls only (event records route, not usage) |
 
 `/observability/summary` gains a `usage` array `{provider, model, purpose, calls,
-inputTokens, outputTokens, cost?}`; `/metrics` series are unchanged (backward
-compatible). Cost estimation is optional via a price table in the plugin config
-(`prices`, USD per 1M tokens keyed by `provider/model`); without it, `cost` is
-omitted — cost stays a deployment concern, consistent with the borrow list.
+inputTokens, outputTokens, cacheReadTokens, cost?}`; `/metrics` series are unchanged
+(backward compatible). Cost estimation is optional via a price table in the plugin
+config (`prices` keyed by `provider/model`); without it, `cost` is omitted — cost
+stays a deployment concern, consistent with the borrow list.
+
+### Price table (2026-08-23) — cache-read costing + time-aware peak pricing
+
+The price entry was extended for DeepSeek's peak/off-peak billing (2026-08-17,
+weekend flat rate since 2026-08-23):
+
+- `inputPerMTok` / `outputPerMTok` are **off-peak** rates; `inputCacheHitPerMTok`
+  prices cache-read input separately (llm adapters report net cache-miss input in
+  `inputTokens` and cache reads in `cacheReadTokens`, so the cube now folds and
+  bills both).
+- `peakMultiplier` (DeepSeek: 2) applies inside Beijing peak hours 09:00-12:00 /
+  14:00-18:00 on weekdays (`billingPeriodAt`); weekends are always off-peak.
+- `currency: 'cny'` + optional `cnyPerUsd` (default 6.8, CNY per USD — PBOC
+  midpoint 2026-08-20/21 ≈ 6.78) converts CNY prices to the USD cost field
+  (cost_cny / cnyPerUsd).
+- Cost accrues at **fold time** (observe time ≈ event time), so peak/off-peak is
+  priced by the event's actual time; the cube stays since-process-start.
 
 The two plugin-extended events (`compaction/summary`, `session/title-llm-request`)
 are typed locally in the bundle to avoid hard dependencies on dsh-compaction /

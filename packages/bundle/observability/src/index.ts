@@ -22,16 +22,64 @@ export const name = 'observability'
 /** Declared service dependencies: the session store feeds events; the web server hosts the route. */
 export const inject = ['sessions', 'webServer']
 
-/** Plugin config: an optional USD price table enables cost estimation. */
+/** Plugin config: an optional price table enables cost estimation. */
 export interface Config {
-  /** USD per 1M tokens, keyed by `provider/model` route. */
+  /** Per-1M prices, keyed by `provider/model` route. */
   prices?: LlmPriceTable
+}
+
+/** Per-route pricing entry (all rates are off-peak; see {@link billingPeriodAt}). */
+export interface LlmPrice {
+  /** Price per 1M cache-miss input tokens at off-peak hours. */
+  inputPerMTok: number
+  /** Price per 1M output tokens at off-peak hours. */
+  outputPerMTok: number
+  /** Optional price per 1M cache-read input tokens (DeepSeek bills cache hits at a fraction of misses). */
+  inputCacheHitPerMTok?: number
+  /** Currency of the per-1M prices (default `'usd'`). DeepSeek bills in CNY. */
+  currency?: 'cny' | 'usd'
+  /** Peak multiplier inside Beijing peak hours (DeepSeek: 2); weekends are always off-peak (since 2026-08-23). */
+  peakMultiplier?: number
+  /** CNY→USD conversion: CNY per 1 USD (default {@link DEFAULT_CNY_PER_USD}); cost fields are USD. */
+  cnyPerUsd?: number
+}
+
+/** Per-provider/model price table (see {@link LlmPrice}). */
+export interface LlmPriceTable {
+  [route: string]: LlmPrice
+}
+
+/** Default CNY→USD conversion: CNY per 1 USD. PBOC midpoint 2026-08-20/21 was
+ * 6.7808/6.7817; round to 6.8 as a stable default. Per-route `cnyPerUsd`
+ * overrides it; keep in sync with the rate when the midpoint drifts. */
+export const DEFAULT_CNY_PER_USD = 6.8
+
+type BillingPeriod = 'peak' | 'off-peak'
+
+const BEIJING_HOUR_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', hour: 'numeric', hourCycle: 'h23' })
+const BEIJING_WEEKDAY_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', weekday: 'short' })
+
+/**
+ * DeepSeek billing period for a timestamp in Beijing time: peak = 09:00-12:00
+ * and 14:00-18:00 on weekdays; weekends (Sat/Sun) and everything outside peak
+ * hours are off-peak. The weekend flat rate applies since 2026-08-23.
+ */
+export function billingPeriodAt(at: Date): BillingPeriod {
+  const hour = Number(BEIJING_HOUR_FMT.format(at))
+  const weekday = BEIJING_WEEKDAY_FMT.format(at)
+  if (weekday === 'Sat' || weekday === 'Sun') return 'off-peak'
+  if ((hour >= 9 && hour < 12) || (hour >= 14 && hour < 18)) return 'peak'
+  return 'off-peak'
 }
 
 export const Config: z<Config> = z.object({
   prices: z.dict(z.object({
     inputPerMTok: z.number(),
     outputPerMTok: z.number(),
+    inputCacheHitPerMTok: z.number(),
+    currency: z.union([z.const('cny'), z.const('usd')]),
+    peakMultiplier: z.number(),
+    cnyPerUsd: z.number(),
   }), z.string()).default({}),
 })
 /** Per-session turn cursor used to count resumable pending tails. */
@@ -57,12 +105,21 @@ export interface ObservabilitySummary {
   pendingTurns: number
   compactions: number
   llmCalls: { provider: string; model: string; reasoningEffort?: string; purpose: LlmPurpose; count: number }[]
-  tokens: { kind: 'input' | 'output'; provider?: string; model?: string; purpose: LlmPurpose; tokens: number }[]
+  tokens: { kind: 'input' | 'output' | 'cache-read'; provider?: string; model?: string; purpose: LlmPurpose; tokens: number }[]
   toolCalls: { tool: string; count: number }[]
   events: { type: string; count: number }[]
   totalEvents: number
   /** Per-(provider, model, purpose) usage cube: calls, tokens, and estimated cost when a price table is configured. */
-  usage: { provider: string; model: string; purpose: LlmPurpose; calls: number; inputTokens: number; outputTokens: number; cost?: number }[]
+  usage: {
+    provider: string
+    model: string
+    purpose: LlmPurpose
+    calls: number
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cost?: number
+  }[]
 }
 
 /**
@@ -83,7 +140,7 @@ interface CompactionSummaryEvent {
   data: {
     provider: string
     model: string
-    usage?: { inputTokens: number; outputTokens: number }
+    usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number }
   }
 }
 
@@ -101,9 +158,17 @@ interface TitleLlmRequestEvent {
 /** The event union the registry folds: core events plus the two attributed plugin events. */
 type FoldedEvent = SessionEvent | CompactionSummaryEvent | TitleLlmRequestEvent
 
-/** Per-provider/model price table (USD per 1M tokens) for cost estimation. */
-export interface LlmPriceTable {
-  [route: string]: { inputPerMTok: number; outputPerMTok: number }
+/** One (provider, model, purpose) usage-cube row; `costUsd: null` = route unpriced. */
+interface UsageRow {
+  calls: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  costUsd: number | null
+}
+
+function emptyUsageRow(): UsageRow {
+  return { calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: null }
 }
 
 /**
@@ -118,7 +183,7 @@ export class MetricsRegistry {
   private readonly llmCalls = new Map<string, number>()
   private readonly tokensByKind = new Map<string, number>()
   private readonly toolCalls = new Map<string, number>()
-  private readonly usageByPurpose = new Map<string, { calls: number; inputTokens: number; outputTokens: number }>()
+  private readonly usageByPurpose = new Map<string, UsageRow>()
   private compactions = 0
   private readonly prices: LlmPriceTable
 
@@ -171,7 +236,7 @@ export class MetricsRegistry {
   }
 
   /** Fold one session event into the derived counters. */
-  observe(session: Session, event: FoldedEvent): void {
+  observe(session: Session, event: FoldedEvent, at: Date = new Date()): void {
     this.eventsByType.set(event.type, (this.eventsByType.get(event.type) ?? 0) + 1)
     // The turn cursor only understands core turn-boundary events; the two
     // attributed plugin events are log-only and never turn-boundary markers.
@@ -186,7 +251,7 @@ export class MetricsRegistry {
         const { provider, model, reasoningEffort } = event.data.header.config
         const key = `${provider}\u0000${model}\u0000${reasoningEffort ?? ''}`
         this.llmCalls.set(key, (this.llmCalls.get(key) ?? 0) + 1)
-        this.foldUsage(provider, model, 'assistant', 1, 0, 0)
+        this.foldUsage(provider, model, 'assistant', 1, 0, 0, 0, at)
         break
       }
       case 'assistant/message': {
@@ -194,20 +259,26 @@ export class MetricsRegistry {
         if (usage === undefined) break
         // Token usage folds by provider/model route (the usage/cost cube
         // projection): kind + route form the series key. Main-loop responses
-        // attribute to the `assistant` purpose.
+        // attribute to the `assistant` purpose. `inputTokens` is the net
+        // cache-miss input (llm adapters subtract cache reads), so cache-read
+        // tokens are folded separately and priced at `inputCacheHitPerMTok`.
         const source = event.data.message.source
         const provider = source.provider
         const model = source.model
-        const input = usage.inputTokens
-        const output = usage.outputTokens
-        const finiteInput = Number.isFinite(input) && input >= 0 ? input : 0
-        const finiteOutput = Number.isFinite(output) && output >= 0 ? output : 0
-        this.foldUsage(provider, model, 'assistant', 0, finiteInput, finiteOutput)
-        if (finiteInput > 0) {
-          this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + finiteInput)
+        const finite = (value: number | undefined): number =>
+          value === undefined || !Number.isFinite(value) || value < 0 ? 0 : value
+        const input = finite(usage.inputTokens)
+        const output = finite(usage.outputTokens)
+        const cacheRead = finite(usage.cacheReadTokens)
+        this.foldUsage(provider, model, 'assistant', 0, input, output, cacheRead, at)
+        if (input > 0) {
+          this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + input)
         }
-        if (finiteOutput > 0) {
-          this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + finiteOutput)
+        if (output > 0) {
+          this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + output)
+        }
+        if (cacheRead > 0) {
+          this.tokensByKind.set(`cache-read\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`cache-read\u0000${provider}\u0000${model}`) ?? 0) + cacheRead)
         }
         break
       }
@@ -215,19 +286,23 @@ export class MetricsRegistry {
         // Compaction summarization calls carry their own provider/model/usage
         // on the summary event (they do not pass through request/header).
         const { provider, model } = event.data
-        this.foldUsage(provider, model, 'compaction', 1, 0, 0)
+        this.foldUsage(provider, model, 'compaction', 1, 0, 0, 0, at)
         const usage = event.data.usage
         if (usage !== undefined) {
-          const input = usage.inputTokens
-          const output = usage.outputTokens
-          const finiteInput = Number.isFinite(input) && input >= 0 ? input : 0
-          const finiteOutput = Number.isFinite(output) && output >= 0 ? output : 0
-          this.foldUsage(provider, model, 'compaction', 0, finiteInput, finiteOutput)
-          if (finiteInput > 0) {
-            this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + finiteInput)
+          const finite = (value: number | undefined): number =>
+            value === undefined || !Number.isFinite(value) || value < 0 ? 0 : value
+          const input = finite(usage.inputTokens)
+          const output = finite(usage.outputTokens)
+          const cacheRead = finite(usage.cacheReadTokens)
+          this.foldUsage(provider, model, 'compaction', 0, input, output, cacheRead, at)
+          if (input > 0) {
+            this.tokensByKind.set(`input\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`input\u0000${provider}\u0000${model}`) ?? 0) + input)
           }
-          if (finiteOutput > 0) {
-            this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + finiteOutput)
+          if (output > 0) {
+            this.tokensByKind.set(`output\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`output\u0000${provider}\u0000${model}`) ?? 0) + output)
+          }
+          if (cacheRead > 0) {
+            this.tokensByKind.set(`cache-read\u0000${provider}\u0000${model}`, (this.tokensByKind.get(`cache-read\u0000${provider}\u0000${model}`) ?? 0) + cacheRead)
           }
         }
         break
@@ -255,12 +330,22 @@ export class MetricsRegistry {
     calls: number,
     inputTokens: number,
     outputTokens: number,
+    cacheReadTokens = 0,
+    at: Date = new Date(),
   ): void {
     const key = `${provider}\u0000${model}\u0000${purpose}`
-    const row = this.usageByPurpose.get(key) ?? { calls: 0, inputTokens: 0, outputTokens: 0 }
+    const row = this.usageByPurpose.get(key) ?? emptyUsageRow()
     row.calls += calls
     row.inputTokens += inputTokens
     row.outputTokens += outputTokens
+    row.cacheReadTokens += cacheReadTokens
+    // Cost accrues at fold time so peak/off-peak pricing uses the event's
+    // actual time (the cube is deliberately since-process-start live folding).
+    if (row.costUsd !== null) {
+      row.costUsd += this.estimateCost(provider, model, { inputTokens, outputTokens, cacheReadTokens }, at) ?? 0
+    } else if (this.prices[`${provider}/${model}`] !== undefined) {
+      row.costUsd = this.estimateCost(provider, model, { inputTokens, outputTokens, cacheReadTokens }, at) ?? 0
+    }
     this.usageByPurpose.set(key, row)
   }
 
@@ -297,7 +382,7 @@ export class MetricsRegistry {
         .map(([key, tokens]) => {
           const [kind, provider, model] = key.split('\u0000')
           return {
-            kind: kind as 'input' | 'output',
+            kind: kind as 'input' | 'output' | 'cache-read',
             ...(provider !== undefined && provider !== '' ? { provider } : {}),
             ...(model !== undefined && model !== '' ? { model } : {}),
             purpose: 'assistant' as const,
@@ -323,26 +408,38 @@ export class MetricsRegistry {
             calls: row.calls,
             inputTokens: row.inputTokens,
             outputTokens: row.outputTokens,
+            cacheReadTokens: row.cacheReadTokens,
           }
-          const cost = this.estimateCost(entry.provider, entry.model, row)
-          return cost === undefined ? entry : { ...entry, cost }
+          return row.costUsd === null ? entry : { ...entry, cost: row.costUsd }
         })
-        .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens)),
+        .sort((a, b) => b.inputTokens + b.outputTokens + b.cacheReadTokens - (a.inputTokens + a.outputTokens + a.cacheReadTokens)),
     }
   }
 
-  /** Estimate USD cost for one usage row when a price table is configured. */
+  /**
+   * Estimate cost for one usage slice at a given time, when a price table is
+   * configured. Prices are off-peak rates; `peakMultiplier` applies inside
+   * Beijing peak hours (weekends always off-peak), and CNY prices are
+   * converted to USD with `cnyPerUsd` (default {@link DEFAULT_CNY_PER_USD}).
+   * Returns undefined when the route is unpriced.
+   */
   private estimateCost(
     provider: string,
     model: string,
-    row: { inputTokens: number; outputTokens: number },
+    row: { inputTokens: number; outputTokens: number; cacheReadTokens?: number },
+    at: Date,
   ): number | undefined {
     const route = `${provider}/${model}`
     const price = this.prices[route]
     if (price === undefined) return undefined
-    const input = row.inputTokens / 1_000_000 * price.inputPerMTok
-    const output = row.outputTokens / 1_000_000 * price.outputPerMTok
-    return Math.round((input + output) * 1_000_000) / 1_000_000
+    const peak = price.peakMultiplier && price.peakMultiplier !== 1 && billingPeriodAt(at) === 'peak'
+      ? price.peakMultiplier
+      : 1
+    const cnyPerUsd = price.currency === 'cny' ? (price.cnyPerUsd ?? DEFAULT_CNY_PER_USD) : 1
+    const input = row.inputTokens / 1_000_000 * price.inputPerMTok * peak
+    const cacheRead = (row.cacheReadTokens ?? 0) / 1_000_000 * (price.inputCacheHitPerMTok ?? 0) * peak
+    const output = row.outputTokens / 1_000_000 * price.outputPerMTok * peak
+    return Math.round((input + cacheRead + output) / cnyPerUsd * 1_000_000) / 1_000_000
   }
 
   /** Render all series in Prometheus text exposition format (0.0.4). */

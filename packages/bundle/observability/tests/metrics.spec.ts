@@ -176,6 +176,7 @@ describe('MetricsRegistry', () => {
       calls: 1,
       inputTokens: 100,
       outputTokens: 20,
+      cacheReadTokens: 0,
     })
     expect(usage).toContainEqual({
       provider: 'deepseek-official',
@@ -184,6 +185,7 @@ describe('MetricsRegistry', () => {
       calls: 1,
       inputTokens: 2000,
       outputTokens: 100,
+      cacheReadTokens: 0,
     })
     expect(usage).toContainEqual({
       provider: 'deepseek-official',
@@ -192,6 +194,7 @@ describe('MetricsRegistry', () => {
       calls: 1,
       inputTokens: 0,
       outputTokens: 0,
+      cacheReadTokens: 0,
     })
   })
 
@@ -217,6 +220,7 @@ describe('MetricsRegistry', () => {
       calls: 0,
       inputTokens: 1_000_000,
       outputTokens: 500_000,
+      cacheReadTokens: 0,
       cost: 2, // 1 * $1/MTok + 0.5 * $2/MTok
     })
     // Unpriced route omits cost entirely.
@@ -233,6 +237,70 @@ describe('MetricsRegistry', () => {
     const bareRow = bare.summary().usage.find(row => row.provider === 'other')
     expect(bareRow).toMatchObject({ provider: 'other', model: 'm', purpose: 'assistant' })
     expect('cost' in (bareRow ?? {})).toBe(false)
+  })
+
+  it('prices cache-read tokens at the cache-hit rate and folds them separately', () => {
+    const registry = new MetricsRegistry({
+      'ds/ds': { inputPerMTok: 1, inputCacheHitPerMTok: 0.05, outputPerMTok: 2 },
+    })
+    const a = stubSession('a')
+    registry.sessionEntered(a)
+    registry.observe(a, event({
+      type: 'assistant/message',
+      data: {
+        turn: 1, step: 1,
+        message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'ds', model: 'ds' } }),
+        // inputTokens is net cache-miss; cacheReadTokens is billed separately.
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000, cacheReadTokens: 1_000_000 },
+      },
+    }))
+    expect(registry.summary().usage).toContainEqual({
+      provider: 'ds',
+      model: 'ds',
+      purpose: 'assistant',
+      calls: 0,
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      cacheReadTokens: 1_000_000,
+      cost: 2.05, // 1*1 + 0.05*1 + 2*0.5
+    })
+    expect(registry.summary().tokens).toContainEqual({
+      kind: 'cache-read',
+      provider: 'ds',
+      model: 'ds',
+      purpose: 'assistant',
+      tokens: 1_000_000,
+    })
+  })
+
+  it('converts CNY prices to USD and applies peak multiplier by fold time', () => {
+    const registry = new MetricsRegistry({
+      'deepseek-official/deepseek-v4-flash': {
+        inputPerMTok: 1.5,
+        inputCacheHitPerMTok: 0.05,
+        outputPerMTok: 4.5,
+        currency: 'cny',
+        peakMultiplier: 2,
+      },
+    })
+    const a = stubSession('a')
+    registry.sessionEntered(a)
+    const observeUsage = (at: Date): void => {
+      registry.observe(a, event({
+        type: 'assistant/message',
+        data: {
+          turn: 1, step: 1,
+          message: createAssistantMessage({ content: [{ type: 'text', text: 'hi' }], source: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }),
+          usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+        },
+      }), at)
+    }
+    // Off-peak weekday evening (Mon 23:00 Beijing): 1.5 + 4.5 = 6 CNY → USD /6.8.
+    observeUsage(new Date('2026-08-17T15:00:00Z'))
+    // Peak weekday morning (Mon 10:00 Beijing): (3.0 + 9.0) CNY → USD /6.8.
+    observeUsage(new Date('2026-08-17T02:00:00Z'))
+    const row = registry.summary().usage.find(r => r.provider === 'deepseek-official')
+    expect(row?.cost).toBeCloseTo((6 + 12) / 6.8, 6)
   })
 })
 
