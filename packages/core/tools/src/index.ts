@@ -26,6 +26,7 @@ import { createRunCodeTool, RUN_CODE_NAME, SDK_SECTION_ORDER } from './code-mode
 import type { CodeSdkLanguage } from './code-mode.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
+import { resolveToolAnnotations } from './annotations.ts'
 import { renderToolsSdkPy } from './py-types.ts'
 
 /**
@@ -106,6 +107,7 @@ export { CodeRunFailedError, RUN_CODE_NAME } from './code-mode.ts'
 export { jsonSchemaToTs, renderToolsSdk } from './ts-types.ts'
 export { jsonSchemaToPy, renderToolsSdkPy } from './py-types.ts'
 export { defineContentToolFixture, type ContentToolFixtureOptions } from './testing.ts'
+export { isReadOnlyToolLabel, resolveToolAnnotations } from './annotations.ts'
 
 // The render-intent vocabulary a tool declares via `presentCall`/`presentResult`
 // lives in its own UI-facing module; re-export it so `@deepseek-ai/dsh-tools`
@@ -250,7 +252,8 @@ export interface ToolDefinition extends ToolSchema {
    * Cooperative tool-call timeout budget in milliseconds. Omit for no deadline.
    * Enforced by `@deepseek-ai/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
    * is NEVER sent to the model — `schemas()` whitelists only name/description/
-   * parameters. Declaring it asserts this tool forwards `exec.signal` to a
+   * parameters/annotations (annotations are derived, not this raw field).
+   * Declaring it asserts this tool forwards `exec.signal` to a
    * cooperative implementation that can reach quiescence when the signal aborts.
    */
   timeoutMs?: number
@@ -260,8 +263,9 @@ export interface ToolDefinition extends ToolSchema {
    * to `turn/pending` immediately, and resume re-issues the call. Omit or
    * `'write'` for any tool whose in-flight interruption can leave external
    * state half-applied — the drain then waits for it to settle, bounded by
-   * the drain grace. This metadata is NEVER sent to the model — `schemas()`
-   * whitelists only name/description/parameters.
+   * the drain grace. This metadata is NEVER sent raw to the model — `schemas()`
+   * whitelists only name/description/parameters/annotations, and the model
+   * sees only the derived `annotations` hints ({@link resolveToolAnnotations}).
    */
   sideEffect?: 'read' | 'write'
   /**
@@ -1272,10 +1276,12 @@ export class ToolRuntime extends Service {
     if (detached === undefined) {
       throw new Error(`tool "${name}" parameters must be lossless JSON before schema projection`)
     }
+    const annotations = resolveToolAnnotations(definition)
     return {
       name,
       description,
       parameters: detached,
+      ...annotations === undefined ? {} : { annotations },
     }
   }
 

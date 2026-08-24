@@ -335,6 +335,25 @@ export interface ToolSchema {
   description: string
   /** JSON Schema object for the arguments. */
   parameters: Record<string, unknown>
+  /**
+   * Model-facing side-effect hints (OpenAI `tools[].annotations` shape,
+   * grok-bot borrow). Optional: dsh-tools derives them from
+   * `sideEffect: 'read'` or a read-only name/description heuristic when the
+   * tool does not declare them; adapters may map or ignore the field.
+   */
+  annotations?: ToolAnnotations
+}
+
+/** Model-facing tool side-effect hints (OpenAI annotations vocabulary). */
+export interface ToolAnnotations {
+  /** Tool only reads; safe to call speculatively. */
+  readOnlyHint?: boolean
+  /** Tool can destroy or mutate external state. */
+  destructiveHint?: boolean
+  /** Repeated identical calls converge to the same outcome. */
+  idempotentHint?: boolean
+  /** Tool may have effects beyond its declared inputs (e.g. network). */
+  openWorldHint?: boolean
 }
 
 /** A single model request, fully assembled. */
