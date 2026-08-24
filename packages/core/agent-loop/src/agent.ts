@@ -33,6 +33,7 @@ import { joinContextSections, renderContextSections, renderPrompt } from '@deeps
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type { Context } from '@deepseek-ai/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
+import { buildResumeInterruptionContext, collectTurnStreamText } from './resume-context.ts'
 import { executeToolCalls } from './tool-calls.ts'
 
 type Phase =
@@ -83,6 +84,10 @@ export class ReactLoopAgent implements Agent {
   private pendingResume: ResumablePendingTurn | undefined
   /** Turn already marked `turn/pending`, so the marker is written at most once. */
   private pendingMarkedTurn: number | null = null
+  /** A2/A3: turn number claimed by resume, kept until the first resumed step. */
+  private resumeTurn: number | null = null
+  /** A2/A3: interruption context injected exactly once on the first resumed step. */
+  private resumeContextInjected = false
   /**
    * Fine-grained stage of the live turn, used by phase-aware draining to
    * decide fast-exit (no side effects) vs wait (tool in flight). Set at the
@@ -493,6 +498,7 @@ export class ReactLoopAgent implements Agent {
         }
       }
       this.pendingResume = undefined
+      this.resumeTurn = resuming.turn
       turn = resuming.turn
       phase.turn = turn
       phase.step = resuming.nextStep - 1
@@ -598,7 +604,18 @@ export class ReactLoopAgent implements Agent {
     if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": step outside running phase`)
     const { turn, step, abort: { signal } } = this.phase
     signal.throwIfAborted()
-    const system = renderPrompt(assembly)
+    // A2/A3: on the first resumed step, extend the system prompt with the
+    // interruption context ("host update, user did NOT cancel") plus any
+    // already-produced streamed text (checkpoint continuation). Messages stay
+    // untouched, so the log-derived transcript invariant holds; the extended
+    // system is folded into the request header by buildRequest.
+    let system = renderPrompt(assembly)
+    if (this.resumeTurn !== null && !this.resumeContextInjected) {
+      this.resumeContextInjected = true
+      const produced = collectTurnStreamText(this.session.events, this.resumeTurn)
+      this.resumeTurn = null
+      system = `${system}\n\n${buildResumeInterruptionContext(produced)}`
+    }
 
     while (true) {
       // Transcript-pairing defense: any assistant tool-call left dangling
@@ -618,8 +635,13 @@ export class ReactLoopAgent implements Agent {
           })
         }
       }
+      // A2/A3 resume context: the first step of a resumed pending turn is
+      // injected with "interrupted by host update — user did NOT cancel it",
+      // plus any already-produced streamed text (checkpoint continuation),
+      // so the model continues instead of misreading or repeating output.
+      const messages = this.session.deriveMessages()
       const { request, preparedCall } = await this.buildRequest(
-        turn, step, assembly.tools, system, this.session.deriveMessages(), signal,
+        turn, step, assembly.tools, system, messages, signal,
       )
       const assembler = new BlockAssembler()
       const chunkSeqs: number[] = []

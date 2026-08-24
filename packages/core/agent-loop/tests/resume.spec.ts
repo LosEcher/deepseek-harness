@@ -671,11 +671,21 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
         .map(event => event.type === 'step/start' ? event.data.step : undefined),
     ).toEqual([1, 2])
     const end = a2.session.events.findLast(event => event.type === 'turn/end')
+    console.error('[PROBE] turn/end reason:', JSON.stringify(end?.type === 'turn/end' ? end.data : null, null, 1)?.slice(0, 1500))
     expect(end?.type === 'turn/end' ? end.data : undefined).toMatchObject({
       turn: 1,
       reason: { kind: 'completed' },
     })
     expect(adapter2.requests).toHaveLength(1)
+    // A2/A3: the resumed step's first request carries the interruption
+    // context in its system prompt — "host update, user did NOT cancel" —
+    // plus the already produced streamed text ('partial') for checkpoint
+    // continuation. Messages stay log-derived (no synthetic system message).
+    const resumedRequest = adapter2.requests[0]!
+    expect(String(resumedRequest.system)).toContain('interrupted by a host update')
+    expect(String(resumedRequest.system)).toContain('did NOT cancel')
+    expect(String(resumedRequest.system)).toContain('partial')
+    expect(resumedRequest.messages[0]?.role).toBe('user')
     await ctx2.fiber.dispose()
   })
 
