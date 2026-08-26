@@ -40,3 +40,10 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/dsh/target/
+# verify-gate run ledger created in the repo root by local tooling
+.verify-gate/
+# tsc emit into source tree (packages/util/home-paths build outputs)
+packages/util/home-paths/src/index.js
+packages/util/home-paths/src/index.js.map
+packages/util/home-paths/src/index.d.ts
+packages/util/home-paths/src/index.d.ts.map

@@ -1,6 +1,6 @@
 # Agent Note: Agent control protocol (P0)
 
-Status: proposed
+Status: superseded — implemented as `.agents/notes/implemented/architecture/2026-08-15-agent-control-p1.md` (Agent control Service Definition and Node worker supervisor P1)
 
 English | [中文](2026-08-15-agent-control-protocol-p0.zh.md)
 

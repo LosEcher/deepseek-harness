@@ -1,11 +1,14 @@
 # Agent Note: Observability borrow list from los (comparison review)
 
-Status: proposed
+Status: implemented (items 1, 3); open (items 2, 4, 5)
 
 > Update 2026-08-16: item 1 (P1 `/metrics`) implemented as the
 > `@deepseek-ai/dsh-observability` bundle (see
 > `.agents/notes/implemented/feature/2026-08-16-observability-metrics-endpoint.md`),
-> including the `turn/pending` metric surface. Items 2–5 unchanged.
+> including the `turn/pending` metric surface.
+> Update 2026-08-23: item 3 (usage/cost cube) also implemented in the same
+> bundle — `/observability/summary` folds token/cost by provider/model route
+> (DeepSeek peak/off-peak CNY pricing). Items 2, 4, 5 remain open.
 
 English | [中文](2026-08-16-observability-borrow-from-los.zh.md)
 

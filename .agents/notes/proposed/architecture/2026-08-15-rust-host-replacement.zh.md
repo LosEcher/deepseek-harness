@@ -1,6 +1,6 @@
 # Agent Note: Rust capability providers behind Cordis
 
-Status: proposed
+Status: implemented (P0 contracts+ledger, P1 product bridge); in progress (P2 persistence leaves); P3–P4 open; P5–P9 explicitly out of the default path. Progress ledger: `docs/rust-migration-matrix.md` (generated) + `.agents/notes/implemented/process/2026-08-15-rust-migration-ledger.md`.
 
 [English](2026-08-15-rust-host-replacement.md) | 中文
 

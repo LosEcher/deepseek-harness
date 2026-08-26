@@ -1,6 +1,6 @@
 # Agent Note: Cordis Host/Client Dynamic Plugin Runtime
 
-Status: proposed
+Status: superseded — implemented as `.agents/notes/implemented/architecture/2026-08-15-client-shells-and-dynamic-packages.md` (client shell layering and dynamic package boundaries)
 
 English | [中文](2026-08-08-cordis-web-dynamic-packages.zh.md)
 

@@ -1,8 +1,9 @@
 # 事件溯源式回合切换（Event-Sourced Turn Switching）— 方案 C 决策记录
 
-- 状态：**已决策**（2026-08-14），待分步实施
+- 状态：**已实施**（2026-08-16 核实：C1 阶段感知快退 86380cb016、C2 repair 保留未闭合 19d170f741、C3 resume 自动续跑 6f5dffdd5e 均已上 master；原"待分步实施"为过时状态）
 - 归属：dsh web 无感切换 / 排空机制的架构性演进
-- 分支：feat/tool-shutdown-drain
+- 分支：feat/tool-shutdown-drain（已删除，实现并入 master）
+- 实施参考：`.agents/notes/implemented/architecture/2026-08-15-pending-turn-resume-and-drain-gate.md`、`packages/core/agent-loop/tests/{resume,drain,resume-context}.spec.ts`
 
 ## 背景：排空机制补丁演进史（为什么不继续打补丁）
 

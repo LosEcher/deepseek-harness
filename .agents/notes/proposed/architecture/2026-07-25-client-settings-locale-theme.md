@@ -1,6 +1,6 @@
 # Agent Note: Client Settings, Locale, and Theme layering
 
-Status: proposed
+Status: superseded — implemented as `.agents/notes/implemented/architecture/2026-07-30-client-locale-full-rollout.md` (full client copy rollout onto the typed locale seat)
 
 English | [中文](2026-07-25-client-settings-locale-theme.zh.md)
 

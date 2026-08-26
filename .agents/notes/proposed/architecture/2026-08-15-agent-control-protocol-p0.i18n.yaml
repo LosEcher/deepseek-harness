@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-15-agent-control-protocol-p0.md
-2026-08-15-agent-control-protocol-p0.md: d90358cc7e090449d08902608e4f2028b1ad9995
-2026-08-15-agent-control-protocol-p0.zh.md: 0357376d07435f765efc50ad50a0a79dde79af84
+2026-08-15-agent-control-protocol-p0.md: 2169017267b7a33b3c85ca44806ea83ab9bac3e2
+2026-08-15-agent-control-protocol-p0.zh.md: 9018cd360e489970d10cee756438385e2df535da

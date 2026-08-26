@@ -1,6 +1,6 @@
 # Agent Note: Cordis Host/Client 动态插件运行体系
 
-Status: proposed
+Status: superseded — implemented as `.agents/notes/implemented/architecture/2026-08-15-client-shells-and-dynamic-packages.md` (client shell layering and dynamic package boundaries)
 
 [English](2026-08-08-cordis-web-dynamic-packages.md) | 中文
 

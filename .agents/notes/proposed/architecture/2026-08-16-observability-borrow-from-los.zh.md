@@ -1,5 +1,12 @@
 # Agent Note: 从 los 借鉴的可观测性清单（对比评审）
 
+Status: implemented (items 1, 3); open (items 2, 4, 5)
+
+> Update 2026-08-16：item 1（P1 `/metrics`）已实现为 `@deepseek-ai/dsh-observability` bundle（见
+> `.agents/notes/implemented/feature/2026-08-16-observability-metrics-endpoint.md`），含 `turn/pending` 指标面。
+> Update 2026-08-23：item 3（usage/cost 立方）也已在同一 bundle 实现——`/observability/summary`
+> 按 provider/model 路由折叠 token/cost（DeepSeek 峰谷 CNY 计价）。items 2、4、5 仍开放。
+
 [English](2026-08-16-observability-borrow-from-los.md) | 中文
 
 Date: 2026-08-16
