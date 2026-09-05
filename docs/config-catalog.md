@@ -146,6 +146,12 @@ export interface Config {
    * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
    */
   maxParallelToolCalls?: number
+  /**
+   * Grace for draining one live agent to a clean turn boundary on
+   * supervisor/factory teardown; omission defaults to
+   * {@link DEFAULT_AGENT_DRAIN_GRACE_MS}.
+   */
+  drainGraceMs?: number
   /** Agents created or resumed at plugin startup. */
   agents: (AgentOptions & {
     /** Stable config label used in logs and as the fresh combined-id prefix. */
@@ -162,7 +168,7 @@ export interface Config {
 
 Depends on: [`AgentOptions`](subsystems/core.md) · [`SessionId`](subsystems/core.md)
 
-Source: [`packages/core/agent-loop/src/index.ts:255`](../packages/core/agent-loop/src/index.ts)
+Source: [`packages/core/agent-loop/src/index.ts:289`](../packages/core/agent-loop/src/index.ts)
 
 <a id="deepseek-aidsh-agent-presets"></a>
 
@@ -235,10 +241,14 @@ export interface Config {
   agents?: AgentLoopConfig['agents']
   /** Agent-loop concurrency cap; `1` is serial. */
   maxParallelToolCalls?: AgentLoopConfig['maxParallelToolCalls']
+  /** Grace period for draining active agents during shutdown. */
+  drainGraceMs?: AgentLoopConfig['drainGraceMs']
   /** Whether the system prompt includes the fixed Harness identity (default true). */
   includeHarnessIdentity?: SystemPromptConfig['includeHarnessIdentity']
   /** Whether model history includes dynamic runtime-context snapshots (default true). */
   includeRuntimeContext?: SystemPromptConfig['includeRuntimeContext']
+  /** Whether the system prompt includes the current UTC time (default true). */
+  includeClock?: SystemPromptConfig['includeClock']
   /** The deployment persona (see dsh-system-prompt's `Config`). */
   persona?: SystemPromptConfig['persona']
   /** The explicit model-facing tool order (see dsh-system-prompt's `Config`). */
@@ -318,6 +328,39 @@ Depends on: [`ToolPresentationMode`](subsystems/tools.md)
 
 Source: [`packages/core/agent-tool-presentation/src/index.ts:38`](../packages/core/agent-tool-presentation/src/index.ts)
 
+<a id="deepseek-aidsh-agent-worker"></a>
+
+## `@deepseek-ai/dsh-agent-worker`
+
+Requires: `agents` · `sessions`
+
+```ts config-catalog
+/** Composition entry for the Agent control provider. */
+export interface Config {
+  /** Backend used for every generation this plugin starts. */
+  backend: AgentBackend
+  /** Maximum queued commands per agent before a typed busy error. */
+  commandQueueLimit: number
+  /** Unacknowledged session-event credit granted to the worker. */
+  eventCredit: number
+  /** Maximum durable events replayed on resume. */
+  replayWindow: number
+  /** Optional JSONL persistence root used by worker-ts drain-and-resume. */
+  sessionRoot?: string
+  /**
+   * Optional composed-profile name for worker-ts. When set, each worker boots
+   * the FULL profile composition (real LLM adapters, tools, credentials,
+   * presets) instead of the fixture spine — the product-composition mode
+   * Agent isolation requires. Unset keeps the fixture spine (protocol tests).
+   */
+  workerProfile?: string
+}
+```
+
+Depends on: [`AgentBackend`](../packages/core/agent-control/src/index.ts)
+
+Source: [`packages/core/agent-worker/src/config.ts:10`](../packages/core/agent-worker/src/config.ts)
+
 <a id="deepseek-aidsh-attachment-local"></a>
 
 ## `@deepseek-ai/dsh-attachment-local`
@@ -351,17 +394,29 @@ Requires: `subprocess`
 ```ts config-catalog
 /** Plugin config (all optional — `static Config` supplies the defaults). */
 export interface Config {
-  /** Default working directory for commands (default: process.cwd()). */
+  /** Default working directory for commands (default: process.cwd()).
+   * @effect restart
+   */
   cwd?: string
-  /** Default foreground timeout in milliseconds. */
+  /** Default foreground timeout in milliseconds.
+   * @effect hot
+   */
   timeoutMs?: number
-  /** Upper bound for per-call timeout overrides. */
+  /** Upper bound for per-call timeout overrides.
+   * @effect hot
+   */
   maxTimeoutMs?: number
-  /** Per-stream in-memory output cap; overflow spills to a temp file. */
+  /** Per-stream in-memory output cap; overflow spills to a temp file.
+   * @effect hot
+   */
   maxOutputBytes?: number
-  /** Per-stream spill-file cap; larger streams retain only their in-memory tail. */
+  /** Per-stream spill-file cap; larger streams retain only their in-memory tail.
+   * @effect hot
+   */
   maxSpillBytes?: number
-  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
+  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`.
+   * @effect hot
+   */
   graceMs?: number
 }
 ```
@@ -718,7 +773,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/bundle/headless/src/index.ts:31`](../packages/bundle/headless/src/index.ts)
+Source: [`packages/bundle/headless/src/index.ts:33`](../packages/bundle/headless/src/index.ts)
 
 <a id="deepseek-aidsh-hooks-claude-code"></a>
 
@@ -817,7 +872,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
+Source: [`packages/host/apiproxy/src/index.ts:43`](../packages/host/apiproxy/src/index.ts)
 
 <a id="deepseek-aidsh-host-directory-picker-browse"></a>
 
@@ -1140,6 +1195,13 @@ export interface PiAiCompatProfile {
   supportsDeveloperRole?: boolean
   /** Whether the endpoint accepts `reasoning_effort`; `openai-completions`. */
   supportsReasoningEffort?: boolean
+  /**
+   * Merge consecutive user messages into one before sending. Gateways that
+   * truncate the conversation to the last user turn (e.g. los
+   * openai-compat-route) drop the real question when a client appends
+   * runtime context blocks after it as separate user messages.
+   */
+  mergeUserTurns?: boolean
   /** Whether the endpoint accepts `stream_options: {include_usage: true}`; `openai-completions`. */
   supportsUsageInStreaming?: boolean
   /** Which output-cap field the endpoint reads; `openai-completions`. */
@@ -1344,50 +1406,97 @@ export type Config = StdioConfig | StreamableHttpConfig
 
 /** Config for connecting to an MCP server via a spawned child process over stdio. */
 export interface StdioConfig {
-  /** Selects child-process stdio transport. */
+  /** Selects child-process stdio transport. @effect restart */
   transport: 'stdio'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** Executable used to start the server. */
+  /** Executable used to start the server. @effect restart */
   command: string
-  /** Arguments passed directly, without shell interpolation. */
+  /** Arguments passed directly, without shell interpolation. @effect restart */
   args: string[]
-  /** Extra env vars merged on top of scrubbed ambient env. */
+  /** Extra env vars merged on top of scrubbed ambient env. @effect restart */
   env: Record<string, string>
-  /** Working directory for the child process. */
+  /** Working directory for the child process. @effect restart */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds. @effect hot */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails. @effect restart */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /**
+   * Lazy start: do not block plugin activation on the initial connection.
+   * The fiber activates immediately; the server connects in the background
+   * and its tools register when the sync lands. With a warm tool-catalog
+   * cache the model-facing schemas are registered from cache right away
+   * (calls fail with a clear not-connected error until the server connects).
+   * `failOnStartupError` loses its fiber-rejection meaning under lazy — the
+   * failure is logged and the reconnect loop continues.
+   * @effect restart
+   */
+  lazy?: boolean
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults. @effect hot */
   reconnect?: ReconnectConfig
+  /**
+   * Raw tool names (as the server lists them) allowed into the model-facing
+   * registry. Omitted or empty allows every listed tool; a non-empty list
+   * registers only those tools. Filtered tools are never visible to the model.
+   * @effect new-session
+   */
+  toolAllow?: string[]
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. @effect new-session */
+  toolDeny?: string[]
+  /**
+   * Hard cap on the model-facing description length; longer descriptions are
+   * cut with an ellipsis. Token cost is linear in description length, so
+   * verbose servers can be trimmed client-side without touching the server.
+   * @effect new-session
+   */
+  descriptionMaxLength?: number
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
 export interface StreamableHttpConfig {
-  /** Selects Streamable HTTP transport. */
+  /** Selects Streamable HTTP transport. @effect restart */
   transport: 'streamable-http'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** MCP endpoint URL. */
+  /** MCP endpoint URL. @effect restart */
   url: string
-  /** Additional headers attached to MCP requests. */
+  /** Additional headers attached to MCP requests. @effect restart */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds. @effect hot */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails. @effect restart */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Lazy start: activate without waiting for the initial connection. See {@link StdioConfig.lazy}. @effect restart */
+  lazy?: boolean
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults. @effect hot */
   reconnect?: ReconnectConfig
+  /**
+   * Raw tool names (as the server lists them) allowed into the model-facing
+   * registry. Omitted or empty allows every listed tool; a non-empty list
+   * registers only those tools. Filtered tools are never visible to the model.
+   * @effect new-session
+   */
+  toolAllow?: string[]
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. @effect new-session */
+  toolDeny?: string[]
+  /**
+   * Hard cap on the model-facing description length; longer descriptions are
+   * cut with an ellipsis. Token cost is linear in description length, so
+   * verbose servers can be trimmed client-side without touching the server.
+   * @effect new-session
+   */
+  descriptionMaxLength?: number
 }
 
 /** Automatic reconnect policy for one MCP server connection. */
@@ -1403,7 +1512,7 @@ export interface ReconnectConfig {
 }
 ```
 
-Source: [`packages/mcp/mcp-client/src/index.ts:98`](../packages/mcp/mcp-client/src/index.ts)
+Source: [`packages/mcp/mcp-client/src/index.ts:151`](../packages/mcp/mcp-client/src/index.ts)
 
 <a id="deepseek-aidsh-message-feedback"></a>
 
@@ -1421,6 +1530,43 @@ export interface Config {
 
 Source: [`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
 
+<a id="deepseek-aidsh-observability"></a>
+
+## `@deepseek-ai/dsh-observability`
+
+Requires: `sessions` · `webServer`
+
+```ts config-catalog
+/** Plugin config: an optional price table enables cost estimation. */
+export interface Config {
+  /** Per-1M prices, keyed by `provider/model` route. */
+  prices?: LlmPriceTable
+}
+
+/** Per-provider/model price table (see {@link LlmPrice}). */
+export interface LlmPriceTable {
+  [route: string]: LlmPrice
+}
+
+/** Per-route pricing entry (all rates are off-peak; see {@link billingPeriodAt}). */
+export interface LlmPrice {
+  /** Price per 1M cache-miss input tokens at off-peak hours. */
+  inputPerMTok: number
+  /** Price per 1M output tokens at off-peak hours. */
+  outputPerMTok: number
+  /** Optional price per 1M cache-read input tokens (DeepSeek bills cache hits at a fraction of misses). */
+  inputCacheHitPerMTok?: number
+  /** Currency of the per-1M prices (default `'usd'`). DeepSeek bills in CNY. */
+  currency?: 'cny' | 'usd'
+  /** Peak multiplier inside Beijing peak hours (DeepSeek: 2); weekends are always off-peak (since 2026-08-23). */
+  peakMultiplier?: number
+  /** CNY→USD conversion: CNY per 1 USD (default {@link DEFAULT_CNY_PER_USD}); cost fields are USD. */
+  cnyPerUsd?: number
+}
+```
+
+Source: [`packages/bundle/observability/src/index.ts:26`](../packages/bundle/observability/src/index.ts)
+
 <a id="deepseek-aidsh-permission-presets"></a>
 
 ## `@deepseek-ai/dsh-permission-presets`
@@ -1434,11 +1580,13 @@ export interface Config {
    * The preset table: name → knob bundle. Defaults to `workspace-write`
    * (workspace-write + ask) and `danger-full-access` (danger-full-access +
    * never). The name `custom` is reserved for the derived not-a-preset state.
+   * @effect new-session
    */
   presets?: Record<string, PresetSpec>
   /**
    * Default for new sessions. When omitted, the preset matching the composed
    * sandbox and approval defaults is used.
+   * @effect new-session
    */
   defaultPreset?: string
 }
@@ -1570,11 +1718,17 @@ Source: [`packages/shell/pwsh-sandbox/src/index.ts:40`](../packages/shell/pwsh-s
  * (`exclude: [mcp_*]` must stay legal in a deployment that loads no MCP tools).
  */
 export interface Config {
-  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`). */
+  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`).
+   * @effect hot
+   */
   thresholds?: number[]
-  /** Tool-name patterns to track; empty means every tool is tracked. */
+  /** Tool-name patterns to track; empty means every tool is tracked.
+   * @effect hot
+   */
   include?: string[]
-  /** Tool-name patterns transparent to the chain (neither count nor reset). */
+  /** Tool-name patterns transparent to the chain (neither count nor reset).
+   * @effect hot
+   */
   exclude?: string[]
   /**
    * Maximum characters of canonical arguments quoted in the DETAILED reminder
@@ -1582,6 +1736,7 @@ export interface Config {
    * otherwise ride into the next request unbounded — precisely in a loop
    * scenario; the cap bounds the reminder, never the detection (the chain key
    * always compares the FULL canonical string).
+   * @effect hot
    */
   argumentsPreviewChars?: number
 }
@@ -1634,11 +1789,15 @@ Source: [`packages/sandbox/sandbox-local/src/index.ts:44`](../packages/sandbox/s
  * is any per-family knob: this is the one shared policy home.
  */
 export interface Config {
-  /** File-sandbox mode a session starts from (default: `read-only`). */
+  /**
+   * File-sandbox mode a session starts from (default: `read-only`).
+   * @effect new-session
+   */
   mode?: SandboxMode
   /**
    * Fallback root for agentless calls and sessions without a cwd (default:
    * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * @effect new-session
    */
   workspaceRoot?: string
 }
@@ -2317,6 +2476,31 @@ export interface Config {
 
 Source: [`packages/subagent/subagent-fork-in-process/src/index.ts:31`](../packages/subagent/subagent-fork-in-process/src/index.ts)
 
+<a id="deepseek-aidsh-subagent-los-grok"></a>
+
+## `@deepseek-ai/dsh-subagent-los-grok`
+
+Requires: `subagents`
+
+```ts config-catalog
+export interface Config {
+  /** Provider registry name on `ctx.subagents`. */
+  providerName?: string
+  /** Base URL of the LOS gateway. */
+  baseUrl?: string
+  /** Environment variable containing the LOS auth token. */
+  authTokenEnv?: string
+  /** Environment variable containing the LOS operator token. */
+  operatorTokenEnv?: string
+  /** Maximum duration of one external runtime request in milliseconds. */
+  timeoutMs?: number
+  /** Maximum captured runtime output in bytes. */
+  outputLimitBytes?: number
+}
+```
+
+Source: [`packages/subagent/subagent-los-grok/src/index.ts:18`](../packages/subagent/subagent-los-grok/src/index.ts)
+
 <a id="deepseek-aidsh-subagent-spawn-in-process"></a>
 
 ## `@deepseek-ai/dsh-subagent-spawn-in-process`
@@ -2361,6 +2545,12 @@ export interface Config {
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
+   * Include the current UTC time as a system-prompt section (default true).
+   * A compatibility deployment that pins its own complete prompt can turn it
+   * off; without it, deadline arithmetic has no clock to anchor on.
+   */
+  includeClock?: boolean
+  /**
    * Deployment-wide order-0 persona template. A scoped section named
    * `deployment:persona` shadows it; `{{variable}}` references are strict.
    */
@@ -2374,7 +2564,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:186`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:207`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2884,19 +3074,33 @@ Requires: `tools` · `web` · `systemPrompt`
 ```ts config-catalog
 /** Plugin config: which web tools to register, search bounds, per-tool budgets, and the fetch output cap. */
 export interface Config {
-  /** Register `web_search`. Defaults to true. */
+  /** Register `web_search`. Defaults to true.
+   * @effect new-session
+   */
   search?: boolean
-  /** Register `web_fetch`. Defaults to true. */
+  /** Register `web_fetch`. Defaults to true.
+   * @effect new-session
+   */
   fetch?: boolean
-  /** Upper bound on sources returned by one `web_search` call. */
+  /** Upper bound on sources returned by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxResults?: number
-  /** Upper bound on queries accepted by one `web_search` call. */
+  /** Upper bound on queries accepted by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxQueries?: number
-  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000.
+   * @effect hot
+   */
   fetchTimeoutMs?: number
-  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000.
+   * @effect hot
+   */
   searchTimeoutMs?: number
-  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000. */
+  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000.
+   * @effect hot
+   */
   fetchMaxOutputChars?: number
 }
 ```
@@ -2955,7 +3159,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'code' | 'both'
 ```
 
-Source: [`packages/core/tools/src/index.ts:654`](../packages/core/tools/src/index.ts)
+Source: [`packages/core/tools/src/index.ts:669`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 
@@ -2985,6 +3189,7 @@ export interface Config {
    * `approval/policy` override — `'ask'` delegates to the composed answerers
    * (fail-closed with none); `'never'` auto-rejects every ask without
    * prompting (the deterministic CI/unattended stance).
+   * @effect restart
    */
   readonly policy?: ApprovalPolicy
 }
@@ -3050,7 +3255,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/bundle/web-app/src/index.ts:42`](../packages/bundle/web-app/src/index.ts)
+Source: [`packages/bundle/web-app/src/index.ts:44`](../packages/bundle/web-app/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-http"></a>
 
@@ -3213,6 +3418,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-plan` ([`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-renderer` ([`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-restart-banner` ([`packages/client/ui-restart-banner/src/index.ts`](../packages/client/ui-restart-banner/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings` ([`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-general` ([`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-models` ([`packages/client/ui-settings-models/src/index.ts`](../packages/client/ui-settings-models/src/index.ts))
@@ -3262,6 +3468,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 
 Abstract service classes — a deployment loads a concrete implementation package instead ([capability seams](../.agents/notes/implemented/architecture/2026-06-13-capability-seams.md)).
 
+- `@deepseek-ai/dsh-agent-control` — abstract `AgentControl` ([`packages/core/agent-control/src/index.ts`](../packages/core/agent-control/src/index.ts))
 - `@deepseek-ai/dsh-attachment` — abstract `AttachmentStore` ([`packages/attachment/attachment/src/index.ts`](../packages/attachment/attachment/src/index.ts))
 - `@deepseek-ai/dsh-code-runtime` — abstract `CodeRuntime` ([`packages/code-runtime/code-runtime/src/index.ts`](../packages/code-runtime/code-runtime/src/index.ts))
 - `@deepseek-ai/dsh-compaction` — abstract `CompactionEngine` ([`packages/compaction/compaction/src/index.ts`](../packages/compaction/compaction/src/index.ts))
@@ -3290,6 +3497,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-atomic-write` ([`packages/util/atomic-write/src/index.ts`](../packages/util/atomic-write/src/index.ts))
 - `@deepseek-ai/dsh-base` ([`packages/bundle/base/src/index.ts`](../packages/bundle/base/src/index.ts))
 - `@deepseek-ai/dsh-brand` ([`packages/util/brand/src/index.ts`](../packages/util/brand/src/index.ts))
+- `@deepseek-ai/dsh-bridge-protocol` ([`packages/util/bridge-protocol/src/index.ts`](../packages/util/bridge-protocol/src/index.ts))
 - `@deepseek-ai/dsh-client-test-runtime` ([`packages/test-support/client-runtime/src/index.ts`](../packages/test-support/client-runtime/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-primitives` ([`packages/client/ui-primitives/src/index.ts`](../packages/client/ui-primitives/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-slots` ([`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts))

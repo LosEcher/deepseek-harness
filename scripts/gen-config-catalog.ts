@@ -528,20 +528,72 @@ function walkSchemaExpr(
   return { keys, composes }
 }
 
-/** Find a plugin's schemastery schema expression: an exported `const Config`
- * in the entry file, else a `static Config` on the plugin class. */
-function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null): ts.Expression | null {
+interface SchemaExpr {
+  ctx: FileCtx
+  expr: ts.Expression
+}
+
+/** Resolve an exported schema constant through package-local relative imports. */
+function resolveSchemaConst(
+  ctx: FileCtx,
+  name: string,
+  cache: Map<string, FileCtx>,
+  seen: Set<string> = new Set(),
+): SchemaExpr | null {
+  const key = `${ctx.abs}:${name}`
+  if (seen.has(key)) return null
+  seen.add(key)
+  const imported = ctx.imports.get(name)
+  if (imported?.specifier.startsWith('.') && imported.specifier.endsWith('.ts')) {
+    const abs = resolve(dirname(ctx.abs), imported.specifier)
+    const rel = ctx.rel.slice(0, ctx.rel.lastIndexOf('/') + 1) + imported.specifier.replace(/^\.\//, '')
+    const target = loadFile(abs, rel, cache)
+    return resolveSchemaConst(target, imported.imported, cache, seen)
+  }
   for (const stmt of ctx.sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue
     if (!stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) continue
     for (const decl of stmt.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name) && decl.name.text === 'Config' && decl.initializer) return decl.initializer
+      if (!ts.isIdentifier(decl.name) || decl.name.text !== name || !decl.initializer) continue
+      if (ts.isIdentifier(decl.initializer)) {
+        const imp = ctx.imports.get(decl.initializer.text)
+        if (imp?.specifier.startsWith('.') && imp.specifier.endsWith('.ts')) {
+          const abs = resolve(dirname(ctx.abs), imp.specifier)
+          const rel = ctx.rel.slice(0, ctx.rel.lastIndexOf('/') + 1) + imp.specifier.replace(/^\.\//, '')
+          const target = loadFile(abs, rel, cache)
+          return resolveSchemaConst(target, imp.imported, cache, seen)
+        }
+      }
+      return { ctx, expr: decl.initializer }
+    }
+  }
+  return null
+}
+
+/** Find a plugin's schemastery schema expression: an exported `const Config`
+ * in the entry file, else a `static Config` on the plugin class. Imported
+ * package-local schema constants are followed so the runtime schema and its
+ * source context remain visible to the static walk. */
+function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null, cache: Map<string, FileCtx>): SchemaExpr | null {
+  for (const stmt of ctx.sf.statements) {
+    if (!ts.isVariableStatement(stmt)) continue
+    if (!stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) continue
+    for (const decl of stmt.declarationList.declarations) {
+      if (ts.isIdentifier(decl.name) && decl.name.text === 'Config' && decl.initializer) {
+        return ts.isIdentifier(decl.initializer)
+          ? (resolveSchemaConst(ctx, decl.name.text, cache) ?? { ctx, expr: decl.initializer })
+          : { ctx, expr: decl.initializer }
+      }
     }
   }
   for (const member of pluginClass?.members ?? []) {
     if (!ts.isPropertyDeclaration(member) || member.name.getText() !== 'Config') continue
     if (!member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) continue
-    if (member.initializer) return member.initializer
+    if (member.initializer) {
+      return ts.isIdentifier(member.initializer)
+        ? (resolveSchemaConst(ctx, member.initializer.text, cache) ?? { ctx, expr: member.initializer })
+        : { ctx, expr: member.initializer }
+    }
   }
   return null
 }
@@ -755,9 +807,9 @@ export function collectConfigCatalog(scanRoot: string = root): CatalogEntry[] {
     entry.refs = [...refs.values()].sort((a, b) => a.alias.localeCompare(b.alias))
 
     // Statically walk the runtime schema (when one exists) for the subset check.
-    const schemaExpr = findSchemaExpr(ctx, pluginClass)
+    const schemaExpr = findSchemaExpr(ctx, pluginClass, cache)
     if (schemaExpr) {
-      const { keys, composes } = walkSchemaExpr(ctx, unwrapExpr(schemaExpr), `${pkg} (${entryRel})`, violations)
+      const { keys, composes } = walkSchemaExpr(schemaExpr.ctx, unwrapExpr(schemaExpr.expr), `${pkg} (${entryRel})`, violations)
       entry.schemaKeys = keys
       entry.schemaComposes = composes
     } else {
