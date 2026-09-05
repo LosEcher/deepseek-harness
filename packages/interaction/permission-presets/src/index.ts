@@ -142,11 +142,13 @@ export interface Config {
    * The preset table: name → knob bundle. Defaults to `workspace-write`
    * (workspace-write + ask) and `danger-full-access` (danger-full-access +
    * never). The name `custom` is reserved for the derived not-a-preset state.
+   * @effect new-session
    */
   presets?: Record<string, PresetSpec>
   /**
    * Default for new sessions. When omitted, the preset matching the composed
    * sandbox and approval defaults is used.
+   * @effect new-session
    */
   defaultPreset?: string
 }

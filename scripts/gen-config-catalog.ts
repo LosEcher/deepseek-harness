@@ -35,6 +35,29 @@ const GLOBAL_TYPES = new Set([
 /** How a package classifies for the catalog. */
 type Kind = 'config' | 'no-config' | 'seam' | 'library'
 
+/** Refresh behavior classes used by the first policy-pack catalog slice. */
+type Effect = 'hot' | 'restart' | 'new-session' | 'page-refresh' | 'boot-quarantine'
+
+const EFFECT_CLASSES = new Set<Effect>([
+  'hot',
+  'restart',
+  'new-session',
+  'page-refresh',
+  'boot-quarantine',
+])
+
+/** Config packages whose fields are policy-pack inputs and require effects. */
+const POLICY_EFFECT_PACKAGES = new Set([
+  '@deepseek-ai/dsh-user-approval',
+  '@deepseek-ai/dsh-sandbox-policy',
+  '@deepseek-ai/dsh-permission-presets',
+  '@deepseek-ai/dsh-repeat-tool-reminder',
+  '@deepseek-ai/dsh-bash-local',
+  '@deepseek-ai/dsh-bash-sandbox',
+  '@deepseek-ai/dsh-tool-web',
+  '@deepseek-ai/dsh-mcp-client',
+])
+
 /** One name a pasted declaration references but the paste does not contain. */
 interface TypeRef {
   /** The name as it appears in the pasted text (the local import alias). */
@@ -194,13 +217,19 @@ function pasteText(ctx: FileCtx, decl: TypeDecl): string {
 
 /** Enforce non-empty JSDoc prose on every property of a pasted declaration,
  * recursing into nested type literals (e.g. an array-of-objects field). */
-function checkMemberDocs(ctx: FileCtx, decl: TypeDecl, violations: string[]): void {
+function checkMemberDocs(ctx: FileCtx, decl: TypeDecl, violations: string[], requireEffects: boolean): void {
   const walkMembers = (members: ts.NodeArray<ts.TypeElement>, path: string): void => {
     for (const member of members) {
       if (!ts.isPropertySignature(member)) continue
       const name = member.name.getText(ctx.sf)
       const where = `config field '${path}.${name}' (${pointer(ctx.rel, ctx.sf, member)})`
-      if (!parseJsDoc(rawJsDoc(ctx.text, member)).doc) violations.push(`${where} has no JSDoc prose.`)
+      const raw = rawJsDoc(ctx.text, member)
+      if (!parseJsDoc(raw).doc) violations.push(`${where} has no JSDoc prose.`)
+      if (requireEffects && path === (ts.isInterfaceDeclaration(decl) || ts.isTypeAliasDeclaration(decl) ? decl.name?.text : '')) {
+        const effect = /^\s*\*?\s*@effect\s+(\S+)\s*$/m.exec(raw)?.[1]
+        if (effect === undefined) violations.push(`${where} is missing @effect.`)
+        else if (!EFFECT_CLASSES.has(effect as Effect)) violations.push(`${where} has invalid @effect '${effect}'.`)
+      }
       if (member.type) walkNested(member.type, `${path}.${name}`)
     }
   }
@@ -499,20 +528,72 @@ function walkSchemaExpr(
   return { keys, composes }
 }
 
-/** Find a plugin's schemastery schema expression: an exported `const Config`
- * in the entry file, else a `static Config` on the plugin class. */
-function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null): ts.Expression | null {
+interface SchemaExpr {
+  ctx: FileCtx
+  expr: ts.Expression
+}
+
+/** Resolve an exported schema constant through package-local relative imports. */
+function resolveSchemaConst(
+  ctx: FileCtx,
+  name: string,
+  cache: Map<string, FileCtx>,
+  seen: Set<string> = new Set(),
+): SchemaExpr | null {
+  const key = `${ctx.abs}:${name}`
+  if (seen.has(key)) return null
+  seen.add(key)
+  const imported = ctx.imports.get(name)
+  if (imported?.specifier.startsWith('.') && imported.specifier.endsWith('.ts')) {
+    const abs = resolve(dirname(ctx.abs), imported.specifier)
+    const rel = ctx.rel.slice(0, ctx.rel.lastIndexOf('/') + 1) + imported.specifier.replace(/^\.\//, '')
+    const target = loadFile(abs, rel, cache)
+    return resolveSchemaConst(target, imported.imported, cache, seen)
+  }
   for (const stmt of ctx.sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue
     if (!stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) continue
     for (const decl of stmt.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name) && decl.name.text === 'Config' && decl.initializer) return decl.initializer
+      if (!ts.isIdentifier(decl.name) || decl.name.text !== name || !decl.initializer) continue
+      if (ts.isIdentifier(decl.initializer)) {
+        const imp = ctx.imports.get(decl.initializer.text)
+        if (imp?.specifier.startsWith('.') && imp.specifier.endsWith('.ts')) {
+          const abs = resolve(dirname(ctx.abs), imp.specifier)
+          const rel = ctx.rel.slice(0, ctx.rel.lastIndexOf('/') + 1) + imp.specifier.replace(/^\.\//, '')
+          const target = loadFile(abs, rel, cache)
+          return resolveSchemaConst(target, imp.imported, cache, seen)
+        }
+      }
+      return { ctx, expr: decl.initializer }
+    }
+  }
+  return null
+}
+
+/** Find a plugin's schemastery schema expression: an exported `const Config`
+ * in the entry file, else a `static Config` on the plugin class. Imported
+ * package-local schema constants are followed so the runtime schema and its
+ * source context remain visible to the static walk. */
+function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null, cache: Map<string, FileCtx>): SchemaExpr | null {
+  for (const stmt of ctx.sf.statements) {
+    if (!ts.isVariableStatement(stmt)) continue
+    if (!stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) continue
+    for (const decl of stmt.declarationList.declarations) {
+      if (ts.isIdentifier(decl.name) && decl.name.text === 'Config' && decl.initializer) {
+        return ts.isIdentifier(decl.initializer)
+          ? (resolveSchemaConst(ctx, decl.name.text, cache) ?? { ctx, expr: decl.initializer })
+          : { ctx, expr: decl.initializer }
+      }
     }
   }
   for (const member of pluginClass?.members ?? []) {
     if (!ts.isPropertyDeclaration(member) || member.name.getText() !== 'Config') continue
     if (!member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) continue
-    if (member.initializer) return member.initializer
+    if (member.initializer) {
+      return ts.isIdentifier(member.initializer)
+        ? (resolveSchemaConst(ctx, member.initializer.text, cache) ?? { ctx, expr: member.initializer })
+        : { ctx, expr: member.initializer }
+    }
   }
   return null
 }
@@ -521,11 +602,20 @@ function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null): 
  * file, else `static inject = […]` on the plugin class. */
 function findInject(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null, violations: string[]): string[] {
   const fromArray = (expr: ts.Expression, where: string): string[] => {
-    if (!ts.isArrayLiteralExpression(expr)) {
-      violations.push(`${where}: inject is not a plain string-array literal; teach the generator the new declaration form.`)
-      return []
+    if (ts.isArrayLiteralExpression(expr)) {
+      return expr.elements.map(el => ts.isStringLiteral(el) ? el.text : el.getText(ctx.sf))
     }
-    return expr.elements.map(el => ts.isStringLiteral(el) ? el.text : el.getText(ctx.sf))
+    if (ts.isObjectLiteralExpression(expr)) {
+      return expr.properties.flatMap((prop) => {
+        if (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) {
+          return [prop.name.getText(ctx.sf).replace(/^['"]|['"]$/g, '')]
+        }
+        violations.push(`${where}: inject object contains unsupported property '${prop.getText(ctx.sf)}'.`)
+        return []
+      })
+    }
+    violations.push(`${where}: inject is neither a plain string-array nor object literal; teach the generator the new declaration form.`)
+    return []
   }
   for (const stmt of ctx.sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue
@@ -705,7 +795,7 @@ export function collectConfigCatalog(scanRoot: string = root): CatalogEntry[] {
       }
       pastedDeclByName.set(name, declKey)
       pastes.push({ text: pasteText(resolved.ctx, resolved.decl), source: declKey })
-      checkMemberDocs(resolved.ctx, resolved.decl, violations)
+      checkMemberDocs(resolved.ctx, resolved.decl, violations, POLICY_EFFECT_PACKAGES.has(pkg) && name === typeName)
       const names = new Set<string>()
       collectTypeNames(resolved.decl, names)
       for (const n of names) {
@@ -717,9 +807,9 @@ export function collectConfigCatalog(scanRoot: string = root): CatalogEntry[] {
     entry.refs = [...refs.values()].sort((a, b) => a.alias.localeCompare(b.alias))
 
     // Statically walk the runtime schema (when one exists) for the subset check.
-    const schemaExpr = findSchemaExpr(ctx, pluginClass)
+    const schemaExpr = findSchemaExpr(ctx, pluginClass, cache)
     if (schemaExpr) {
-      const { keys, composes } = walkSchemaExpr(ctx, unwrapExpr(schemaExpr), `${pkg} (${entryRel})`, violations)
+      const { keys, composes } = walkSchemaExpr(schemaExpr.ctx, unwrapExpr(schemaExpr.expr), `${pkg} (${entryRel})`, violations)
       entry.schemaKeys = keys
       entry.schemaComposes = composes
     } else {

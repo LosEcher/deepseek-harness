@@ -229,6 +229,27 @@ export function apply(ctx: Context, config: Config): void {}
 })
 
 describe('gen-config-catalog schema cross-check', () => {
+  it('follows a package-local imported schema constant', () => {
+    expect(collectConfigCatalog(make({
+      'src/index.ts': `import type { Context } from '@deepseek-ai/cordis'
+import { Config } from './config.ts'
+/** Fixture config. */
+export interface Config {
+  /** The knob. */
+  knob?: string
+}
+/** Fixture service. */
+export default class Fixture {
+  static Config = Config
+  constructor(ctx: Context, config: Config) {}
+}
+`,
+      'src/config.ts': `import z from '@deepseek-ai/schemastery'
+export const Config = z.object({ knob: z.string() })
+`,
+    }))[0]?.schemaKeys).toEqual(['knob'])
+  })
+
   it('accepts a chained schema whose keys all appear on the config type', () => {
     const entries = collectConfigCatalog(make({
       'src/index.ts': `import type { Context } from '@deepseek-ai/cordis'
