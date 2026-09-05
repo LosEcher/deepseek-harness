@@ -122,6 +122,14 @@ Stay on TypeScript. No Rust clone is planned unless a later measured Agent Note 
 | Product plugins | approval, commands, user-questions, subagent and in-process drivers, compaction, jobs, skill, workflow including `dsh-workflow-worker-thread`, goal, plan, todo |
 | Consumers over the execution world | `dsh-tool-fs`, `dsh-tool-bash`, `dsh-bash-local`, `dsh-terminal-bash`, `dsh-lsp-stdio`, `dsh-tool-lsp` |
 | Alternate execution world | `dsh-e2b`, `dsh-fs-e2b`, `dsh-subprocess-e2b` |
+
+> **tool-fs 迁移输入契约（C4 stale-read 守卫增强，2026-09-01 已实施于 TS 侧）**：
+> `dsh-tool-fs` 的 `edit` 工具在 Rust `replace` 实现中必须继承以下模型可见语义（属 P5「模型可见主干」一致性范畴）：
+> 1. 编辑守卫：未读目标拒绝（`FS_NOT_OBSERVED`）、观察版本失配拒绝（`FS_STALE_VERSION`）；
+> 2. **stale 自动重试**：版本失配时无条件重试一次（provider 锁内原子 read→match→write，对当前内容重新匹配）；
+> 3. **差异行定位兜底**：自动重试仍失配（old_string 0/多命中）时，重读内容定位最接近行，错误携带 `closest content near line N: "<snippet>"` 供模型定位；
+> 4. `replace_all` 场景同样适用；`write`（全量覆盖）不做自动重试（stale 拒绝是保护，防止覆盖外部修改）。
+> 实现参考：`packages/fs/tool-fs/src/edit.ts`（`locateClosestLine` / `staleEditConflictError` / execute catch 路径），排期文档 `dsfolder/C4-STALE-READ-GUARD-PLAN-2026-08-30.md`。
 | Product entries and clients | `dsh-acp`, SDK protocol / client / server, `dsh-host-apiproxy`, `dsh-host-webserver`, `apps/web`, `packages/client` |
 | Measured later only | `dsh-llm-deepseek` and other adapters, web fetch/search, MCP, `dsh-session-query-sqlite` |
 

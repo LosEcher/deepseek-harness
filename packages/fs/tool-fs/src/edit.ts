@@ -8,7 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { DiffCallView, DiffResultView, ToolResult } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-fs'
+import { FsError } from '@deepseek-ai/dsh-fs'
+import type { FsTarget } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { computeHunkDiffs, diffsFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
@@ -66,6 +67,91 @@ export function formatEditOutput(displayPath: string, replaceAll: boolean): stri
   return replaceAll
     ? `The file ${displayPath} has been updated. All occurrences were successfully replaced.`
     : `The file ${displayPath} has been updated successfully.`
+}
+
+/**
+ * Locate the content line closest to `oldString` in the current file, for the
+ * stale-edit conflict error (C4: 差异行定位). Uses the first non-empty line of
+ * `oldString` as the needle; exact containment wins, otherwise the line with the
+ * highest character-overlap ratio is returned. `undefined` means no usable line
+ * (e.g. an empty file or a blank needle).
+ * @param content - the current file content (as read back after the stale retry failed).
+ * @param oldString - the edit's literal search text.
+ * @param maxSnippet - cap for the returned line snippet.
+ * @returns 1-based line number and its trimmed snippet, or undefined.
+ */
+export function locateClosestLine(
+  content: string,
+  oldString: string,
+  maxSnippet = 80,
+): { line: number; snippet: string } | undefined {
+  const needle = oldString.split('\n').map(l => l.trim()).find(l => l.length > 0)
+  if (!needle) return undefined
+  const lines = content.split('\n')
+  // Exact containment first: the surrounding lines usually survived the change.
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line !== undefined && line.includes(needle)) {
+      return { line: i + 1, snippet: line.trim().slice(0, maxSnippet) }
+    }
+  }
+  // Otherwise the highest character-overlap line (cheap and deterministic).
+  const needleChars = new Set(needle)
+  let best: { line: number; score: number } | undefined
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line === undefined || line.trim().length === 0) continue
+    const lineChars = new Set(line)
+    let common = 0
+    for (const ch of lineChars) if (needleChars.has(ch)) common++
+    const score = common / Math.max(needleChars.size, lineChars.size)
+    if (!best || score > best.score) best = { line: i + 1, score }
+  }
+  if (!best || best.score <= 0) return undefined
+  const snippetLine = lines[best.line - 1]
+  return snippetLine === undefined
+    ? undefined
+    : { line: best.line, snippet: snippetLine.trim().slice(0, maxSnippet) }
+}
+
+/**
+ * Build the model-facing conflict error for a stale edit whose automatic retry
+ * failed to match (C4 方案 A 兜底 B). Reads the current content back to locate
+ * the closest line, so the model gets a locatable diff anchor instead of a bare
+ * retry hint. Non-match errors (FS_EDIT_NOT_FOUND / FS_AMBIGUOUS_EDIT) are
+ * re-coded to FS_STALE_VERSION with the located line; anything else (e.g. a
+ * second FS_STALE_VERSION race, binary-content change) passes through untouched.
+ * @param ctx - plugin context (for the re-read).
+ * @param target - the resolved edit target.
+ * @param input - the validated edit input.
+ * @param retryError - the error the unconditional retry threw.
+ * @param signal - the execution abort signal.
+ * @returns the conflict FsError, or the original error when it is not a match failure.
+ */
+async function staleEditConflictError(
+  ctx: Context,
+  target: FsTarget,
+  input: EditInput,
+  retryError: unknown,
+  signal: AbortSignal,
+): Promise<unknown> {
+  if (!(retryError instanceof FsError)) return retryError
+  if (retryError.code !== 'FS_EDIT_NOT_FOUND' && retryError.code !== 'FS_AMBIGUOUS_EDIT') {
+    return retryError
+  }
+  let current: string
+  try {
+    current = await ctx.fs.readText(target, signal)
+  } catch {
+    return retryError
+  }
+  const loc = locateClosestLine(current, input.oldString)
+  const where = loc ? `; closest content near line ${loc.line}: ${JSON.stringify(loc.snippet)}` : ''
+  return new FsError(
+    `cannot edit "${target.displayPath}": the file changed since it was read and old_string no longer uniquely matches${where}`,
+    'FS_STALE_VERSION',
+    { cause: retryError },
+  )
 }
 
 /**
@@ -135,7 +221,33 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
         // A sandbox denial becomes the shared [sandbox: …] marker (the model
         // recognizes it from bash); stale/not-observed failures gain their
         // model-facing remedy; anything else passes through.
-        throw remediateFsError(sandbox.mapError(error, sandboxPolicy))
+        const mapped = sandbox.mapError(error, sandboxPolicy)
+        // C4 方案 A: an FS_STALE_VERSION (the file changed since this session's
+        // read) is retried ONCE unconditionally. The provider's per-target lock
+        // performs an atomic read→match→write against the CURRENT content, so
+        // the retry either succeeds when old_string still matches exactly once
+        // (external changes elsewhere in the file do not block it), or fails
+        // with a match error when the content really changed at the edit site.
+        // Unconditional here is deliberate: the whole point is to re-baseline on
+        // the fresh content rather than on the stale observation. A failed retry
+        // is re-coded into a locatable-diff error (staleEditConflictError); a
+        // second staleness race passes through as-is.
+        if (mapped instanceof FsError && mapped.code === 'FS_STALE_VERSION') {
+          try {
+            outcome = await ctx.fs.editText(
+              target,
+              { oldString: input.oldString, newString: input.newString, replaceAll: input.replaceAll },
+              undefined,
+              exec.signal,
+              sandboxPolicy,
+            )
+          } catch (retryError: unknown) {
+            const retryMapped = sandbox.mapError(retryError, sandboxPolicy)
+            throw remediateFsError(await staleEditConflictError(ctx, target, input, retryMapped, exec.signal))
+          }
+        } else {
+          throw remediateFsError(mapped)
+        }
       }
       // Record the present observation (a no-op when no policy plugin listens).
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)

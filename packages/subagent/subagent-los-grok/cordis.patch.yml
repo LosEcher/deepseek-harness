@@ -1,0 +1,4 @@
+# Optional Profile Bundle: register the LOS-backed Grok provider on the Host plane.
+- insert:
+    - id: subagent-los-grok
+      name: '@deepseek-ai/dsh-subagent-los-grok'
