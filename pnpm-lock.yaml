@@ -7785,6 +7785,21 @@ importers:
         specifier: workspace:^
         version: link:../../interaction/user-approval
 
+  packages/subagent/subagent-los-grok:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-subagent':
+        specifier: workspace:^
+        version: link:../subagent
+
   packages/subagent/subagent-spawn-in-process:
     dependencies:
       '@deepseek-ai/schemastery':
