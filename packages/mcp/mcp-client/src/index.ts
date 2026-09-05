@@ -54,25 +54,26 @@ const activeServerNames = new WeakMap<Context, Set<string>>()
 
 /** Config for connecting to an MCP server via a spawned child process over stdio. */
 export interface StdioConfig {
-  /** Selects child-process stdio transport. */
+  /** Selects child-process stdio transport. @effect restart */
   transport: 'stdio'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** Executable used to start the server. */
+  /** Executable used to start the server. @effect restart */
   command: string
-  /** Arguments passed directly, without shell interpolation. */
+  /** Arguments passed directly, without shell interpolation. @effect restart */
   args: string[]
-  /** Extra env vars merged on top of scrubbed ambient env. */
+  /** Extra env vars merged on top of scrubbed ambient env. @effect restart */
   env: Record<string, string>
-  /** Working directory for the child process. */
+  /** Working directory for the child process. @effect restart */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds. @effect hot */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails. @effect restart */
   failOnStartupError: boolean
   /**
    * Lazy start: do not block plugin activation on the initial connection.
@@ -82,60 +83,66 @@ export interface StdioConfig {
    * (calls fail with a clear not-connected error until the server connects).
    * `failOnStartupError` loses its fiber-rejection meaning under lazy — the
    * failure is logged and the reconnect loop continues.
+   * @effect restart
    */
   lazy?: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults. @effect hot */
   reconnect?: ReconnectConfig
   /**
    * Raw tool names (as the server lists them) allowed into the model-facing
    * registry. Omitted or empty allows every listed tool; a non-empty list
    * registers only those tools. Filtered tools are never visible to the model.
+   * @effect new-session
    */
   toolAllow?: string[]
-  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. */
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. @effect new-session */
   toolDeny?: string[]
   /**
    * Hard cap on the model-facing description length; longer descriptions are
    * cut with an ellipsis. Token cost is linear in description length, so
    * verbose servers can be trimmed client-side without touching the server.
+   * @effect new-session
    */
   descriptionMaxLength?: number
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
 export interface StreamableHttpConfig {
-  /** Selects Streamable HTTP transport. */
+  /** Selects Streamable HTTP transport. @effect restart */
   transport: 'streamable-http'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** MCP endpoint URL. */
+  /** MCP endpoint URL. @effect restart */
   url: string
-  /** Additional headers attached to MCP requests. */
+  /** Additional headers attached to MCP requests. @effect restart */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds. @effect hot */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails. @effect restart */
   failOnStartupError: boolean
-  /** Lazy start: activate without waiting for the initial connection. See {@link StdioConfig.lazy}. */
+  /** Lazy start: activate without waiting for the initial connection. See {@link StdioConfig.lazy}. @effect restart */
   lazy?: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults. @effect hot */
   reconnect?: ReconnectConfig
   /**
    * Raw tool names (as the server lists them) allowed into the model-facing
    * registry. Omitted or empty allows every listed tool; a non-empty list
    * registers only those tools. Filtered tools are never visible to the model.
+   * @effect new-session
    */
   toolAllow?: string[]
-  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. */
+  /** Raw tool names never registered, even when listed. Applied after `toolAllow`. @effect new-session */
   toolDeny?: string[]
   /**
    * Hard cap on the model-facing description length; longer descriptions are
    * cut with an ellipsis. Token cost is linear in description length, so
    * verbose servers can be trimmed client-side without touching the server.
+   * @effect new-session
    */
   descriptionMaxLength?: number
 }

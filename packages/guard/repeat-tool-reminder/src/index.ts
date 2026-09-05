@@ -26,11 +26,17 @@ export const name = 'repeat-tool-reminder'
  * (`exclude: [mcp_*]` must stay legal in a deployment that loads no MCP tools).
  */
 export interface Config {
-  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`). */
+  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`).
+   * @effect hot
+   */
   thresholds?: number[]
-  /** Tool-name patterns to track; empty means every tool is tracked. */
+  /** Tool-name patterns to track; empty means every tool is tracked.
+   * @effect hot
+   */
   include?: string[]
-  /** Tool-name patterns transparent to the chain (neither count nor reset). */
+  /** Tool-name patterns transparent to the chain (neither count nor reset).
+   * @effect hot
+   */
   exclude?: string[]
   /**
    * Maximum characters of canonical arguments quoted in the DETAILED reminder
@@ -38,6 +44,7 @@ export interface Config {
    * otherwise ride into the next request unbounded — precisely in a loop
    * scenario; the cap bounds the reminder, never the detection (the chain key
    * always compares the FULL canonical string).
+   * @effect hot
    */
   argumentsPreviewChars?: number
 }

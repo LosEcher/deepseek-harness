@@ -180,6 +180,7 @@ export interface Config {
    * `approval/policy` override — `'ask'` delegates to the composed answerers
    * (fail-closed with none); `'never'` auto-rejects every ask without
    * prompting (the deterministic CI/unattended stance).
+   * @effect restart
    */
   readonly policy?: ApprovalPolicy
 }

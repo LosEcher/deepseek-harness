@@ -35,6 +35,29 @@ const GLOBAL_TYPES = new Set([
 /** How a package classifies for the catalog. */
 type Kind = 'config' | 'no-config' | 'seam' | 'library'
 
+/** Refresh behavior classes used by the first policy-pack catalog slice. */
+type Effect = 'hot' | 'restart' | 'new-session' | 'page-refresh' | 'boot-quarantine'
+
+const EFFECT_CLASSES = new Set<Effect>([
+  'hot',
+  'restart',
+  'new-session',
+  'page-refresh',
+  'boot-quarantine',
+])
+
+/** Config packages whose fields are policy-pack inputs and require effects. */
+const POLICY_EFFECT_PACKAGES = new Set([
+  '@deepseek-ai/dsh-user-approval',
+  '@deepseek-ai/dsh-sandbox-policy',
+  '@deepseek-ai/dsh-permission-presets',
+  '@deepseek-ai/dsh-repeat-tool-reminder',
+  '@deepseek-ai/dsh-bash-local',
+  '@deepseek-ai/dsh-bash-sandbox',
+  '@deepseek-ai/dsh-tool-web',
+  '@deepseek-ai/dsh-mcp-client',
+])
+
 /** One name a pasted declaration references but the paste does not contain. */
 interface TypeRef {
   /** The name as it appears in the pasted text (the local import alias). */
@@ -194,13 +217,19 @@ function pasteText(ctx: FileCtx, decl: TypeDecl): string {
 
 /** Enforce non-empty JSDoc prose on every property of a pasted declaration,
  * recursing into nested type literals (e.g. an array-of-objects field). */
-function checkMemberDocs(ctx: FileCtx, decl: TypeDecl, violations: string[]): void {
+function checkMemberDocs(ctx: FileCtx, decl: TypeDecl, violations: string[], requireEffects: boolean): void {
   const walkMembers = (members: ts.NodeArray<ts.TypeElement>, path: string): void => {
     for (const member of members) {
       if (!ts.isPropertySignature(member)) continue
       const name = member.name.getText(ctx.sf)
       const where = `config field '${path}.${name}' (${pointer(ctx.rel, ctx.sf, member)})`
-      if (!parseJsDoc(rawJsDoc(ctx.text, member)).doc) violations.push(`${where} has no JSDoc prose.`)
+      const raw = rawJsDoc(ctx.text, member)
+      if (!parseJsDoc(raw).doc) violations.push(`${where} has no JSDoc prose.`)
+      if (requireEffects && path === (ts.isInterfaceDeclaration(decl) || ts.isTypeAliasDeclaration(decl) ? decl.name?.text : '')) {
+        const effect = /^\s*\*?\s*@effect\s+(\S+)\s*$/m.exec(raw)?.[1]
+        if (effect === undefined) violations.push(`${where} is missing @effect.`)
+        else if (!EFFECT_CLASSES.has(effect as Effect)) violations.push(`${where} has invalid @effect '${effect}'.`)
+      }
       if (member.type) walkNested(member.type, `${path}.${name}`)
     }
   }
@@ -521,11 +550,20 @@ function findSchemaExpr(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null): 
  * file, else `static inject = […]` on the plugin class. */
 function findInject(ctx: FileCtx, pluginClass: ts.ClassDeclaration | null, violations: string[]): string[] {
   const fromArray = (expr: ts.Expression, where: string): string[] => {
-    if (!ts.isArrayLiteralExpression(expr)) {
-      violations.push(`${where}: inject is not a plain string-array literal; teach the generator the new declaration form.`)
-      return []
+    if (ts.isArrayLiteralExpression(expr)) {
+      return expr.elements.map(el => ts.isStringLiteral(el) ? el.text : el.getText(ctx.sf))
     }
-    return expr.elements.map(el => ts.isStringLiteral(el) ? el.text : el.getText(ctx.sf))
+    if (ts.isObjectLiteralExpression(expr)) {
+      return expr.properties.flatMap((prop) => {
+        if (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) {
+          return [prop.name.getText(ctx.sf).replace(/^['"]|['"]$/g, '')]
+        }
+        violations.push(`${where}: inject object contains unsupported property '${prop.getText(ctx.sf)}'.`)
+        return []
+      })
+    }
+    violations.push(`${where}: inject is neither a plain string-array nor object literal; teach the generator the new declaration form.`)
+    return []
   }
   for (const stmt of ctx.sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue
@@ -705,7 +743,7 @@ export function collectConfigCatalog(scanRoot: string = root): CatalogEntry[] {
       }
       pastedDeclByName.set(name, declKey)
       pastes.push({ text: pasteText(resolved.ctx, resolved.decl), source: declKey })
-      checkMemberDocs(resolved.ctx, resolved.decl, violations)
+      checkMemberDocs(resolved.ctx, resolved.decl, violations, POLICY_EFFECT_PACKAGES.has(pkg) && name === typeName)
       const names = new Set<string>()
       collectTypeNames(resolved.decl, names)
       for (const n of names) {

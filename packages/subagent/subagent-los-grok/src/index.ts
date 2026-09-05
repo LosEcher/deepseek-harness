@@ -16,11 +16,17 @@ export const name = 'subagent-los-grok'
 export const inject = ['subagents']
 
 export interface Config {
+  /** Provider registry name on `ctx.subagents`. */
   providerName?: string
+  /** Base URL of the LOS gateway. */
   baseUrl?: string
+  /** Environment variable containing the LOS auth token. */
   authTokenEnv?: string
+  /** Environment variable containing the LOS operator token. */
   operatorTokenEnv?: string
+  /** Maximum duration of one external runtime request in milliseconds. */
   timeoutMs?: number
+  /** Maximum captured runtime output in bytes. */
   outputLimitBytes?: number
 }
 
