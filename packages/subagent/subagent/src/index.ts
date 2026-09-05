@@ -167,6 +167,16 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+/** Reject a delegated run that has no model-visible task message. */
+function assertSubagentPrompt(prompt: SubagentStartRequest['prompt']): void {
+  if (prompt.length === 0 || !prompt.some(block => block.type === 'text' && block.text.trim().length > 0)) {
+    throw new SubagentError(
+      'subagent prompt must contain a non-empty text task',
+      'INVALID_PROMPT',
+    )
+  }
+}
+
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends Service {
   private providers = new Map<string, SubagentProvider>()
@@ -210,6 +220,7 @@ export class SubagentRuntime extends Service {
    * @throws when continuation services are unavailable or materialization fails.
    */
   async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
+    assertSubagentPrompt(spec.request.prompt)
     return this.requireContinuations().startContinuable(spec)
   }
 
@@ -429,6 +440,7 @@ export class SubagentRuntime extends Service {
    */
   async start(name: string, request: SubagentStartRequest): Promise<SubagentRun> {
     const provider = this.expectProvider(name)
+    assertSubagentPrompt(request.prompt)
     this.assertCapabilities(provider, request)
     assertSubagentMaxDepth(request.maxDepth)
     if (request.outputSchema !== undefined) assertObjectJsonSchema(request.outputSchema)
