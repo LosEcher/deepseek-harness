@@ -9630,6 +9630,25 @@ importers:
         specifier: workspace:^
         version: link:../../interaction/user-approval
 
+  packages/subagent/subagent-los-grok:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-subagent':
+        specifier: workspace:^
+        version: link:../subagent
+
   packages/subagent/subagent-spawn-in-process:
     dependencies:
       '@deepseek-ai/schemastery':

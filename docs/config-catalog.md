@@ -2545,6 +2545,32 @@ export interface Config {
 
 Source: [`packages/subagent/subagent-fork-in-process/src/index.ts:31`](../packages/subagent/subagent-fork-in-process/src/index.ts)
 
+<a id="deepseek-aidsh-subagent-los-grok"></a>
+
+## `@deepseek-ai/dsh-subagent-los-grok`
+
+Requires: `subagents`
+
+```ts config-catalog
+/** Deployment-owned LOS gateway, credential, timeout, and output bounds. */
+export interface Config {
+  /** Provider registry name on `ctx.subagents` (default `los-grok`). */
+  providerName?: string
+  /** Base URL of the LOS gateway (default `http://127.0.0.1:8080`). */
+  baseUrl?: string
+  /** Environment variable containing the LOS auth token (default `LOS_AUTH_TOKEN`). */
+  authTokenEnv?: string
+  /** Environment variable containing the LOS operator token (default `LOS_OPERATOR_TOKEN`). */
+  operatorTokenEnv?: string
+  /** Maximum duration of one external runtime request in milliseconds (default `300000`). */
+  timeoutMs?: number
+  /** Maximum captured runtime output in bytes (default `128000`). */
+  outputLimitBytes?: number
+}
+```
+
+Source: [`packages/subagent/subagent-los-grok/src/index.ts:30`](../packages/subagent/subagent-los-grok/src/index.ts)
+
 <a id="deepseek-aidsh-subagent-spawn-in-process"></a>
 
 ## `@deepseek-ai/dsh-subagent-spawn-in-process`
