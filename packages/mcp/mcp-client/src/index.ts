@@ -48,49 +48,79 @@ const activeServerNames = new WeakMap<object, Set<string>>()
 
 /** Config for connecting to an MCP server via a spawned child process over stdio. */
 export interface StdioConfig {
-  /** Selects child-process stdio transport. */
+  /** Selects child-process stdio transport.
+   * @effect restart
+   */
   transport: 'stdio'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** Executable used to start the server. */
+  /** Executable used to start the server.
+   * @effect restart
+   */
   command: string
-  /** Arguments passed directly, without shell interpolation. */
+  /** Arguments passed directly, without shell interpolation.
+   * @effect restart
+   */
   args: string[]
-  /** Extra env vars merged on top of scrubbed ambient env. */
+  /** Extra env vars merged on top of scrubbed ambient env.
+   * @effect restart
+   */
   env: Record<string, string>
-  /** Working directory for the child process. */
+  /** Working directory for the child process.
+   * @effect restart
+   */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds.
+   * @effect hot
+   */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails.
+   * @effect restart
+   */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults.
+   * @effect hot
+   */
   reconnect?: ReconnectConfig
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
 export interface StreamableHttpConfig {
-  /** Selects Streamable HTTP transport. */
+  /** Selects Streamable HTTP transport.
+   * @effect restart
+   */
   transport: 'streamable-http'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** MCP endpoint URL. */
+  /** MCP endpoint URL.
+   * @effect restart
+   */
   url: string
-  /** Additional headers attached to MCP requests. */
+  /** Additional headers attached to MCP requests.
+   * @effect restart
+   */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds.
+   * @effect hot
+   */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails.
+   * @effect restart
+   */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults.
+   * @effect hot
+   */
   reconnect?: ReconnectConfig
 }
 

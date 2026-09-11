@@ -39,17 +39,29 @@ const DEFAULT_MAX_SPILL_BYTES = 64 * 1024 * 1024
 
 /** Plugin config (all optional — `static Config` supplies the defaults). */
 export interface Config {
-  /** Default working directory for commands (default: process.cwd()). */
+  /** Default working directory for commands (default: process.cwd()).
+   * @effect restart
+   */
   cwd?: string
-  /** Default foreground timeout in milliseconds. */
+  /** Default foreground timeout in milliseconds.
+   * @effect hot
+   */
   timeoutMs?: number
-  /** Upper bound for per-call timeout overrides. */
+  /** Upper bound for per-call timeout overrides.
+   * @effect hot
+   */
   maxTimeoutMs?: number
-  /** Per-stream in-memory output cap; overflow spills to a temp file. */
+  /** Per-stream in-memory output cap; overflow spills to a temp file.
+   * @effect hot
+   */
   maxOutputBytes?: number
-  /** Per-stream spill-file cap; larger streams retain only their in-memory tail. */
+  /** Per-stream spill-file cap; larger streams retain only their in-memory tail.
+   * @effect hot
+   */
   maxSpillBytes?: number
-  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
+  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`.
+   * @effect hot
+   */
   graceMs?: number
 }
 

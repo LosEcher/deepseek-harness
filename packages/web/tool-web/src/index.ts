@@ -35,19 +35,33 @@ export const DEFAULT_FETCH_MAX_OUTPUT_CHARS = 200_000
 
 /** Plugin config: which web tools to register, search bounds, per-tool budgets, and the fetch output cap. */
 export interface Config {
-  /** Register `web_search`. Defaults to true. */
+  /** Register `web_search`. Defaults to true.
+   * @effect new-session
+   */
   search?: boolean
-  /** Register `web_fetch`. Defaults to true. */
+  /** Register `web_fetch`. Defaults to true.
+   * @effect new-session
+   */
   fetch?: boolean
-  /** Upper bound on sources returned by one `web_search` call. */
+  /** Upper bound on sources returned by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxResults?: number
-  /** Upper bound on queries accepted by one `web_search` call. */
+  /** Upper bound on queries accepted by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxQueries?: number
-  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000.
+   * @effect hot
+   */
   fetchTimeoutMs?: number
-  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000.
+   * @effect hot
+   */
   searchTimeoutMs?: number
-  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000. */
+  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000.
+   * @effect hot
+   */
   fetchMaxOutputChars?: number
 }
 

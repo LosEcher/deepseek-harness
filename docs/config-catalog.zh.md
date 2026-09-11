@@ -303,17 +303,29 @@ export interface Config {
 ```ts config-catalog
 /** Plugin config (all optional — `static Config` supplies the defaults). */
 export interface Config {
-  /** Default working directory for commands (default: process.cwd()). */
+  /** Default working directory for commands (default: process.cwd()).
+   * @effect restart
+   */
   cwd?: string
-  /** Default foreground timeout in milliseconds. */
+  /** Default foreground timeout in milliseconds.
+   * @effect hot
+   */
   timeoutMs?: number
-  /** Upper bound for per-call timeout overrides. */
+  /** Upper bound for per-call timeout overrides.
+   * @effect hot
+   */
   maxTimeoutMs?: number
-  /** Per-stream in-memory output cap; overflow spills to a temp file. */
+  /** Per-stream in-memory output cap; overflow spills to a temp file.
+   * @effect hot
+   */
   maxOutputBytes?: number
-  /** Per-stream spill-file cap; larger streams retain only their in-memory tail. */
+  /** Per-stream spill-file cap; larger streams retain only their in-memory tail.
+   * @effect hot
+   */
   maxSpillBytes?: number
-  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
+  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`.
+   * @effect hot
+   */
   graceMs?: number
 }
 ```
@@ -1519,49 +1531,79 @@ export type Config = StdioConfig | StreamableHttpConfig
 
 /** Config for connecting to an MCP server via a spawned child process over stdio. */
 export interface StdioConfig {
-  /** Selects child-process stdio transport. */
+  /** Selects child-process stdio transport.
+   * @effect restart
+   */
   transport: 'stdio'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** Executable used to start the server. */
+  /** Executable used to start the server.
+   * @effect restart
+   */
   command: string
-  /** Arguments passed directly, without shell interpolation. */
+  /** Arguments passed directly, without shell interpolation.
+   * @effect restart
+   */
   args: string[]
-  /** Extra env vars merged on top of scrubbed ambient env. */
+  /** Extra env vars merged on top of scrubbed ambient env.
+   * @effect restart
+   */
   env: Record<string, string>
-  /** Working directory for the child process. */
+  /** Working directory for the child process.
+   * @effect restart
+   */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds.
+   * @effect hot
+   */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails.
+   * @effect restart
+   */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults.
+   * @effect hot
+   */
   reconnect?: ReconnectConfig
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
 export interface StreamableHttpConfig {
-  /** Selects Streamable HTTP transport. */
+  /** Selects Streamable HTTP transport.
+   * @effect restart
+   */
   transport: 'streamable-http'
   /**
    * Stable local namespace for this server's model-facing tool names
    * (`mcp__<serverName>__<rawName>`). Must match `[A-Za-z0-9_-]{1,32}` and be
    * unique across live mcp-client instances.
+   * @effect restart
    */
   serverName: string
-  /** MCP endpoint URL. */
+  /** MCP endpoint URL.
+   * @effect restart
+   */
   url: string
-  /** Additional headers attached to MCP requests. */
+  /** Additional headers attached to MCP requests.
+   * @effect restart
+   */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Per-tool-call timeout in milliseconds.
+   * @effect hot
+   */
   toolCallTimeoutMs: number
-  /** Fail plugin activation when the initial connection or tool synchronization fails. */
+  /** Fail plugin activation when the initial connection or tool synchronization fails.
+   * @effect restart
+   */
   failOnStartupError: boolean
-  /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
+  /** Automatic reconnect policy after a lost connection; omission uses the defaults.
+   * @effect hot
+   */
   reconnect?: ReconnectConfig
 }
 
@@ -1609,11 +1651,13 @@ export interface Config {
    * The preset table: name → knob bundle. Defaults to `workspace-write`
    * (workspace-write + ask) and `danger-full-access` (danger-full-access +
    * never). The name `custom` is reserved for the derived not-a-preset state.
+   * @effect new-session
    */
   presets?: Record<string, PresetSpec>
   /**
    * Default for new sessions. When omitted, the preset matching the composed
    * sandbox and approval defaults is used.
+   * @effect new-session
    */
   defaultPreset?: string
 }
@@ -1766,11 +1810,17 @@ export type Config = LocalConfig
  * (`exclude: [mcp_*]` must stay legal in a deployment that loads no MCP tools).
  */
 export interface Config {
-  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`). */
+  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`).
+   * @effect hot
+   */
   thresholds?: number[]
-  /** Tool-name patterns to track; empty means every tool is tracked. */
+  /** Tool-name patterns to track; empty means every tool is tracked.
+   * @effect hot
+   */
   include?: string[]
-  /** Tool-name patterns transparent to the chain (neither count nor reset). */
+  /** Tool-name patterns transparent to the chain (neither count nor reset).
+   * @effect hot
+   */
   exclude?: string[]
   /**
    * Maximum characters of canonical arguments quoted in the DETAILED reminder
@@ -1778,6 +1828,7 @@ export interface Config {
    * otherwise ride into the next request unbounded — precisely in a loop
    * scenario; the cap bounds the reminder, never the detection (the chain key
    * always compares the FULL canonical string).
+   * @effect hot
    */
   argumentsPreviewChars?: number
 }
@@ -1832,11 +1883,14 @@ export interface Config {
  * is any per-family knob: this is the one shared policy home.
  */
 export interface Config {
-  /** File-sandbox mode a session starts from (default: `read-only`). */
+  /** File-sandbox mode a session starts from (default: `read-only`).
+   * @effect new-session
+   */
   mode?: SandboxMode
   /**
    * Fallback root for agentless calls and sessions without a cwd (default:
    * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * @effect new-session
    */
   workspaceRoot?: string
 }
@@ -2556,17 +2610,29 @@ export interface Config {
 ```ts config-catalog
 /** Deployment-owned LOS gateway, credential, timeout, and output bounds. */
 export interface Config {
-  /** Provider registry name on `ctx.subagents` (default `los-grok`). */
+  /** Provider registry name on `ctx.subagents` (default `los-grok`).
+   * @effect restart
+   */
   providerName?: string
-  /** Base URL of the LOS gateway (default `http://127.0.0.1:8080`). */
+  /** Base URL of the LOS gateway (default `http://127.0.0.1:8080`).
+   * @effect restart
+   */
   baseUrl?: string
-  /** Environment variable containing the LOS auth token (default `LOS_AUTH_TOKEN`). */
+  /** Environment variable containing the LOS auth token (default `LOS_AUTH_TOKEN`).
+   * @effect restart
+   */
   authTokenEnv?: string
-  /** Environment variable containing the LOS operator token (default `LOS_OPERATOR_TOKEN`). */
+  /** Environment variable containing the LOS operator token (default `LOS_OPERATOR_TOKEN`).
+   * @effect restart
+   */
   operatorTokenEnv?: string
-  /** Maximum duration of one external runtime request in milliseconds (default `300000`). */
+  /** Maximum duration of one external runtime request in milliseconds (default `300000`).
+   * @effect hot
+   */
   timeoutMs?: number
-  /** Maximum captured runtime output in bytes (default `128000`). */
+  /** Maximum captured runtime output in bytes (default `128000`).
+   * @effect hot
+   */
   outputLimitBytes?: number
 }
 ```
@@ -3146,19 +3212,33 @@ export interface Config {
 ```ts config-catalog
 /** Plugin config: which web tools to register, search bounds, per-tool budgets, and the fetch output cap. */
 export interface Config {
-  /** Register `web_search`. Defaults to true. */
+  /** Register `web_search`. Defaults to true.
+   * @effect new-session
+   */
   search?: boolean
-  /** Register `web_fetch`. Defaults to true. */
+  /** Register `web_fetch`. Defaults to true.
+   * @effect new-session
+   */
   fetch?: boolean
-  /** Upper bound on sources returned by one `web_search` call. */
+  /** Upper bound on sources returned by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxResults?: number
-  /** Upper bound on queries accepted by one `web_search` call. */
+  /** Upper bound on queries accepted by one `web_search` call.
+   * @effect new-session
+   */
   searchMaxQueries?: number
-  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000.
+   * @effect hot
+   */
   fetchTimeoutMs?: number
-  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000.
+   * @effect hot
+   */
   searchTimeoutMs?: number
-  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000. */
+  /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000.
+   * @effect hot
+   */
   fetchMaxOutputChars?: number
 }
 ```
@@ -3247,6 +3327,7 @@ export interface Config {
    * `approval/policy` override — `'ask'` delegates to the composed answerers
    * (fail-closed with none); `'never'` auto-rejects every ask without
    * prompting (the deterministic CI/unattended stance).
+   * @effect restart
    */
   readonly policy?: ApprovalPolicy
 }

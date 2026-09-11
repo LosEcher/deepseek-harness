@@ -68,11 +68,14 @@ declare module '@deepseek-ai/cordis' {
  * is any per-family knob: this is the one shared policy home.
  */
 export interface Config {
-  /** File-sandbox mode a session starts from (default: `read-only`). */
+  /** File-sandbox mode a session starts from (default: `read-only`).
+   * @effect new-session
+   */
   mode?: SandboxMode
   /**
    * Fallback root for agentless calls and sessions without a cwd (default:
    * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * @effect new-session
    */
   workspaceRoot?: string
 }

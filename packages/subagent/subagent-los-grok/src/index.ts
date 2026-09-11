@@ -28,17 +28,29 @@ const DEFAULT_OUTPUT_LIMIT_BYTES = 128_000
 
 /** Deployment-owned LOS gateway, credential, timeout, and output bounds. */
 export interface Config {
-  /** Provider registry name on `ctx.subagents` (default `los-grok`). */
+  /** Provider registry name on `ctx.subagents` (default `los-grok`).
+   * @effect restart
+   */
   providerName?: string
-  /** Base URL of the LOS gateway (default `http://127.0.0.1:8080`). */
+  /** Base URL of the LOS gateway (default `http://127.0.0.1:8080`).
+   * @effect restart
+   */
   baseUrl?: string
-  /** Environment variable containing the LOS auth token (default `LOS_AUTH_TOKEN`). */
+  /** Environment variable containing the LOS auth token (default `LOS_AUTH_TOKEN`).
+   * @effect restart
+   */
   authTokenEnv?: string
-  /** Environment variable containing the LOS operator token (default `LOS_OPERATOR_TOKEN`). */
+  /** Environment variable containing the LOS operator token (default `LOS_OPERATOR_TOKEN`).
+   * @effect restart
+   */
   operatorTokenEnv?: string
-  /** Maximum duration of one external runtime request in milliseconds (default `300000`). */
+  /** Maximum duration of one external runtime request in milliseconds (default `300000`).
+   * @effect hot
+   */
   timeoutMs?: number
-  /** Maximum captured runtime output in bytes (default `128000`). */
+  /** Maximum captured runtime output in bytes (default `128000`).
+   * @effect hot
+   */
   outputLimitBytes?: number
 }
 
