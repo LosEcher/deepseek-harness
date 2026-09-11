@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { SettingsProvider, SettingsConflictError, type SettingsNamespace, type SettingsScope, type SettingsUpdateSource } from '../src/index.ts'
+import { SettingsProvider, SettingsConflictError, installSettingsSection, settingsNamespace, type SettingsNamespace, type SettingsScope, type SettingsUpdateSource } from '../src/index.ts'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { MemorySettings } from './memory.ts'
 
@@ -1054,5 +1054,29 @@ describe('revision and conflict detection', () => {
       (ctx.settings as unknown as { publish(doc: Record<string, unknown>): void })
         .publish({ rev: { b: 'edited on disk' } })
     }).toThrow(/forged revision/)
+  })
+})
+
+describe('settingsNamespace and installSettingsSection', () => {
+  it('brands a valid namespace and rejects an invalid one', () => {
+    expect(settingsNamespace('ui-theme')).toBe('ui-theme')
+    expect(() => settingsNamespace('UI Theme')).toThrow(/must match/)
+  })
+
+  it('registers through ctx.settings while the service is present', async () => {
+    const ctx = new Context()
+    await ctx.plugin(BareProvider)
+    const entry: ThemeConfig = { theme: 'light', fontSize: 16 }
+    let source = (): ThemeConfig => entry
+    installSettingsSection(ctx, settingsNamespace('ui-theme'), ThemeSchema, entry, {
+      setSource: (current) => {
+        source = current
+      },
+      onChange: () => {},
+    })
+    await vi.waitFor(() => {
+      expect(ctx.settings.describe().map(d => d.ns)).toContain('ui-theme')
+    })
+    expect(source()).toEqual(entry)
   })
 })

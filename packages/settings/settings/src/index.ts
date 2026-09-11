@@ -42,6 +42,15 @@ function parseSettingsNamespace(value: string): SettingsNamespace {
   return value as SettingsNamespace
 }
 
+/**
+ * Brand a raw string as a {@link SettingsNamespace}.
+ * @param value - candidate namespace; lowercase kebab-case, as in plugin short names.
+ * @returns the branded namespace.
+ */
+export function settingsNamespace(value: string): SettingsNamespace {
+  return parseSettingsNamespace(value)
+}
+
 /** When a namespace's changes take effect for its owner. */
 export type SettingsApplies = 'live' | 'restart'
 
@@ -888,6 +897,30 @@ export interface SettingsSectionHooks<T> {
    * @param value - the resolved section, schema-valid by construction.
    */
   validate?: (value: T) => void
+}
+
+/**
+ * Install the canonical optional-settings consumer wiring: while a settings
+ * service exists, register `ns` with the consumer's composition entry as the
+ * `base` layer and point the source thunk at the resolved scope; when the
+ * service goes away, fall back to the entry so the consumer keeps working
+ * exactly as composed.
+ * @param ctx - consumer plugin context owning the wiring.
+ * @param ns - the consumer-owned settings namespace.
+ * @param schema - schema resolving the namespace (typically the plugin Config).
+ * @param entry - the consumer's composition entry config, used as `base`.
+ * @param hooks - source sink and change notification.
+ */
+export function installSettingsSection<T>(
+  ctx: Context,
+  ns: SettingsNamespace,
+  schema: z<T>,
+  entry: T,
+  hooks: SettingsSectionHooks<T>,
+): void {
+  ctx.inject(['settings'], (sctx) => {
+    sctx.settings.installSection(ctx, ns, schema, entry, hooks)
+  })
 }
 
 export default SettingsProvider
