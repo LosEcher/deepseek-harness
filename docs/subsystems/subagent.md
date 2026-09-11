@@ -50,7 +50,10 @@ The tool layer builds this request from the model input and its own config; the 
 interface SubagentStartRequest {
   /** Optional short display label persisted with a session-backed child. */
   readonly label?: string
-  /** Content delivered as the child's user message. */
+  /**
+   * Content delivered as the child's user message. The service rejects a start
+   * whose prompt has no non-whitespace text block (`INVALID_PROMPT`).
+   */
   readonly prompt: ContentBlock[]
   /**
    * The spawning agent. In-process providers derive workspace, lineage, and

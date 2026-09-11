@@ -66,6 +66,16 @@ import type {
 } from './types.ts'
 import { SubagentError } from './error.ts'
 import { assertSubagentMaxDepth } from './depth.ts'
+
+/** Reject a delegated run that has no model-visible text task. */
+function assertSubagentPrompt(prompt: SubagentStartRequest['prompt']): void {
+  if (prompt.length === 0 || !prompt.some(block => block.type === 'text' && block.text.trim().length > 0)) {
+    throw new SubagentError(
+      'subagent prompt must contain a non-empty text task',
+      'INVALID_PROMPT',
+    )
+  }
+}
 import { createActivationObserver, createLifecycleEmitter, observeRun } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
@@ -223,9 +233,11 @@ export class SubagentRuntime extends TypertRemoteService {
    * failure rejects with no ids and rolls back the child entirely.
    * @param spec - provider, delegation request, and caller cancellation.
    * @returns the durable child id and the accepted prompt's message id.
+   * @throws {SubagentError} `INVALID_PROMPT` when the prompt has no non-whitespace text block.
    * @throws when continuation services are unavailable or materialization fails.
    */
   async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
+    assertSubagentPrompt(spec.request.prompt)
     return this.requireContinuations().startContinuable(spec)
   }
 
@@ -552,9 +564,11 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param name - the provider to use.
    * @param request - child label, prompt, parent, signal, and optional capabilities.
    * @returns the published holder-owned run.
+   * @throws {SubagentError} `INVALID_PROMPT` when the prompt has no non-whitespace text block.
    */
   async start(name: string, request: SubagentStartRequest): Promise<SubagentRun> {
     const provider = this.expectProvider(name)
+    assertSubagentPrompt(request.prompt)
     this.assertCapabilities(provider, request)
     assertSubagentMaxDepth(request.maxDepth)
     if (request.outputSchema !== undefined) assertObjectJsonSchema(request.outputSchema)

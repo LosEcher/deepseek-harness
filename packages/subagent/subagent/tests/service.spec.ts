@@ -128,6 +128,30 @@ describe('SubagentRuntime', () => {
       .rejects.toMatchObject({ code: 'NO_PROVIDER' })
   })
 
+  it('rejects a missing or whitespace-only task before provider startup', async () => {
+    const { subagents } = await service()
+    const provider = new StubProvider('prompt-check')
+    subagents.registerProvider(provider)
+
+    await expect(subagents.start('prompt-check', baseRequest({ prompt: [] })))
+      .rejects.toMatchObject({ code: 'INVALID_PROMPT' })
+    await expect(subagents.start('prompt-check', baseRequest({
+      prompt: [{ type: 'text', text: '   ' }],
+    })))
+      .rejects.toMatchObject({ code: 'INVALID_PROMPT' })
+    expect(provider.startCount).toBe(0)
+  })
+
+  it('rejects a taskless continuable start before looking up continuation services', async () => {
+    const { subagents } = await service()
+    await expect(subagents.startContinuable({
+      provider: 'unused',
+      label: 'unused child',
+      request: { ...baseRequest(), prompt: [] },
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: 'INVALID_PROMPT' })
+  })
+
   it('resolves the one-shot descriptor and exposes no provider continuation operations', async () => {
     const { subagents } = await service()
     const provider = new StubProvider('one-shot')
