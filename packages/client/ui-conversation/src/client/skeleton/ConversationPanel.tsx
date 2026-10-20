@@ -26,5 +26,5 @@ export function ConversationPanel({ renderSlot, session, ...rest }: Conversation
   const content = renderSlot('main.conversation', {})
   const SessionProvider = (rest as { SessionProvider?: (props: SessionAreaProps) => ReactNode }).SessionProvider
   if (session === undefined || SessionProvider === undefined) return content
-  return <SessionProvider session={session}>{content}</SessionProvider>
+  return <div data-explicit-session={session.sessionId}><SessionProvider session={session}>{content}</SessionProvider></div>
 }

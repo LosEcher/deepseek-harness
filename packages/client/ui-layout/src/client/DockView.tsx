@@ -56,7 +56,7 @@ export function DockView({ renderSlot, useSessions }: {
           Split
         </button>
       ) : (
-        <section data-dock-pane="b" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6 }}>
+        <section data-dock-pane="b" data-dock-ref={reference?.sessionId ?? 'none'} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6 }}>
           {renderSlot('main', { session: reference ?? undefined }, { entryKey: 'conversation' })}
         </section>
       )}
