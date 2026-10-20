@@ -15,6 +15,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PanelInfo } from './service.ts'
 import { AppFrame } from './AppFrame.tsx'
+import { rootComponent, setRootComponent, type RootComponent } from './root-override.ts'
+import { setDockRetain, retainDockSession } from './dock-host.ts'
+import type { LabRootService } from './lab-root-service.ts'
 import { createLayoutStore } from './stores.ts'
 import { LayoutController } from './service.ts'
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
@@ -185,9 +188,21 @@ export function apply(ctx: ClientContext): void {
         'shell.bottom': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
         'shell.leading': { kind: 'single', scope: 'root' },
+        // Session-scoped seat so the root kit carries the standard
+        // SessionProvider a lab shell needs around explicit-Session cards.
+        'lab.session': { kind: 'keyed', scope: 'session' },
       },
       store,
-    }, AppFrame)
+    }, rootComponent(AppFrame as unknown as RootComponent) as unknown as typeof AppFrame)
+    setDockRetain((id) => {
+      const sessions = ctx.get('sessions')
+      if (sessions === undefined) throw new Error('lab shell: sessions service is not available')
+      return sessions.retain(id as never, { source: 'labShell' })
+    })
+    const disposeLabRoot = ctx.reflect.provide('labRoot', {
+      setRootComponent: (component: RootComponent) => setRootComponent(component),
+      retainSession: (sessionId: string) => retainDockSession(sessionId),
+    } satisfies LabRootService)
     const disposeShortcut = ctx.shortcuts.register({
       id: 'sidebar.left.toggle' as ShortcutCommandId, label: () => t('toggle'), aliases: ['sidebar', 'toggle left sidebar'],
       defaults: {
@@ -203,6 +218,7 @@ export function apply(ctx: ClientContext): void {
     const disposePanels = ctx.slots.subscribe('main', retainMainPanels)
     retainMainPanels()
     return () => {
+      disposeLabRoot()
       disposeShortcut()
       layout.dispose()
       disposePanels()

@@ -100,9 +100,11 @@ export function ConversationContent(props: ConversationContentProps) {
     ?? (sessionId === undefined
       ? undefined
       : sessionWorkspace?.title
-        ?? (workspaces.phase === 'ready' || cwd === undefined || cwd === ''
-          ? undefined
-          : workspaceLabel(cwd)))
+        // POC: a Session bound explicitly by a dock pane is not the globally
+        // selected one, so it may be absent from the workspace list even though
+        // it has a real cwd. Fall back to the Session's own cwd instead of
+        // rendering the inert "choose a workspace" bar.
+        ?? (cwd === undefined || cwd === '' ? undefined : workspaceLabel(cwd)))
   const chipTitle = storedChipTitle === undefined
     ? undefined
     : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
