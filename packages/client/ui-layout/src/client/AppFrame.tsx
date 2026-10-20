@@ -21,6 +21,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import { CENTER_MIN, clampWidth, computeColumns, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
+import { DockView, dockEnabled } from './DockView.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -37,8 +38,10 @@ function CenterColumn(props: { children?: ReactNode }) {
 }
 
 /** Subscribe to the main key without subscribing the column frame to each panel id. */
-function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'usePanelInfo'> & PropsRenderSlots<'main'>) {
+function MainPanel({ usePanelInfo, renderSlot, useSessions }: Pick<PropsRuntime<'root'>, 'usePanelInfo' | 'useSessions'> & PropsRenderSlots<'main'>) {
   const panelId = usePanelInfo(info => info.activePanelId)
+  // POC: opt-in dock layout; the default remains the single selected panel.
+  if (dockEnabled()) return <DockView renderSlot={renderSlot} useSessions={useSessions} />
   return renderSlot('main', {}, { entryKey: panelId ?? 'conversation' })
 }
 
@@ -244,8 +247,8 @@ export function AppFrame({
     width: cols.sidebar,
   }), [renderSlot, sidebarCollapsed, cols.sidebar])
   const main = useMemo(() => (
-    <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
-  ), [usePanelInfo, renderSlot])
+    <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} useSessions={useSessions} />
+  ), [usePanelInfo, renderSlot, useSessions])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
   // Window-chrome seat over the main panels' top-left corner: only a fully
   // hidden sidebar column on macOS desktop leaves window chrome without a

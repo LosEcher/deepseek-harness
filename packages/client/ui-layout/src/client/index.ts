@@ -20,6 +20,7 @@ import { LayoutController } from './service.ts'
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { en, zh } from './shortcut-locales.ts'
 import { ThemePresenter } from './theme-presenter.ts'
+import { setDockRetain } from './dock-host.ts'
 
 // Contract exports only (export-convergence rule: cross-package consumers
 // keep a symbol exported; test-only/package-internal symbols live off /src).
@@ -199,6 +200,13 @@ export function apply(ctx: ClientContext): void {
       },
       regions: ['page', 'editable'], modals: [],
       resolve: () => ({ status: 'handled', run: () => { layout.toggleSidebar() } }),
+    })
+    // POC: give DockView a way to retain a second pane's Session. Looked up
+    // lazily so the layout plugin keeps its existing declared dependencies.
+    setDockRetain((id) => {
+      const sessions = ctx.get('sessions')
+      if (sessions === undefined) throw new Error('shell dock: sessions service is not available')
+      return sessions.retain(id as never, { source: 'shellDock' })
     })
     const disposePanels = ctx.slots.subscribe('main', retainMainPanels)
     retainMainPanels()
