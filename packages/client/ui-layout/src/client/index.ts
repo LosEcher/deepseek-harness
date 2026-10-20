@@ -15,7 +15,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PanelInfo } from './service.ts'
 import { AppFrame } from './AppFrame.tsx'
-import { rootComponent, setRootComponent, type RootComponent } from './root-override.ts'
+import { setRootComponent, type RootComponent } from './root-override.ts'
+import { RootOutlet } from './RootOutlet.tsx'
 import { setDockRetain, retainDockSession } from './dock-host.ts'
 import type { LabRootService } from './lab-root-service.ts'
 import { createLayoutStore } from './stores.ts'
@@ -193,7 +194,7 @@ export function apply(ctx: ClientContext): void {
         'lab.session': { kind: 'keyed', scope: 'session' },
       },
       store,
-    }, rootComponent(AppFrame as unknown as RootComponent) as unknown as typeof AppFrame)
+    }, RootOutlet as unknown as typeof AppFrame)
     setDockRetain((id) => {
       const sessions = ctx.get('sessions')
       if (sessions === undefined) throw new Error('lab shell: sessions service is not available')

@@ -11,13 +11,21 @@ import type { ComponentType } from 'react'
 export type RootComponent = ComponentType<Record<string, unknown>>
 
 let override: RootComponent | undefined
+const listeners = new Set<() => void>()
 
 /** Install the shell component that should render the root slot. */
 export function setRootComponent(component: RootComponent): void {
   override = component
+  for (const listener of listeners) listener()
 }
 
-/** Resolve the shell component, falling back to the built-in frame. */
+/** Subscribe to override changes (render-time resolution avoids registration order). */
+export function subscribeRootComponent(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+/** Current override or the fallback; read during render. */
 export function rootComponent(fallback: RootComponent): RootComponent {
   return override ?? fallback
 }
