@@ -8,6 +8,7 @@ import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
 import { TerminalFollower } from './stream.ts'
 import { TerminalRetention, type TerminalRetentionPolicy } from './retention.ts'
 import type { TerminalEnvironment, TerminalInput, TerminalFrame, TerminalRetentionFrame, WebTerminalInfo } from './types.ts'
+import { aggregate, applyOsc, featureReply, parseOsc7501, settleRecords, type ProgramStatus } from './program-status.ts'
 
 const requireHeadless = createLazyRequire<typeof import('@xterm/headless')>('@xterm/headless', import.meta.url)
 const requireSerialize = createLazyRequire<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', import.meta.url)
@@ -25,6 +26,8 @@ export class BrowserTerminal {
   private closing: Promise<void> | undefined
   private retention: TerminalRetention | undefined
   private controller: TerminalFollower | undefined
+  private readonly programRecords = new Map<string, ProgramStatus>()
+  private programOsc: { dispose(): void } | undefined
 
   /**
    * @param handle - allocated terminal process range.
@@ -43,6 +46,17 @@ export class BrowserTerminal {
     this.screen = new Terminal({ cols: info.cols, rows: info.rows, scrollback, allowProposedApi: true })
     this.serializer = new SerializeAddon()
     this.screen.loadAddon(this.serializer)
+    // OSC 7501 rides the same PTY stream the headless screen already parses.
+    this.programOsc = this.screen.parser.registerOscHandler(7501, (body: string) => {
+      const parsed = parseOsc7501(body)
+      if (parsed === null) return false
+      if (parsed.kind === 'query') {
+        void this.handle.write(featureReply())
+        return true
+      }
+      applyOsc(this.programRecords, parsed)
+      return true
+    })
     this.drained = this.consume()
   }
 
@@ -189,6 +203,7 @@ export class BrowserTerminal {
       await this.drained
       for (const follower of this.followers) follower.finish()
       this.followers.clear()
+      this.programOsc?.dispose()
       this.screen.dispose()
     })().catch((error: unknown) => { this.closing = undefined; throw error })
     return this.closing
@@ -211,7 +226,11 @@ export class BrowserTerminal {
 
   private async consume(): Promise<void> {
     const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
-    const outcome = this.handle.done.then((value) => { this.exited = true; return { value } }, (error: unknown) => ({ error }))
+    const outcome = this.handle.done.then((value) => {
+      this.exited = true
+      settleRecords(this.programRecords)
+      return { value }
+    }, (error: unknown) => ({ error }))
     try {
       for await (const chunk of this.handle.output) {
         // Node Readable's iterator is untyped; this provider explicitly emits Buffer chunks.
@@ -226,6 +245,11 @@ export class BrowserTerminal {
       this.info = { ...this.info, state: 'failed', error: error instanceof Error ? error.message : String(error) }
     }
     this.broadcastState()
+  }
+
+  /** Current OSC 7501 aggregate for this terminal. */
+  get programStatus(): ProgramStatus | undefined {
+    return aggregate(this.programRecords)
   }
 
   private async output(data: string): Promise<void> {
