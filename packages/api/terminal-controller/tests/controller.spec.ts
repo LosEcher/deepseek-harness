@@ -69,6 +69,14 @@ describe('TerminalController', () => {
     await controller.close(agent, id)
   })
 
+  it('passes the stable terminal identity to the PTY environment', async () => {
+    const { controller, agent, subprocess } = fixture()
+    await controller.create(agent, request, signal())
+    expect(subprocess.spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      env: { DSH_SESSION_ID: agent.id, DSH_TERMINAL_ID: 'test-terminal' },
+    }))
+  })
+
   it('creates the environment default shell and keeps an existing identity when that default changes', async () => {
     const { controller, agent, subprocess } = fixture({ shell: undefined })
     subprocess.terminalEnvironment.mockResolvedValue({ platform: 'posix', defaultShell: '/usr/local/bin/zsh' })
@@ -369,7 +377,7 @@ describe('TerminalController', () => {
     await controller.create(agent, request, signal())
     expect(confine).not.toHaveBeenCalled()
     expect(sandboxPolicy.resolve).not.toHaveBeenCalled()
-    expect(subprocess.spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({ argv: ['/bin/bash', '--noprofile', '--norc', '-i'], env: { DSH_SESSION_ID: agent.id }, graceMs: 100 }))
+    expect(subprocess.spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({ argv: ['/bin/bash', '--noprofile', '--norc', '-i'], env: { DSH_SESSION_ID: agent.id, DSH_TERMINAL_ID: 'test-terminal' }, graceMs: 100 }))
   })
 
   it('uses the Session working directory without requiring a sandbox provider', async () => {

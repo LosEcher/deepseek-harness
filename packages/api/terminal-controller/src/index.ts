@@ -319,7 +319,7 @@ export class TerminalController extends TypertRemoteService {
     if (shell === undefined) throw new Error('Selected shell is not available in this execution environment')
     const handle = await subprocess.spawnTerminal({
       argv: [shell.path, ...shell.args], cwd, cols: request.cols, rows: request.rows,
-      terminalType: 'xterm-256color', env: { DSH_SESSION_ID: agent.id },
+      terminalType: 'xterm-256color', env: { DSH_SESSION_ID: agent.id, DSH_TERMINAL_ID: String(request.id) },
       shellActivity: true,
       graceMs: this.config.disposeGraceMs, signal,
     })
