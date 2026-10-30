@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve, sep } from 'node:path'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { inspect } from 'node:util'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import {
   auditStartupEntries, boot, StartupError,
   FAIL_LOUD_RELEASE_TIMEOUT_MS,
-  installFailLoud, loadEnv, loadLayeredEnv, loadOverlayPatches, resolveConfigPath, type FailLoudEvent, type FailLoudProcess,
+  installFailLoud, loadLayeredEnv, loadOverlayPatches, type FailLoudEvent, type FailLoudProcess,
 } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
@@ -24,78 +24,6 @@ const tmp = (): string => {
   tempRoots.push(dir)
   return dir
 }
-
-describe('resolveConfigPath', () => {
-  it('resolves relative to the given cwd outside replay mode', () => {
-    expect(resolveConfigPath('./cordis.yml', undefined, `${sep}base`)).toBe(resolve(`${sep}base`, 'cordis.yml'))
-    expect(resolveConfigPath('conf/app.yaml', 'record', `${sep}base`)).toBe(resolve(`${sep}base`, 'conf/app.yaml'))
-  })
-
-  it('swaps a cordis.yml/.yaml basename for cordis.snapshot.yml in replay mode', () => {
-    expect(resolveConfigPath('./cordis.yml', 'replay', `${sep}base`)).toBe(resolve(`${sep}base`, 'cordis.snapshot.yml'))
-    expect(resolveConfigPath('deep/cordis.yaml', 'replay', `${sep}base`)).toBe(resolve(`${sep}base`, 'deep/cordis.snapshot.yml'))
-  })
-
-  it('leaves a non-cordis basename alone in replay mode and defaults cwd to the process cwd', () => {
-    expect(resolveConfigPath('custom.yml', 'replay', `${sep}base`)).toBe(resolve(`${sep}base`, 'custom.yml'))
-    expect(resolveConfigPath('./x.yml', undefined)).toBe(resolve(process.cwd(), 'x.yml'))
-  })
-})
-
-describe('loadEnv', () => {
-  it('loads variables from .env in the given dir', () => {
-    const dir = tmp()
-    writeFileSync(join(dir, '.env'), 'DSH_APP_BOOT_SPEC_VAR=loaded\n')
-    const warn = vi.fn()
-    loadEnv(NAME, dir, warn)
-    expect(process.env['DSH_APP_BOOT_SPEC_VAR']).toBe('loaded')
-    expect(warn).not.toHaveBeenCalled()
-    delete process.env['DSH_APP_BOOT_SPEC_VAR']
-  })
-
-  it('stays silent when no .env exists (ambient environment wins)', () => {
-    const warn = vi.fn()
-    loadEnv(NAME, tmp(), warn)
-    expect(warn).not.toHaveBeenCalled()
-  })
-
-  it('warns (labelled, single line) when .env exists but cannot be loaded', () => {
-    const dir = tmp()
-    mkdirSync(join(dir, '.env')) // a directory named .env: present, unreadable as a file
-    const warn = vi.fn()
-    loadEnv(NAME, dir, warn)
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0]?.[0]).toMatch(new RegExp(`^${NAME}: failed to load \\.env: `))
-  })
-
-  it('defaults dir to the process cwd and warn to a stderr write', () => {
-    const dir = tmp()
-    writeFileSync(join(dir, '.env'), 'DSH_APP_BOOT_SPEC_DEFAULTS=yes\n')
-    const previous = process.cwd()
-    process.chdir(dir)
-    try {
-      loadEnv(NAME) // happy path: the default warn sink is never invoked
-    } finally {
-      process.chdir(previous)
-    }
-    expect(process.env['DSH_APP_BOOT_SPEC_DEFAULTS']).toBe('yes')
-    delete process.env['DSH_APP_BOOT_SPEC_DEFAULTS']
-    // The default warn sink itself: point it at a broken .env with stderr
-    // spied, so the arrow body runs without polluting the test output.
-    const broken = tmp()
-    mkdirSync(join(broken, '.env'))
-    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    let written: string[]
-    try {
-      loadEnv(NAME, broken)
-      written = write.mock.calls.map(call => String(call[0]))
-    } finally {
-      write.mockRestore()
-    }
-    expect(written).toHaveLength(1)
-    expect(written[0]).toContain(`${NAME}: failed to load .env: `)
-  })
-})
 
 describe('loadLayeredEnv', () => {
   const NAMES = ['APP_BOOT_LAYERED_SHARED', 'APP_BOOT_LAYERED_USER', 'APP_BOOT_LAYERED_PROJECT'] as const

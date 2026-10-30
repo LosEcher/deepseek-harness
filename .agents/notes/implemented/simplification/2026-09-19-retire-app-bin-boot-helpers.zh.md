@@ -1,6 +1,6 @@
 # Agent Note: 删除仅供 fixture 使用的 app-boot 辅助函数
 
-Status: proposed
+Status: implemented
 
 [English](2026-09-19-retire-app-bin-boot-helpers.md) | 中文
 
@@ -12,9 +12,9 @@ Status: proposed
 
 [共享 app-bin 胶水代码记录](../../archived/simplification/2026-07-04-share-app-bin-boot-glue.md) 解释了最初的共享可执行入口用途。当前[单一启动器决策](../../implemented/architecture/2026-08-22-single-dsh-application-launcher.zh.md) 已替代这些受支持入口。这属于部分取代：`boot` 和明确失败处理仍有归属，归档记录保持冻结。
 
-## 提案
+## 决定
 
-从生产导出中删除 `resolveConfigPath` 和 `loadEnv`。八个 fixture 驱动器改用 Node 的 `path.resolve`。仅在需要它的 fixture 内保留读取单目录可选 `.env` 的处理，包括文件缺失与警告行为；不引入替代生产包。
+`resolveConfigPath` 与 `loadEnv` 已从生产导出中删除。七个 fixture 驱动器改为自行调用 Node 的 `path.resolve`。仅在需要它的 fixture 内保留读取单目录可选 `.env` 的处理，包括文件缺失与警告行为；不引入替代生产包。
 
 删除辅助函数专用测试，并更新 app-boot 的包描述、README 配对及 `boot` JSDoc。保留 `boot`、`loadLayeredEnv`、随产品发布的 profile 组合和快照重放选择。已定位可删除 39 行生产源码/JSDoc 和约 73 行专用测试，需扣除少量 fixture 本地环境处理及内置模块导入；这是估算，尚非实现 diff。
 
@@ -24,13 +24,13 @@ Status: proposed
 
 **将所有调用替换为 `loadLayeredEnv`。** 否决，因为分层发现、过滤和优先级不同于读取单个 fixture 本地 `.env`。名称相近不能证明行为等价。
 
-## 验收标准
+## 验证
 
-- 精确名称搜索不再发现有效的辅助函数导入或调用。十处路径替换仍为绝对路径并选择相同文件。
+- 精确名称搜索不再发现有效的辅助函数导入或调用；替换后的路径仍为绝对路径并选择相同文件。
 - 唯一加载环境的 fixture 保持文件缺失、文件存在和警告行为；删除辅助函数专用测试时不丢失保留的 boot 覆盖。
-- 运行聚焦的 app-boot 和受影响 fixture 入口测试，包括所需的构建产物入口检查、随产品发布的 profile 冒烟，以及无密钥重放场景。
-- 更新 README 配对及包/JSDoc 描述；运行 build、相关 hygiene、typecheck、doc-sync（文档同步门禁）和 lint。不添加兼容别名或第二个重放选择器。
+- 聚焦的 app-boot 与受影响 fixture 入口测试、构建产物入口检查、随产品发布的 profile 冒烟与无密钥重放场景覆盖本次改动。
+- README 配对及包/JSDoc 描述已更新；build、相关 hygiene、typecheck、doc-sync 与 lint 通过。未添加兼容别名或第二个重放选择器。
 
-## 风险
+## 后果
 
 导入这些稳定前辅助函数的仓库外调用方，需要改用保留的 profile API，或自行拥有底层路径与环境策略。意外将 fixture 改为分层环境发现会改变其测试输入；必须明确保留这一差别。

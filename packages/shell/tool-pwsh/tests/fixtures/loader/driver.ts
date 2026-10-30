@@ -7,13 +7,14 @@
  */
 
 import { writeFile } from 'node:fs/promises'
-import { boot, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolve } from 'node:path'
+import { boot } from '@deepseek-ai/dsh-app-boot'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 
 const configPath = process.argv[2]
 if (configPath === undefined) throw new Error('tool-pwsh driver requires a config path')
 
-const ctx = await boot('tool-pwsh-loader-smoke', resolveConfigPath(configPath, undefined))
+const ctx = await boot('tool-pwsh-loader-smoke', resolve(configPath))
 try {
   const schema = ctx.tools.schemas().find(tool => tool.name === 'pwsh')
   if (schema === undefined) throw new Error('pwsh tool not registered by the composition')

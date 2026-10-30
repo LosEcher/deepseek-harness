@@ -33,11 +33,11 @@ Use it when implementing the shared `dsh` launcher or embedding its lower-level 
 
 ### Starting the app
 
-You give your entry point a config file, and the process starts the whole app: it loads your environment layers, applies patches and profiles, boots every plugin, and returns once the app is running. In replay mode it boots the sibling `cordis.snapshot.yml` instead, so a recorded session reproduces identically. The smallest entry point is two calls:
+You give your entry point an absolute config path, and the process starts the whole app: it loads your environment layers, applies patches and profiles, boots every plugin, and returns once the app is running. The smallest entry point is two calls:
 
 ```text
 installFailLoud('dsh')
-const ctx = await boot('dsh', resolveConfigPath(argv[2], process.env.DSH_SNAPSHOT))
+const ctx = await boot('dsh', resolve(argv[2]))
 ```
 
 `installFailLoud` writes one labelled `util.inspect` diagnostic to stderr for an unhandled rejection or an uncaught exception, awaits the surface's release hook under a fixed timeout, and exits 1; control never returns to the failed operation, because only the throw site knows which state is intact, and the event loop runs only until the release settles or times out. With that entry point, startup keeps every plugin that can activate. An enabled failed plugin produces a labelled warning. A failed required entry makes startup dispose the whole app and exit nonzero; required ids absent from a profile and disabled required entries do not affect startup. The global required list covers shared Agent execution, application endpoints, and Web bootstrap/transport: `agent-loop`, `webserver`, `web-runtime`, `modules`, `connection`, `headless-runner`, `acp`, and `sdk-jsonrpc-server`.
@@ -199,8 +199,8 @@ These limits describe when this boot library is a poor fit or needs special care
 - **Moving a profile package needs its removal first** — `replace()` rejects a retained profile mapping that moved to another directory or link target with `ResolutionRestartRequired`; removing the package and installing it again maps the new directory. A linked root may point to another directory once its profile mapping was removed. Node keeps the real path of every link it resolved through; once a link points elsewhere, or its name is installed again as a directory, a native lookup that selects a file below its previous target, for an importer outside it, selects the same file below the current one when that exists, including an explicit absolute path into the previous target. Installation mappings and local overrides still require a restart.
 - **Linked scope follows recorded real directories** — a hoisted dependency outside every linked root uses native Node. A peer read never invalidates Node caches or changes which files are watched.
 - **Source launches use an ESM-only hook** — CommonJS requests still need the JavaScript files selected by package exports; resolution does not supply missing build outputs.
-- **Snapshot replay swapping is basename-specific** — only a config ending in `cordis.yml` or `cordis.yaml` maps to the sibling `cordis.snapshot.yml`; custom config names require caller-managed selection.
-- **Environment discovery is launch-scoped** — `loadLayeredEnv` reads only the invocation directory and Harness home once; it does not search parents or follow a workspace selected later. `loadEnv` remains the one-directory helper for non-product bins.
+- **Replay selection belongs to the caller** — `boot` neither resolves nor rebases its argument. The snapshot harness (`packages/test-support/session-snapshot`) is what maps a `cordis.yml` / `cordis.yaml` basename to the sibling `cordis.snapshot.yml`; custom config names stay the caller's responsibility.
+- **Environment discovery is launch-scoped** — `loadLayeredEnv` is the only environment loader the product ships: it reads the invocation directory and Harness home once, does not search parents, and does not follow a workspace selected later. A fixture that needs exactly one directory's `.env` keeps that read local to itself.
 - **A user patch replaces the whole matched config** — an id-targeted patch does not deep-merge, so a profile override restates the bundle fields it keeps.
 
 <a id="dev-note"></a>

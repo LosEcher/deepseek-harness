@@ -10,7 +10,7 @@ import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { gunzipSync } from 'node:zlib'
-import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolve } from 'node:path'
 import { recordFeedback } from '@deepseek-ai/dsh-command-feedback'
 import { runFixtureTurn } from '@deepseek-ai/dsh-loader-smoke'
 import { bootProductionProfile } from '../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
@@ -41,7 +41,7 @@ try {
   const ctx = await bootProductionProfile({
     binName: 'telemetry-otel-e2e',
     profile: 'headless',
-    overlayPaths: [resolveConfigPath(configPath, undefined)],
+    overlayPaths: [resolve(configPath)],
   })
   try {
     await runFixtureTurn(ctx, { task: 'prove telemetry with key sk-e2efixture1234567890' })

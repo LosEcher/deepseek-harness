@@ -33,11 +33,11 @@ kind: "package-library"
 
 ### 启动应用
 
-你把配置文件交给入口，进程就会启动整个应用：加载环境层、应用 patch 与 profile、启动每个插件，并在应用运行后返回。在回放模式下，它会启动同级的 `cordis.snapshot.yml` 替代文件，使已记录的会话能够原样复现。最小的入口只需两次调用：
+你把**绝对路径**的配置文件交给入口，进程就会启动整个应用：加载环境层、应用 patch 与 profile、启动每个插件，并在应用运行后返回。最小的入口只需两次调用：
 
 ```text
 installFailLoud('dsh')
-const ctx = await boot('dsh', resolveConfigPath(argv[2], process.env.DSH_SNAPSHOT))
+const ctx = await boot('dsh', resolve(argv[2]))
 ```
 
 `installFailLoud` 会为未处理 rejection 或未捕获异常向 stderr 写一条带标签的 `util.inspect` 诊断，在固定超时内等待界面的 release 钩子，然后以 1 退出；控制流不会回到失败的操作，因为只有抛出点知道哪些状态仍然完整，事件循环只运行到 release 结束或超时。有了这个入口，启动会保留所有能够激活的插件。启用但失败的插件会产生带标签的警告。required entry 失败时，启动会拆卸整个应用并以非零码退出；profile 中不存在的 required id 和已禁用的 required entry 不影响启动。全局 required list 覆盖共享 Agent 执行、应用 endpoint，以及 Web 启动与传输：`agent-loop`、`webserver`、`web-runtime`、`modules`、`connection`、`headless-runner`、`acp` 和 `sdk-jsonrpc-server`。
@@ -199,8 +199,8 @@ Loader 结算后，app-boot 在仅 optional 条目未激活时输出警告。如
 - **移动 profile 包需要先卸载**——`replace()` 以 `ResolutionRestartRequired` 拒绝移动到其他目录或链接目标的保留 profile 映射；卸载该包后重新安装，即映射到新目录。linked root 的 profile 映射被移除后，它可以指向其他目录。Node 保留其解析过的每个链接的真实路径；链接指向别处后，或其名称作为目录重新安装后，原生查询为原目标之外的导入方选中原目标之下的文件时，若当前目标之下存在同一文件，会改为选中该文件，包括指向原目标的显式绝对路径。安装映射和本地覆盖仍需要重启。
 - **链接作用域以记录的真实目录为准**——提升后的依赖若在所有 linked root 之外，就使用原生 Node。每次读取 peer 都不会使 Node 缓存失效，也不会改变被监视的文件。
 - **源码启动只安装 ESM 钩子**——CommonJS 请求仍需要 package exports 选中的 JavaScript 文件，解析器不会补出缺失的构建产物。
-- **快照回放替换仅识别特定 basename**——只有以 `cordis.yml` 或 `cordis.yaml` 结尾的配置会映射到同级 `cordis.snapshot.yml`；自定义配置名称需要调用方自行选择。
-- **环境发现以启动为界**——`loadLayeredEnv` 只读取一次调用目录与 harness home 中的 `.env`；它不搜索父目录，也不跟随之后选择的 workspace。`loadEnv` 仍是非产品 bin 使用的单目录 helper。
+- **回放选择属于调用方**——`boot` 既不解析也不重定基其入参。把 `cordis.yml` / `cordis.yaml` 的 basename 映射到同级 `cordis.snapshot.yml` 的是快照测试装置（`packages/test-support/session-snapshot`）；自定义配置名称仍由调用方负责。
+- **环境发现以启动为界**——`loadLayeredEnv` 是产品唯一提供的环境加载入口：只读取一次调用目录与 harness home，不搜索父目录，也不跟随之后选择的 workspace。确实只需要读一个目录 `.env` 的 fixture，把这段读取留在自己身上。
 - **用户 patch 会替换匹配到的整个配置**——按 id 定位的 patch 不做深度合并，因此 profile 覆盖必须重述需要保留的组合包字段。
 
 <a id="dev-note"></a>
