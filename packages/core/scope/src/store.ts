@@ -164,7 +164,12 @@ export class ScopedLayers<L extends ScopeLayer> {
 
   constructor(
     private readonly createLayer: (scope: ScopeKey | undefined) => L,
-    private readonly onChange: () => void,
+    /**
+     * Optional change notification run inside the committing effect, so a throwing
+     * listener rolls the commit back with it. Consumers without an event of their own
+     * omit it rather than passing a no-op.
+     */
+    private readonly onChange?: () => void,
   ) {
     this.global = createLayer(undefined)
   }
@@ -257,9 +262,9 @@ export class ScopedLayers<L extends ScopeLayer> {
       yield () => {
         undo()
         if (scope !== undefined && layer.isEmpty()) this.scoped.delete(scope)
-        if (notify) this.onChange()
+        if (notify) this.onChange?.()
       }
-      if (notify) this.onChange()
+      if (notify) this.onChange?.()
     }.bind(this), options.label)
     // oxlint-disable-next-line typescript/no-misused-promises -- exact synchronous disposer preserves Cordis effect identity
     return dispose
