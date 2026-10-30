@@ -1,6 +1,6 @@
 # Agent Note: Trim unused SessionQuery convenience methods
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-09-19-trim-session-query-convenience-api.zh.md)
 
@@ -10,9 +10,9 @@ English | [中文](2026-09-19-trim-session-query-convenience-api.zh.md)
 
 These entry points add replay-validation and result-copying paths, wrappers, public types, and endpoint-specific tests. Their removal can reduce maintained API obligations without replacing the shared query implementation.
 
-## Proposal
+## Decision
 
-Remove the four methods, the unreferenced [`SessionLogSnapshot`](../../../../packages/session-query/session-query/src/types.ts) result type, and [`eventRecords`](../../../../packages/session-query/session-query/src/tracing.ts). Remove their imports and current documentation, including the `SessionLogSnapshot` type-equivalence block and explanatory paragraph in both subsystem pages. Remove its hand-maintained entry in the [type-equivalence manifest](../../../../scripts/type-equiv.manifest.json) and its `LINK_MAP` entry in the [catalog generator](../../../../scripts/gen-cordis-catalog.ts), then regenerate discovery metadata. The selected definitions occupy approximately eighty source lines before import and metadata cleanup; no replacement service is needed.
+The four methods are gone, together with the unreferenced [`SessionLogSnapshot`](../../../../packages/session-query/session-query/src/types.ts) result type, and [`eventRecords`](../../../../packages/session-query/session-query/src/tracing.ts). Their imports and current documentation went too, including the `SessionLogSnapshot` type-equivalence block and explanatory paragraph in both subsystem pages. Its hand-maintained entry in the [type-equivalence manifest](../../../../scripts/type-equiv.manifest.json) and its `LINK_MAP` entry in the [catalog generator](../../../../scripts/gen-cordis-catalog.ts) were removed, and the discovery metadata regenerated. The removal took about eighty source lines before import and metadata cleanup and needed no replacement service.
 
 Retain `filterEvents` and `_filterEvents`, together with their semantic extraction and filtering helpers. Retain `observeSession`, `readTitleSnapshots`, `readSurface`, `readEvent`, listing, search, and tracing. Preserve shared corpus resolution and its existing ownership and failure behavior.
 
@@ -24,12 +24,12 @@ The [historical unified-query decision](../../archived/architecture/2026-07-23-u
 
 **Remove `filterEvents` too.** Rejected because its provider-independent literal substring scan differs from FTS token matching. The [SQLite query documentation](../../../../packages/session-query/session-query-sqlite/README.md) explicitly recommends this operation; removing it would withdraw a distinct query capability.
 
-## Acceptance criteria
+## Testing
 
 - Remove the four methods and orphan definitions from source, package READMEs, subsystem declarations, and generated catalogs; retain literal substring queries.
 - Preserve live-source precedence, corruption refusal, cancellation, detached results, cold reads, and batch-title behavior through retained endpoints. Move relevant assertions from removed-method tests instead of deleting their shared guarantees; account for `readSession`'s additional replay validation.
 - Run focused query, SQLite-query, tool-query, and affected context-reference tests, relevant keyless query recordings, catalog generation, typecheck, lint, and doc-sync. Released Session generations remain unchanged.
 
-## Risks
+## Consequences
 
 Repository searches cannot enumerate installed or dynamically authored plugins. Such callers lose complete-log and lightweight-record convenience operations and must adopt retained APIs with their actual ownership and error semantics. A demonstrated consumer requiring a removed operation would justify reconsidering that operation separately.
