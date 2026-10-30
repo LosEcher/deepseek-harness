@@ -92,46 +92,6 @@ export {
 } from './profile-resolution/service.ts'
 export { ResolutionRestartRequired } from './profile-resolution/resolver.ts'
 
-/**
- * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
- * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
- * @param configPath - the requested config path (absolute, or relative to `cwd`).
- * @param snapshotMode - the bin's `$DSH_SNAPSHOT` value; only `'replay'` swaps the
- *   basename.
- * @param cwd - the base a relative `configPath` resolves against.
- * @returns the absolute path of the config to boot.
- */
-export function resolveConfigPath(
-  configPath: string, snapshotMode: string | undefined, cwd: string = process.cwd(),
-): string {
-  const absolute = resolve(cwd, configPath)
-  if (snapshotMode !== 'replay') return absolute
-  const dir = dirname(absolute)
-  const replayName = basename(absolute).replace(/cordis\.ya?ml$/, 'cordis.snapshot.yml')
-  return resolve(dir, replayName)
-}
-
-/**
- * Load the optional gitignored `.env` from `dir`. Missing files fall back to the
- * ambient environment; other read failures are reported through `warn`.
- * @param binName - the diagnostic prefix on the warn line.
- * @param dir - the directory whose `.env` to load.
- * @param warn - sink for the one-line misconfiguration diagnostic.
- */
-export function loadEnv(
-  binName: string, dir: string = process.cwd(),
-  warn: (line: string) => void = line => void process.stderr.write(line),
-): void {
-  try {
-    process.loadEnvFile(resolve(dir, '.env'))
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') {
-      warn(`${binName}: failed to load .env: ${String(error)}\n`)
-    }
-    // ENOENT (no .env) is fine — rely on the ambient environment.
-  }
-}
-
 /** Exact names no discovered file may set. */
 const BOOTSTRAP_NAMES = new Set([
   // Process launch and module resolution.
@@ -1181,8 +1141,8 @@ export async function auditStartupEntries(
  * rejections remain covered by {@link installFailLoud}. Built bins need the Loader's native
  * helper for bare plugin specifiers; relative specifiers do not.
  * @param binName - the diagnostic prefix for load-failure errors.
- * @param absoluteConfigPath - the config to include; must already be absolute
- * (see {@link resolveConfigPath}).
+ * @param absoluteConfigPath - the config to include; must already be absolute —
+ * this function does not resolve or rebase it.
  * @param patches - optional overlay patches applied over the included tree
  * (see {@link loadOptionalPatches}); an empty list mounts none.
  * @param prepare - optional host setup run after Loader installation and before any config-tree entry mounts.

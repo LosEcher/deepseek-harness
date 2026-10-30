@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Test driver that sends two turns through one Headless Loader composition. */
 
-import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolve } from 'node:path'
 import { runFixtureTurn } from '@deepseek-ai/dsh-loader-smoke'
 import { bootProductionProfile } from '../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
@@ -11,7 +11,7 @@ if (configPath === undefined) throw new Error('time-context driver requires a co
 const ctx = await bootProductionProfile({
   binName: 'time-context-e2e',
   profile: 'headless',
-  overlayPaths: [resolveConfigPath(configPath, undefined)],
+  overlayPaths: [resolve(configPath)],
 })
 try {
   await runFixtureTurn(ctx, { task: 'first' })

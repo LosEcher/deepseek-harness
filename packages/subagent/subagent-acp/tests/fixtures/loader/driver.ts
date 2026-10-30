@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Test driver: one delegation turn through a headless Loader composition. */
 
-import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolve } from 'node:path'
 import { runFixtureTurn } from '@deepseek-ai/dsh-loader-smoke'
 import { bootProductionProfile } from '../../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
@@ -11,7 +11,7 @@ if (configPath === undefined) throw new Error('acp-subagent cwd driver requires 
 const ctx = await bootProductionProfile({
   binName: 'acp-subagent-cwd-e2e',
   profile: 'headless',
-  overlayPaths: [resolveConfigPath(configPath, undefined)],
+  overlayPaths: [resolve(configPath)],
 })
 try {
   const result = await runFixtureTurn(ctx, { task: 'delegate' })
