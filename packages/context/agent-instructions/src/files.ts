@@ -4,8 +4,6 @@
  * @module @deepseek-ai/dsh-agent-instructions/files
  */
 
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { FileSystem, FsInfo, FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
 import { agentsHomeDisplay, dshHomeDisplay } from '@deepseek-ai/dsh-home-paths'
@@ -142,27 +140,8 @@ function signalOptions(signal?: AbortSignal): { signal: AbortSignal } | undefine
   return signal === undefined ? undefined : { signal }
 }
 
-function isMissingPathError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
-}
-
 function isMissingProviderPathError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'FS_NOT_FOUND'
-}
-
-async function nodeStatFile(path: string, signal?: AbortSignal): Promise<StatFileProbe> {
-  try {
-    signal?.throwIfAborted()
-    // stat (not lstat) follows a final-component symlink so a link to a regular
-    // file loads; a broken link surfaces as ENOENT and is treated as absent below.
-    const info = await stat(path)
-    signal?.throwIfAborted()
-    if (!info.isFile()) return { kind: 'absent' }
-    return { kind: 'present', info: { size: info.size } }
-  } catch (error: unknown) {
-    signal?.throwIfAborted()
-    return isMissingPathError(error) ? { kind: 'absent' } : { kind: 'unavailable' }
-  }
 }
 
 async function fsStatFile(
@@ -191,31 +170,19 @@ async function fsStatFile(
 
 async function statFile(
   path: string,
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
   signal?: AbortSignal,
 ): Promise<StatFileProbe> {
-  return fileSystem === undefined ? nodeStatFile(path, signal) : fsStatFile(path, fileSystem, signal)
+  return fsStatFile(path, fileSystem, signal)
 }
 
-async function existsAsMarker(path: string, fileSystem?: FileSystem, signal?: AbortSignal): Promise<boolean> {
-  if (fileSystem !== undefined) {
-    try {
-      const target = await fileSystem.resolve(path, signalOptions(signal))
-      return await fileSystem.stat(target, signal) !== undefined
-    } catch (error: unknown) {
-      signal?.throwIfAborted()
-      if (isMissingProviderPathError(error)) return false
-      throw error
-    }
-  }
+async function existsAsMarker(path: string, fileSystem: FileSystem, signal?: AbortSignal): Promise<boolean> {
   try {
-    signal?.throwIfAborted()
-    await stat(path)
-    signal?.throwIfAborted()
-    return true
+    const target = await fileSystem.resolve(path, signalOptions(signal))
+    return await fileSystem.stat(target, signal) !== undefined
   } catch (error: unknown) {
     signal?.throwIfAborted()
-    if (isMissingPathError(error)) return false
+    if (isMissingProviderPathError(error)) return false
     throw error
   }
 }
@@ -224,15 +191,15 @@ async function existsAsMarker(path: string, fileSystem?: FileSystem, signal?: Ab
  * Walk upward to the first directory containing a configured root marker.
  * @param cwd - absolute session working directory where the walk begins.
  * @param markers - child names that identify a project root.
- * @param fileSystem - optional provider used instead of host filesystem probes.
- * @param signal - cancellation for provider and host probes.
+ * @param fileSystem - provider used for every marker probe.
+ * @param signal - cancellation for provider probes.
  * @returns the discovered project root, or `cwd` when no marker exists.
  * @throws the original marker metadata error or cancellation reason when a probe is unavailable.
  */
 export async function findProjectRoot(
   cwd: string,
   markers: readonly string[],
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
   signal?: AbortSignal,
 ): Promise<string> {
   let current = resolve(cwd)
@@ -296,7 +263,7 @@ async function allExistingInstructionFiles(
   dir: string,
   root: string,
   instructionFileCandidates: readonly string[],
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
   signal?: AbortSignal,
 ): Promise<DiscoveredInstructionFile[]> {
   const found: DiscoveredInstructionFile[] = []
@@ -322,7 +289,7 @@ async function allExistingInstructionFiles(
 
 async function discoverInstructionFiles(
   options: DiscoverOptions,
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
 ): Promise<DiscoveredInstructionFile[]> {
   const config = resolveDiscoveryConfig(options)
   const files: DiscoveredInstructionFile[] = []
@@ -375,19 +342,17 @@ async function discoverInstructionFiles(
  * @throws the original root-marker metadata error or cancellation reason when
  * discovery cannot identify the project root.
  */
-export async function discoverBaselineInstructionFiles(options: DiscoverOptions): Promise<InstructionFile[]> {
-  return (await discoverInstructionFiles(options)).map(({ absolutePath, displayPath }) => ({ absolutePath, displayPath }))
-}
-
-async function* nodeTextChunks(path: string, signal?: AbortSignal): AsyncIterable<string> {
-  const stream = createReadStream(path, { encoding: 'utf8', signal })
-  for await (const chunk of stream) yield String(chunk)
+export async function discoverBaselineInstructionFiles(
+  options: DiscoverOptions,
+  fileSystem: FileSystem,
+): Promise<InstructionFile[]> {
+  return (await discoverInstructionFiles(options, fileSystem)).map(({ absolutePath, displayPath }) => ({ absolutePath, displayPath }))
 }
 
 async function readBounded(
   file: { absolutePath: string; target?: FsTarget; size?: number },
   maxSourceBytes: number,
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
   // TODO(total-instruction-read-bound): enforce an aggregate source budget
@@ -396,9 +361,10 @@ async function readBounded(
   signal?.throwIfAborted()
   if (file.size !== undefined && file.size > maxSourceBytes) return undefined
   try {
-    const chunks = fileSystem === undefined || file.target === undefined
-      ? nodeTextChunks(file.absolutePath, signal)
-      : await fileSystem.streamText(file.target, signal)
+    // A discovered file always carries the provider target the probe produced; a missing
+    // target means a caller passed a bare path, which is not a readable candidate.
+    if (file.target === undefined) return undefined
+    const chunks = await fileSystem.streamText(file.target, signal)
     const parts: string[] = []
     let bytes = 0
     for await (const chunk of chunks) {
@@ -448,14 +414,14 @@ export function dedupInstructionFilesByCandidateGroup(files: LoadedInstructionFi
 /**
  * Discover, read, and render the baseline instruction chain.
  * @param options - discovery, source-size, byte-budget, and cancellation configuration.
- * @param fileSystem - optional provider used instead of host filesystem reads.
+ * @param fileSystem - provider used for every discovery probe and file read.
  * @returns rendered baseline context, or undefined when nothing can be loaded.
  * @throws the original root-marker metadata error or cancellation reason when
  * discovery cannot identify the project root.
  */
 export async function loadBaselineInstructions(
   options: LoadOptions,
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
 ): Promise<RenderedAgentInstructions | undefined> {
   return (await loadBaselineInstructionSet(options, fileSystem))?.rendered
 }
@@ -463,12 +429,12 @@ export async function loadBaselineInstructions(
 /**
  * Load a baseline together with the files retained after rendering.
  * @param options - discovery, source-size, byte-budget, and cancellation configuration.
- * @param fileSystem - optional provider used instead of host filesystem reads.
+ * @param fileSystem - provider used for every discovery probe and file read.
  * @returns rendered context and retained files, an explicit empty replacement set, or undefined when empty or disabled.
  */
 export async function loadBaselineInstructionSet(
   options: LoadOptions,
-  fileSystem?: FileSystem,
+  fileSystem: FileSystem,
 ): Promise<RenderedInstructionSet | undefined> {
   const config = resolveConfig(options)
   if (config.maxBytes <= 0 || !Number.isFinite(config.maxBytes)) return undefined

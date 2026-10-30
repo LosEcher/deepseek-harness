@@ -248,6 +248,38 @@ async function mountAgentInstructions(ctx: Context, config: AgentInstructions.Co
   return mountAgentInstructionsPlugin(ctx, config)
 }
 
+/**
+ * A provider-owned view of the host filesystem for the direct helper calls in this file.
+ * `discoverBaselineInstructionFiles` / `loadBaselineInstructions` / `findProjectRoot` require a
+ * `FileSystem`, so every direct call owns one explicitly instead of relying on a Node fallback.
+ */
+async function localProvider(): Promise<FileSystem> {
+  const ctx = new Context()
+  await ctx.plugin(LocalFileSystem, { cwd: '/' })
+  const fs = ctx.get('fs')
+  if (fs === undefined) throw new Error('LocalFileSystem did not provide fs')
+  return fs
+}
+
+/**
+ * Wrap a provider so a test can observe or fault one of its calls, without monkey-patching
+ * `node:fs`. The provider contract is what the helpers use now, so this is where probe counts
+ * and probe failures belong.
+ */
+function wrapProvider(base: FileSystem, hooks: {
+  onResolve?: (path: string) => void
+  failResolve?: (path: string) => Error | undefined
+}): FileSystem {
+  const wrapper = Object.create(base) as FileSystem
+  wrapper.resolve = async (path, opts) => {
+    hooks.onResolve?.(path)
+    const failure = hooks.failResolve?.(path)
+    if (failure !== undefined) throw failure
+    return await base.resolve(path, opts)
+  }
+  return wrapper
+}
+
 async function mountFileToolsAndAgentInstructions(ctx: Context, config: AgentInstructions.Config): Promise<Awaited<ReturnType<Context['plugin']>>> {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
@@ -381,7 +413,7 @@ describe('workspace context instruction discovery', () => {
       await writeFile(homeFile, 'file')
 
       pinHarnessHome(homeFile)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([])
     } finally {
@@ -403,7 +435,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(cwd, 'AGENTS.md'), 'app agents')
 
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual([
         '$DSH_HOME/AGENTS.md',
@@ -432,7 +464,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(cwd, 'CLAUDE.local.md'), 'pkg local')
 
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual([
         'AGENTS.md',
@@ -459,7 +491,7 @@ describe('workspace context instruction discovery', () => {
       const files = await discoverBaselineInstructionFiles({
         cwd: root,
         localInstructionFileCandidates: [],
-      })
+      }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
     } finally {
@@ -481,7 +513,7 @@ describe('workspace context instruction discovery', () => {
       await mkdir(cwd, { recursive: true })
 
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
     } finally {
@@ -500,22 +532,22 @@ describe('workspace context instruction discovery', () => {
       await mkdir(cwd, { recursive: true })
 
       pinHarnessHome(home)
-      expect(await loadBaselineInstructions({ cwd, maxBytes: 65536 })).toBeUndefined()
+      expect(await loadBaselineInstructions({ cwd, maxBytes: 65536 }, await localProvider())).toBeUndefined()
 
       const leaf = join(cwd, 'AGENTS.md')
       await write(leaf, 'first')
       pinHarnessHome(home)
-      const first = await loadBaselineInstructions({ cwd, maxBytes: 65536 })
+      const first = await loadBaselineInstructions({ cwd, maxBytes: 65536 }, await localProvider())
       expect(first?.text).toContain('first')
       pinHarnessHome(home)
-      const again = await loadBaselineInstructions({ cwd, maxBytes: 65536 })
+      const again = await loadBaselineInstructions({ cwd, maxBytes: 65536 }, await localProvider())
       expect(again?.text).toContain('first')
 
       const before = await stat(leaf)
       await writeFile(leaf, 'other')
       await utimes(leaf, before.atime, before.mtime)
       pinHarnessHome(home)
-      const second = await loadBaselineInstructions({ cwd, maxBytes: 65536 })
+      const second = await loadBaselineInstructions({ cwd, maxBytes: 65536 }, await localProvider())
       expect(second?.text).toContain('other')
       expect(second?.text).not.toContain('first')
     } finally {
@@ -538,7 +570,7 @@ describe('workspace context instruction discovery', () => {
       await chmod(leaf, 0)
 
       pinHarnessHome(home)
-      const loaded = await loadBaselineInstructions({ cwd, maxBytes: 65536 })
+      const loaded = await loadBaselineInstructions({ cwd, maxBytes: 65536 }, await localProvider())
 
       expect(loaded).toBeUndefined()
       await chmod(leaf, 0o600)
@@ -559,9 +591,9 @@ describe('workspace context instruction discovery', () => {
       await symlink(join(outside, 'shared.md'), join(root, 'AGENTS.md'))
 
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
       pinHarnessHome(home)
-      const loaded = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
+      const loaded = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toContain('AGENTS.md')
       expect(loaded?.text).toContain('shared instruction body')
@@ -606,13 +638,15 @@ describe('workspace context instruction discovery', () => {
       await write(join(root, 'AGENTS.md'), 'repo rule')
 
       pinHarnessHome(home)
-      await expect(loadBaselineInstructions({ cwd: root, maxBytes: 0 })).resolves.toBeUndefined()
+      await expect(loadBaselineInstructions({ cwd: root, maxBytes: 0 }, await localProvider())).resolves.toBeUndefined()
       pinHarnessHome(home)
-      await expect(loadBaselineInstructions({ cwd: root, maxBytes: 65536, maxSourceBytes: 0 })).resolves.toBeUndefined()
+      await expect(loadBaselineInstructions(
+        { cwd: root, maxBytes: 65536, maxSourceBytes: 0 }, await localProvider(),
+      )).resolves.toBeUndefined()
       pinHarnessHome(home)
       await expect(loadBaselineInstructions({
         cwd: root, maxBytes: 65536, maxSourceBytes: Infinity,
-      })).resolves.toBeUndefined()
+      }, await localProvider())).resolves.toBeUndefined()
     } finally {
       vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
@@ -631,7 +665,7 @@ describe('workspace context instruction discovery', () => {
       const files = await discoverBaselineInstructionFiles({
         cwd: root,
         instructionFileCandidates: ['AGENTS.md'],
-      })
+      }, await localProvider())
 
       expect(files).toEqual([])
     } finally {
@@ -654,7 +688,7 @@ describe('workspace context instruction discovery', () => {
       const files = await discoverBaselineInstructionFiles({
         cwd: root,
         instructionFileCandidates: ['CLAUDE.local.md', 'AGENTS.md', 'CLAUDE.md'],
-      })
+      }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['CLAUDE.local.md', 'AGENTS.md', 'CLAUDE.md'])
     } finally {
@@ -676,7 +710,7 @@ describe('workspace context instruction discovery', () => {
       const files = await discoverBaselineInstructionFiles({
         cwd: root,
         instructionFileCandidates: ['', '.', '..', '.claude/CLAUDE.md', 'nested\\CLAUDE.md', 'AGENTS.md'],
-      })
+      }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
     } finally {
@@ -702,7 +736,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(root, 'AGENTS.md'), 'parent without marker')
       await write(join(cwd, 'AGENTS.md'), 'cwd without marker')
 
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
       expect(files.map(file => file.absolutePath)).toEqual([join(cwd, 'AGENTS.md')])
@@ -722,8 +756,8 @@ describe('workspace context instruction discovery', () => {
       await write(join(envHome, 'AGENTS.md'), 'environment rule')
       pinHarnessHome(envHome)
 
-      const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: ownerHome })
-      const loaded = await loadBaselineInstructions({ cwd: root, dshHome: ownerHome, maxBytes: 65536 })
+      const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: ownerHome }, await localProvider())
+      const loaded = await loadBaselineInstructions({ cwd: root, dshHome: ownerHome, maxBytes: 65536 }, await localProvider())
 
       expect(files).toEqual([{ absolutePath: join(ownerHome, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
       expect(loaded?.text).toContain('owner-resolved rule')
@@ -743,7 +777,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(envHome, 'AGENTS.md'), 'env global rule')
       vi.stubEnv('DSH_HOME', envHome)
 
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([{ absolutePath: join(envHome, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
     } finally {
@@ -762,7 +796,7 @@ describe('workspace context instruction discovery', () => {
       vi.stubEnv('DSH_AGENTS_HOME', envAgents)
 
       pinHarnessHome(emptyHome)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([{ absolutePath: join(envAgents, 'AGENTS.md'), displayPath: '$DSH_AGENTS_HOME/AGENTS.md' }])
     } finally {
@@ -784,7 +818,7 @@ describe('workspace context instruction discovery', () => {
 
       pinHarnessHome(home)
       pinAgentsHome(agents)
-      const loaded = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
+      const loaded = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 }, await localProvider())
       const text = loaded?.text ?? ''
 
       expect(text).toContain('Instructions from: $DSH_HOME/AGENTS.md\n\nharness home rule')
@@ -811,7 +845,7 @@ describe('workspace context instruction discovery', () => {
       vi.resetModules()
       vi.doMock('node:os', () => ({ homedir: () => home }))
       const isolated = await import('@deepseek-ai/dsh-agent-instructions')
-      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root })
+      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['~/.agents/AGENTS.md'])
     } finally {
@@ -834,7 +868,7 @@ describe('workspace context instruction discovery', () => {
       vi.resetModules()
       vi.doMock('node:os', () => ({ homedir: () => home }))
       const isolated = await import('@deepseek-ai/dsh-agent-instructions')
-      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root })
+      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['~/.dsh/AGENTS.md'])
     } finally {
@@ -856,7 +890,7 @@ describe('workspace context instruction discovery', () => {
       vi.doMock('node:os', () => ({ homedir: () => home }))
       const isolated = await import('@deepseek-ai/dsh-agent-instructions')
       pinHarnessHome('~/.dsh')
-      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root })
+      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([{ absolutePath: join(home, '.dsh/AGENTS.md'), displayPath: '~/.dsh/AGENTS.md' }])
     } finally {
@@ -875,7 +909,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(root, 'AGENTS.md'), 'same file')
 
       pinHarnessHome(root)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([{ absolutePath: join(root, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
     } finally {
@@ -892,7 +926,7 @@ describe('workspace context instruction discovery', () => {
       await mkdir(join(root, 'AGENTS.md'), { recursive: true })
 
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files).toEqual([])
     } finally {
@@ -2509,7 +2543,7 @@ describe('workspace context request injection', () => {
       const escapedPath = `${escapedDirectory}${sep}AGENTS.md`
       pinHarnessHome(home)
       pinAgentsHome(agents)
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd }, await localProvider())
       expect(files.map(file => file.displayPath)).toEqual([escapedPath])
 
       const ctx = new Context()
@@ -3490,7 +3524,7 @@ describe('workspace context request injection', () => {
     try {
       await write(join(home, 'AGENTS.md'), 'global custom rule')
       pinHarnessHome(home)
-      const files = await discoverBaselineInstructionFiles({ cwd: root })
+      const files = await discoverBaselineInstructionFiles({ cwd: root }, await localProvider())
 
       expect(files.map(file => file.displayPath)).toEqual(['$DSH_HOME/AGENTS.md'])
     } finally {
@@ -3507,70 +3541,53 @@ describe('workspace context request injection', () => {
       await mkdir(join(root, '.git'), { recursive: true })
       await write(join(root, 'AGENTS.md'), 'repo rule')
 
-      const observedStats = new Map<string, number>()
-      vi.resetModules()
-      vi.doMock('node:fs/promises', async (importOriginal) => {
-        const actual = await importOriginal<typeof import('node:fs/promises')>()
-        return {
-          ...actual,
-          stat: async (path: string) => {
-            observedStats.set(path, (observedStats.get(path) ?? 0) + 1)
-            return actual.stat(path)
-          },
-        }
+      // 计数点在 provider 契约上：helper 现在没有 Node 回退，能否重复探测只能由
+      // provider 的 resolve 次数回答（旧写法 mock node:fs/promises 已失去意义）。
+      const observedResolves = new Map<string, number>()
+      const provider = wrapProvider(await localProvider(), {
+        onResolve: (path) => { observedResolves.set(path, (observedResolves.get(path) ?? 0) + 1) },
       })
-      const isolated = await import('@deepseek-ai/dsh-agent-instructions')
       pinHarnessHome(home)
-      await isolated.loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
-      observedStats.clear()
+      await loadBaselineInstructions({ cwd: root, maxBytes: 65536 }, provider)
+      observedResolves.clear()
       pinHarnessHome(home)
-      await isolated.loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
+      await loadBaselineInstructions({ cwd: root, maxBytes: 65536 }, provider)
 
-      expect(observedStats.get(join(root, 'AGENTS.md'))).toBe(1)
+      expect(observedResolves.get(join(root, 'AGENTS.md'))).toBe(1)
     } finally {
       vi.unstubAllEnvs()
-      vi.doUnmock('node:fs/promises')
-      vi.resetModules()
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
     }
   })
 
-  it('skips an unavailable host candidate but still loads its available sibling', async () => {
+  it('skips an unavailable candidate but still loads its available sibling', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
     try {
       await mkdir(join(root, '.git'), { recursive: true })
-      await write(join(root, 'CLAUDE.md'), 'claude host sibling rule')
-      vi.resetModules()
-      vi.doMock('node:fs/promises', async (importOriginal) => {
-        const actual = await importOriginal<typeof import('node:fs/promises')>()
-        return {
-          ...actual,
-          stat: async (path: string) => {
-            if (path === join(root, 'AGENTS.md')) {
-              throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
-            }
-            return actual.stat(path)
-          },
-        }
+      await write(join(root, 'CLAUDE.md'), 'claude sibling rule')
+
+      // 旧写法 mock node:fs/promises 制造 EACCES，但 helper 已无 Node 回退 ⇒ mock 失效、
+      // 断言靠 AGENTS.md 本来就不存在而侥幸通过（假绿）。故障注入改到 provider 上。
+      const provider = wrapProvider(await localProvider(), {
+        failResolve: path => (path === join(root, 'AGENTS.md')
+          ? Object.assign(new Error('permission denied'), { code: 'EACCES' })
+          : undefined),
       })
-      const isolated = await import('@deepseek-ai/dsh-agent-instructions')
 
       pinHarnessHome(home)
-      const rendered = await isolated.loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
+      const rendered = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 }, provider)
 
-      expect(rendered?.text).toContain('claude host sibling rule')
+      expect(rendered?.text).toContain('claude sibling rule')
     } finally {
       vi.unstubAllEnvs()
-      vi.doUnmock('node:fs/promises')
-      vi.resetModules()
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
     }
   })
 
-  it('surfaces host marker metadata failures instead of crossing into an ancestor project', async () => {
+  it('surfaces marker metadata failures instead of crossing into an ancestor project', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
     try {
@@ -3583,26 +3600,18 @@ describe('workspace context request injection', () => {
       await mkdir(join(root, '.git'), { recursive: true })
       await write(join(root, 'AGENTS.md'), 'ancestor rule must not load')
       await mkdir(cwd, { recursive: true })
-      vi.resetModules()
-      vi.doMock('node:fs/promises', async (importOriginal) => {
-        const actual = await importOriginal<typeof import('node:fs/promises')>()
-        return {
-          ...actual,
-          stat: async (path: string) => {
-            if (path === markerPath) throw failure
-            return actual.stat(path)
-          },
-        }
+
+      // 故障注入改在 provider 契约上（旧写法 mock node:fs/promises，而 helper 已无 Node 回退）：
+      // 只有 provider 报 FS_NOT_FOUND 才算"确认不存在"；其它错误必须原样上抛，不能悄悄升到祖先目录。
+      const provider = wrapProvider(await localProvider(), {
+        failResolve: path => (path === markerPath ? failure : undefined),
       })
-      const isolated = await import('@deepseek-ai/dsh-agent-instructions')
 
       pinHarnessHome(home)
-      await expect(isolated.loadBaselineInstructions({ cwd, maxBytes: 65536 }))
+      await expect(loadBaselineInstructions({ cwd, maxBytes: 65536 }, provider))
         .rejects.toBe(failure)
     } finally {
       vi.unstubAllEnvs()
-      vi.doUnmock('node:fs/promises')
-      vi.resetModules()
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
     }
