@@ -1,6 +1,6 @@
 # Agent Note: 删除 Python SDK 未使用的反向 RPC
 
-Status: proposed
+Status: implemented
 
 [English](2026-09-19-python-sdk-directional-client.md) | 中文
 
@@ -10,9 +10,9 @@ Status: proposed
 
 本提案只收缩 Python 客户端。[SDK 服务端](../../../../packages/sdk/server/README.zh.md) 保留持久化入队回执和 Session 事件流；prompt 响应不表示轮次完成。共享 TypeScript 传输保留双向能力，因为 [Codex wire 适配器](../../../../packages/subagent/subagent-codex/src/wire.ts) 在两个方向上都使用请求和通知。
 
-## 提案
+## 决定
 
-从客户端、模型和导出中删除四个 Python 方法、`_requests` 和 `IncomingRequest`。在匹配响应前，保留对同时含有 `id` 和 `method` 的意外帧的显式保护，避免服务端请求完成无关的待处理客户端请求。保持客户端请求、响应校验、入站通知订阅和关闭行为。
+客户端、模型和导出不再携带 `next_request`、`respond`、`respond_error`、`notify`、`_requests` 队列和 `IncomingRequest`。在匹配响应前，保留对同时含有 `id` 和 `method` 的意外帧的显式保护，避免服务端请求完成无关的待处理客户端请求。保持客户端请求、响应校验、入站通知订阅和关闭行为。
 
 删除专门的合成反向请求测试。仅为触发 fixture（测试前置数据）行为而发送客户端通知的测试改用请求和响应，同时保留过滤器异常与并发写入断言。该变更删除一个队列及其生命周期、四个公共方法、一个公共模型和约三十多行源码，不增加替代传输实现。
 
@@ -22,13 +22,13 @@ Status: proposed
 
 **同时收缩共享 TypeScript 传输。** 否决，因为 Codex 适配器是当前双向消费方。共享实现及其测试保留。
 
-## 验收标准
+## 验证
 
 - Python 源码和示例不再包含反向 API 或请求队列；文档和导出描述保留的客户端角色。
 - 复用待处理客户端 id 的意外服务端请求不能完成其等待方。通知过滤、同级交付、末尾排空、错误帧处理、串行写入和关闭仍通过现有测试。
 - 提交提示仍返回持久化入队回执；不引入单条提示的完成承诺或基于响应的轮次结果。
-- 运行 Python 客户端测试、已安装运行时的 SDK 冒烟与快照检查，以及文档和 lint 检查。保留 TypeScript 传输和已发布 Session fixture。
+- 本次改动由 Python 客户端测试、已安装运行时的 SDK 冒烟与快照检查、文档与 lint 门禁覆盖；TypeScript 传输和已发布 Session fixture 未改动。
 
-## 风险
+## 后果
 
-使用自定义运行时插件的外部 Python 调用方会失去这些方法。忽略不支持的请求无法满足假想服务端的响应期待；这是有意撤回该方向，而非保持协议等价。如果受支持的服务端主动请求方法先于实现落地，需要重新评估提案。
+使用自定义运行时插件的外部 Python 调用方会失去这些方法。忽略不支持的请求无法满足假想服务端的响应期待；这是有意撤回该方向，而非保持协议等价。如果支持的服务端主动请求方法日后落地，需要重新评估这个决定。
