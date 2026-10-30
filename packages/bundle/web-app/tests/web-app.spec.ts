@@ -92,7 +92,7 @@ function provideLoader(ctx: Context, settle: () => Promise<void> = async () => {
 
 interface BashContribution {
   name: string
-  variables: Record<string, { description: string }>
+  keys: readonly string[]
   resolve: () => Record<string, string>
 }
 

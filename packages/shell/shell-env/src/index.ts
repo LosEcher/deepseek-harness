@@ -37,12 +37,6 @@ export const Config: z<Config> = z.object({
   dshHome: z.string(),
 })
 
-/** Model-visible metadata for one managed `DSH_*` environment variable. */
-export interface BashEnvVariable {
-  /** Concise description of the environment fact represented by the variable. */
-  description: string
-}
-
 /**
  * A plugin contribution to the managed environment of each model shell call.
  * Declared keys make ownership conflicts detectable before the first command;
@@ -52,21 +46,13 @@ export interface BashEnvContributor {
   /** Stable contributor name used in diagnostics and duplicate detection. */
   name: string
   /** Complete set of `DSH_*` keys this contributor may return. */
-  variables: Readonly<Record<DshEnvironmentKey, BashEnvVariable>>
+  keys: readonly DshEnvironmentKey[]
   /**
    * Resolve this contributor's available values for one tool execution.
    * @param execution - the shell tool execution and its optional calling agent.
-   * @returns a partial map containing only keys declared in {@link variables}.
+   * @returns a partial map containing only keys declared in {@link keys}.
    */
   resolve(execution: ToolExecution): Readonly<Partial<Record<DshEnvironmentKey, string>>>
-}
-
-/** An enumerable declaration returned by {@link ShellEnvRegistry.list}. */
-export interface BashEnvVariableInfo extends BashEnvVariable {
-  /** Contributor that owns the variable. */
-  contributor: string
-  /** Declared `DSH_*` environment variable name. */
-  key: DshEnvironmentKey
 }
 
 const DSH_SHELL_KEY = `${DSH_ENV_PREFIX}SHELL` as const
@@ -120,8 +106,8 @@ export class ShellEnvRegistry extends Service {
         throw new Error(`bash env contributor "${contributor.name}" is already registered`)
       }
 
-      const variables = Object.entries(contributor.variables) as [DshEnvironmentKey, BashEnvVariable][]
-      for (const [key, variable] of variables) {
+      const declared = new Set<DshEnvironmentKey>()
+      for (const key of contributor.keys) {
         if (!key.startsWith(DSH_ENV_PREFIX)
           || !BASH_ENV_KEY_SUFFIX.test(key.slice(DSH_ENV_PREFIX.length))) {
           throw new Error(`bash env contributor "${contributor.name}" declared invalid key "${key}"`)
@@ -129,20 +115,21 @@ export class ShellEnvRegistry extends Service {
         if (RESERVED_BASH_ENV_KEYS.has(key)) {
           throw new Error(`bash env contributor "${contributor.name}" cannot own reserved key "${key}"`)
         }
-        if (variable.description.trim().length === 0) {
-          throw new Error(`bash env contributor "${contributor.name}" must describe "${key}"`)
+        if (declared.has(key)) {
+          throw new Error(`bash env contributor "${contributor.name}" declared key "${key}" twice`)
         }
         const owner = this.keyOwners.get(key)
         if (owner !== undefined) {
           throw new Error(`bash env key "${key}" is already owned by contributor "${owner}"; contributor "${contributor.name}" cannot also own it`)
         }
+        declared.add(key)
       }
 
       this.contributors.set(contributor.name, contributor)
-      for (const [key] of variables) this.keyOwners.set(key, contributor.name)
+      for (const key of declared) this.keyOwners.set(key, contributor.name)
       yield () => {
         this.contributors.delete(contributor.name)
-        for (const [key] of variables) this.keyOwners.delete(key)
+        for (const key of declared) this.keyOwners.delete(key)
       }
     }.bind(this), 'bashEnv.register()')
     return () => void dispose()
@@ -171,7 +158,7 @@ export class ShellEnvRegistry extends Service {
       const resolved = contributor.resolve(execution)
       for (const [rawKey, value] of Object.entries(resolved)) {
         const key = rawKey as DshEnvironmentKey
-        if (!Object.hasOwn(contributor.variables, key)) {
+        if (!contributor.keys.includes(key)) {
           throw new Error(`bash env contributor "${contributor.name}" returned undeclared key "${key}"`)
         }
         if (typeof value !== 'string') {
@@ -184,21 +171,6 @@ export class ShellEnvRegistry extends Service {
     return Object.freeze(Object.fromEntries(Object.entries(values).sort(([left], [right]) => left.localeCompare(right))))
   }
 
-  // TODO(bash-env-list-builtins): Include registry-owned built-ins before diagnostics,
-  // prompt, or UI code treats list() as an exhaustive environment catalog.
-  /**
-   * Enumerate plugin-contributed variables without executing their resolvers.
-   * @returns declarations sorted by environment variable name.
-   */
-  list(): BashEnvVariableInfo[] {
-    return [...this.contributors.values()]
-      .flatMap(contributor => Object.entries(contributor.variables).map(([key, variable]) => ({
-        contributor: contributor.name,
-        description: variable.description,
-        key: key as DshEnvironmentKey,
-      })))
-      .sort((left, right) => left.key.localeCompare(right.key))
-  }
 }
 
 /**

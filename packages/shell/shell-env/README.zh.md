@@ -44,7 +44,7 @@ export const inject = ['shellEnv']
 export function apply(ctx: Context): void {
   ctx.shellEnv.register({
     name: 'deployment-region',
-    variables: { DSH_DEPLOYMENT_REGION: { description: 'Current deployment region.' } },
+    keys: ['DSH_DEPLOYMENT_REGION'],
     resolve: execution => execution.agent === undefined ? {} : { DSH_DEPLOYMENT_REGION: 'cn-north' },
   })
 }
@@ -64,7 +64,7 @@ contributor 必须声明它返回的每个键；返回未声明或非字符串�
 
 ### 可能出什么问题
 
-两个 contributor 声明同一个键，或 contributor 声称拥有保留内置键（`DSH_HOME`、`DSH_SHELL`、`DSH_SESSION_ID`、`DSH_PROFILE`、`DSH_PROFILE_DIR`），都会导致插件加载时明确报错。`DSH_*` 键必须全大写并带下划线（例如 `DSH_REGION`），缺少描述也会让注册失败。
+两个 contributor 声明同一个键，或 contributor 声称拥有保留内置键（`DSH_HOME`、`DSH_SHELL`、`DSH_SESSION_ID`、`DSH_PROFILE`、`DSH_PROFILE_DIR`），都会导致插件加载时明确报错。`DSH_*` 键必须全大写并带下划线（例如 `DSH_REGION`），同一个键被声明两次（同一 contributor 内或跨 contributor）也会让注册失败。
 
 -----
 

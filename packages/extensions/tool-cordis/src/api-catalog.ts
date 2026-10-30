@@ -2761,12 +2761,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'execution', description: 'the current tool execution.' }],
         returns: 'an immutable environment overlay containing built-ins and current contributions.',
       },
-      {
-        signature: 'list(): BashEnvVariableInfo[]',
-        description: 'Enumerate plugin-contributed variables without executing their resolvers.',
-        parameters: [],
-        returns: 'declarations sorted by environment variable name.',
-      },
     ],
   },
   {
@@ -4955,15 +4949,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BashEnvContributor',
-    declaration: 'export interface BashEnvContributor {\n    name: string;\n    variables: Readonly<Record<DshEnvironmentKey, BashEnvVariable>>;\n    resolve(execution: ToolExecution): Readonly<Partial<Record<DshEnvironmentKey, string>>>;\n}',
-  },
-  {
-    name: 'BashEnvVariable',
-    declaration: 'export interface BashEnvVariable {\n    description: string;\n}',
-  },
-  {
-    name: 'BashEnvVariableInfo',
-    declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
+    declaration: 'export interface BashEnvContributor {\n    name: string;\n    keys: readonly DshEnvironmentKey[];\n    resolve(execution: ToolExecution): Readonly<Partial<Record<DshEnvironmentKey, string>>>;\n}',
   },
   {
     name: 'BoxProps',

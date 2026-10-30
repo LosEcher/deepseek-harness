@@ -33,7 +33,7 @@ Every call receives `DSH_HOME` (the absolute Harness home), `DSH_SHELL=1`, and, 
 
 ### Adding your own environment facts
 
-Other plugins contribute facts by registering a contributor with a stable name, the complete set of `DSH_*` keys it may return, a description per key, and a resolver that computes values for one execution:
+Other plugins contribute facts by registering a contributor with a stable name, the complete set of `DSH_*` keys it may return, and a resolver that computes values for one execution:
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
@@ -44,7 +44,7 @@ export const inject = ['shellEnv']
 export function apply(ctx: Context): void {
   ctx.shellEnv.register({
     name: 'deployment-region',
-    variables: { DSH_DEPLOYMENT_REGION: { description: 'Current deployment region.' } },
+    keys: ['DSH_DEPLOYMENT_REGION'],
     resolve: execution => execution.agent === undefined ? {} : { DSH_DEPLOYMENT_REGION: 'cn-north' },
   })
 }
@@ -64,7 +64,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### What can go wrong
 
-Two contributors declaring the same key, or a contributor claiming a reserved built-in (`DSH_HOME`, `DSH_SHELL`, `DSH_SESSION_ID`, `DSH_PROFILE`, `DSH_PROFILE_DIR`), fails plugin load loudly. A `DSH_*` key must be all-caps with underscores (for example `DSH_REGION`), and a missing description fails registration.
+Two contributors declaring the same key, or a contributor claiming a reserved built-in (`DSH_HOME`, `DSH_SHELL`, `DSH_SESSION_ID`, `DSH_PROFILE`, `DSH_PROFILE_DIR`), fails plugin load loudly. A `DSH_*` key must be all-caps with underscores (for example `DSH_REGION`), and declaring the same key twice — in one contributor or across two — fails registration.
 
 -----
 
