@@ -208,9 +208,7 @@ export function apply(ctx: Context, config: Config): void {
     ctx.inject(['shellEnv'], (runtimeCtx) => {
       runtimeCtx.shellEnv.register({
         name: 'web-runtime',
-        variables: {
-          [DSH_WEB_URL]: { description: 'Advertised URL of the DeepSeek Harness Web GUI serving this session.' },
-        },
+        keys: [DSH_WEB_URL],
         resolve: () => ({ [DSH_WEB_URL]: appRootUrl() }),
       })
     })

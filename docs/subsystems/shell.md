@@ -300,12 +300,6 @@ register(contributor: BashEnvContributor): () => void
  * @returns an immutable environment overlay containing built-ins and current contributions.
  */
 collect(execution: ToolExecution): DshEnvironment
-
-/**
- * Enumerate plugin-contributed variables without executing their resolvers.
- * @returns declarations sorted by environment variable name.
- */
-list(): BashEnvVariableInfo[]
 ```
 
 Types: [DshEnvironment](subprocess.md) · [ToolExecution](tools.md)

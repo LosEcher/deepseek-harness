@@ -12,6 +12,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { DshEnvironmentKey } from '@deepseek-ai/dsh-shell'
 import { ShellEnvRegistry } from '@deepseek-ai/dsh-shell-env'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 
@@ -65,7 +66,7 @@ describe('ShellEnvRegistry', () => {
     expect(registry.collect(execution())).toMatchObject({ DSH_PROFILE: 'web', DSH_PROFILE_DIR: '/profiles/web' })
     expect(() => registry.register({
       name: 'profile-claimer',
-      variables: { DSH_PROFILE: { description: 'Reserved key.' } },
+      keys: ['DSH_PROFILE'],
       resolve: () => ({}),
     })).toThrow(/reserved key "DSH_PROFILE"/)
   })
@@ -85,34 +86,18 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(ctx, { dshHome: './test-dsh-home' })
     registry.register({
       name: 'optional-session-fact',
-      variables: {
-        DSH_SESSION_OPTIONAL: { description: 'Optional session-scoped test fact.' },
-      },
+      keys: ['DSH_SESSION_OPTIONAL'],
       resolve: exec => exec.agent === undefined ? {} : { DSH_SESSION_OPTIONAL: exec.agent.session.header.id },
     })
     registry.register({
       name: 'always-available-fact',
-      variables: {
-        DSH_ALWAYS_AVAILABLE: { description: 'Always-available test fact.' },
-      },
+      keys: ['DSH_ALWAYS_AVAILABLE'],
       resolve: () => ({ DSH_ALWAYS_AVAILABLE: 'yes' }),
     })
 
     expect(registry.collect(execution())).not.toHaveProperty('DSH_SESSION_OPTIONAL')
     expect(registry.collect(execution()).DSH_ALWAYS_AVAILABLE).toBe('yes')
     expect(registry.collect(execution('session-b')).DSH_SESSION_OPTIONAL).toBe('session-b')
-    expect(registry.list()).toEqual([
-      {
-        contributor: 'always-available-fact',
-        description: 'Always-available test fact.',
-        key: 'DSH_ALWAYS_AVAILABLE',
-      },
-      {
-        contributor: 'optional-session-fact',
-        description: 'Optional session-scoped test fact.',
-        key: 'DSH_SESSION_OPTIONAL',
-      },
-    ])
   })
 
   it('rejects duplicate variable ownership at registration time', () => {
@@ -120,13 +105,13 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(ctx, { dshHome: './test-dsh-home' })
     registry.register({
       name: 'first',
-      variables: { DSH_SHARED: { description: 'First owner.' } },
+      keys: ['DSH_SHARED'],
       resolve: () => ({ DSH_SHARED: 'first' }),
     })
 
     expect(() => registry.register({
       name: 'second',
-      variables: { DSH_SHARED: { description: 'Second owner.' } },
+      keys: ['DSH_SHARED'],
       resolve: () => ({ DSH_SHARED: 'second' }),
     })).toThrow(/DSH_SHARED.*first.*second|DSH_SHARED.*second.*first/)
   })
@@ -135,35 +120,35 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(new Context(), { dshHome: './test-dsh-home' })
     registry.register({
       name: 'declared',
-      variables: { DSH_DECLARED: { description: 'Declared fact.' } },
+      keys: ['DSH_DECLARED'],
       resolve: () => ({}),
     })
 
     expect(() => registry.register({
       name: 'declared',
-      variables: { DSH_ANOTHER: { description: 'Another fact.' } },
+      keys: ['DSH_ANOTHER'],
       resolve: () => ({}),
     })).toThrow(/already registered/)
     expect(() => registry.register({
       name: ' ',
-      variables: { DSH_BLANK_NAME: { description: 'Blank owner.' } },
+      keys: ['DSH_BLANK_NAME'],
       resolve: () => ({}),
     })).toThrow(/name must be non-empty/)
     expect(() => registry.register({
       name: 'invalid-key',
-      variables: { dsh_invalid: { description: 'Invalid key.' } } as unknown as Record<'DSH_INVALID', { description: string }>,
+      keys: ['dsh_invalid'] as unknown as readonly DshEnvironmentKey[],
       resolve: () => ({}),
     })).toThrow(/invalid key/)
     expect(() => registry.register({
       name: 'reserved-key',
-      variables: { DSH_HOME: { description: 'Reserved key.' } },
+      keys: ['DSH_HOME'],
       resolve: () => ({}),
     })).toThrow(/reserved key/)
     expect(() => registry.register({
-      name: 'blank-description',
-      variables: { DSH_BLANK_DESCRIPTION: { description: ' ' } },
+      name: 'duplicate-declaration',
+      keys: ['DSH_REPEATED', 'DSH_REPEATED'],
       resolve: () => ({}),
-    })).toThrow(/must describe/)
+    })).toThrow(/declared key "DSH_REPEATED" twice/)
   })
 
   it('rejects undeclared variables returned by a contributor', () => {
@@ -171,7 +156,7 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(ctx, { dshHome: './test-dsh-home' })
     registry.register({
       name: 'drifted-provider',
-      variables: { DSH_DECLARED: { description: 'Declared fact.' } },
+      keys: ['DSH_DECLARED'],
       resolve: () => ({ DSH_UNDECLARED: 'bad' }),
     })
 
@@ -182,7 +167,7 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(new Context(), { dshHome: './test-dsh-home' })
     registry.register({
       name: 'wrong-value-type',
-      variables: { DSH_STRING: { description: 'String fact.' } },
+      keys: ['DSH_STRING'],
       resolve: () => ({ DSH_STRING: 42 }) as unknown as Record<'DSH_STRING', string>,
     })
 
@@ -197,7 +182,7 @@ describe('ShellEnvRegistry', () => {
       apply(inner: Context) {
         inner.shellEnv.register({
           name: 'temporary',
-          variables: { DSH_TEMPORARY: { description: 'Temporary fact.' } },
+          keys: ['DSH_TEMPORARY'],
           resolve: () => ({ DSH_TEMPORARY: 'present' }),
         })
       },
@@ -212,7 +197,7 @@ describe('ShellEnvRegistry', () => {
     const registry = new ShellEnvRegistry(new Context(), { dshHome: './test-dsh-home' })
     const dispose = registry.register({
       name: 'explicit-disposal',
-      variables: { DSH_EXPLICIT_DISPOSAL: { description: 'Explicitly disposed fact.' } },
+      keys: ['DSH_EXPLICIT_DISPOSAL'],
       resolve: () => ({ DSH_EXPLICIT_DISPOSAL: 'present' }),
     })
 
@@ -225,6 +210,6 @@ describe('ShellEnvRegistry', () => {
     const ctx = new Context()
     await ctx.plugin(BashEnvPlugin)
     expect(ctx.shellEnv).toBeInstanceOf(ShellEnvRegistry)
-    expect(ctx.shellEnv.list()).toEqual([])
+    expect(ctx.shellEnv.collect(execution())).not.toHaveProperty('DSH_ALWAYS_AVAILABLE')
   })
 })
