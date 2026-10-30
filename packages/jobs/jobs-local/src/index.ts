@@ -173,7 +173,7 @@ export class LocalJobRegistry extends JobRegistry {
    * Layers make both reads owner-relative. Nothing derives a cache from a
    * layer, so change notification is a no-op.
    */
-  private readonly layers = new ScopedLayers<JobLayer>(() => new JobLayer(), () => {})
+  private readonly layers = new ScopedLayers<JobLayer>(() => new JobLayer())
   private readonly hub: JobEventHub
   /** Owner agents with attached scope cleanup, mapped to the exact disposer. */
   private ownerCleanups = new Map<Agent, () => Promise<void> | void>()

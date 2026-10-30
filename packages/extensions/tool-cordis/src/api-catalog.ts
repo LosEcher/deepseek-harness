@@ -3124,7 +3124,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     methods: [
       {
         signature: 'section(section: PromptSection): () => void',
-        description: 'Register an ordered prompt section in the calling context\'s scope. A scoped section shadows a global section with the same name; duplicates within one layer and non-finite orders throw. Registration and disposal emit `system-prompt/change`.',
+        description: 'Register an ordered prompt section in the calling context\'s scope. A scoped section shadows a global section with the same name; duplicates within one layer and non-finite orders throw.',
         parameters: [{ name: 'section', description: 'the section to register.' }],
         returns: 'the exact Cordis effect disposer.',
       },
@@ -4485,14 +4485,6 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Expert waterfall over the assembled sections, contexts, tools, and variables.',
     description: 'Expert waterfall over the assembled sections, contexts, tools, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope\'s assemblies. The returned value is authoritative. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope\'s system prompt.',
     parameters: [{ name: 'assembly', description: 'the mutable assembly built from registered providers.' }, { name: 'context', description: 'the caller\'s per-assembly context.' }],
-  },
-  {
-    name: 'system-prompt/change',
-    mode: 'emit',
-    signature: '\'system-prompt/change\'(): void',
-    summary: 'Emitted when any prompt provider changes.',
-    description: 'Emitted when any prompt provider changes. This registry notification is unfiltered because a global change affects every scope.',
-    parameters: [],
   },
   {
     name: 'tools/change',

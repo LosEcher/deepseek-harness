@@ -29,12 +29,6 @@ declare module '@deepseek-ai/cordis' {
      * @mode waterfall
      */
     'system-prompt/assemble'(this: Scoped<SystemPrompt>, assembly: PromptAssembly, context: AssembleContext, next: () => Promise<PromptAssembly>): Promise<PromptAssembly>
-    /**
-     * Emitted when any prompt provider changes. This registry notification is
-     * unfiltered because a global change affects every scope.
-     * @mode emit
-     */
-    'system-prompt/change'(): void
   }
 }
 
@@ -436,10 +430,7 @@ export class SystemPrompt extends Service {
     toolOrder: z.array(z.string()).default(undefined as unknown as string[]),
   })
 
-  private readonly layers = new ScopedLayers(
-    scope => new PromptLayer(scope),
-    () => { this.ctx.emit('system-prompt/change') },
-  )
+  private readonly layers = new ScopedLayers(scope => new PromptLayer(scope))
   private readonly toolOrder: string[] | undefined
 
   constructor(ctx: Context, config: Config) {
@@ -470,8 +461,7 @@ export class SystemPrompt extends Service {
   /**
    * Register an ordered prompt section in the calling context's scope. A scoped
    * section shadows a global section with the same name; duplicates within one
-   * layer and non-finite orders throw. Registration and disposal emit
-   * `system-prompt/change`.
+   * layer and non-finite orders throw.
    * @param section - the section to register.
    * @returns the exact Cordis effect disposer.
    */
