@@ -123,8 +123,7 @@ Registry service for the prompt inputs assembled before each model step.
 /**
  * Register an ordered prompt section in the calling context's scope. A scoped
  * section shadows a global section with the same name; duplicates within one
- * layer and non-finite orders throw. Registration and disposal emit
- * `system-prompt/change`.
+ * layer and non-finite orders throw.
  * @param section - the section to register.
  * @returns the exact Cordis effect disposer.
  */
@@ -232,23 +231,6 @@ Expert waterfall over the assembled sections, contexts, tools, and variables. Sc
 ```
 
 Types: [Scoped](scope.md)
-
-Source: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-prompt/src/index.ts)
-
-<a id="system-promptchange--emit"></a>
-
-#### `system-prompt/change` — emit
-
-Emitted when any prompt provider changes. This registry notification is unfiltered because a global change affects every scope.
-
-```ts cordis-catalog
-/**
- * Emitted when any prompt provider changes. This registry notification is
- * unfiltered because a global change affects every scope.
- * @mode emit
- */
-'system-prompt/change'(): void
-```
 
 Source: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-prompt/src/index.ts)
 <!-- END GENERATED cordis-surface -->

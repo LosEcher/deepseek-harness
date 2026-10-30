@@ -111,7 +111,7 @@ Assembly resolves and renders in two stages: `assemble()` returns sections with 
 
 ### Scoping
 
-Scoped sections, variables, and tool providers shadow globals for one agent, and the assembly waterfall dispatches scope-filtered. Registry-change notifications (`system-prompt/change`) are deliberately unfiltered because a global change affects every scope.
+Scoped sections, variables, and tool providers shadow globals for one agent, and the assembly waterfall dispatches scope-filtered. The registry emits no change event: every read assembles on demand, so a cached copy of the prompt is the consumer's own responsibility.
 
 </details>
 

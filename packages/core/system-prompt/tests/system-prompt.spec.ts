@@ -382,44 +382,6 @@ describe('SystemPrompt', () => {
     expect((await ctx.systemPrompt.assemble()).contexts).toEqual([{ name: 'policy', text: 'first' }])
   })
 
-  it('rolls back a section when a system-prompt/change listener throws (P1-1)', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-
-    // Throw on the first emit only. Note the rollback path itself emits
-    // system-prompt/change, so a multi-shot guard would also fire on rollback;
-    // a single-shot guard isolates the register's own emit.
-    let threw = false
-    const off = ctx.on('system-prompt/change', () => {
-      if (!threw) { threw = true; throw new Error('boom change listener') }
-    })
-
-    expect(() => ctx.systemPrompt.section({ name: 'p', order: 0, text: 'persona' })).toThrow('boom change listener')
-    expect(contributed(await ctx.systemPrompt.assemble())).toHaveLength(0) // nothing leaked
-
-    // Subsequent listener-free register contributes exactly once.
-    off()
-    ctx.systemPrompt.section({ name: 'p', order: 0, text: 'persona' })
-    expect(contributed(await ctx.systemPrompt.assemble()).map(s => s.name)).toEqual(['p'])
-  })
-
-  it('rolls back a tool provider when a system-prompt/change listener throws (P1-1)', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-
-    let threw = false
-    const off = ctx.on('system-prompt/change', () => {
-      if (!threw) { threw = true; throw new Error('boom change listener') }
-    })
-
-    expect(() => ctx.systemPrompt.tools(() => ({ schemas: [{ name: 't', description: '', parameters: {} }] }))).toThrow('boom change listener')
-    expect((await ctx.systemPrompt.assemble()).tools).toHaveLength(0) // nothing leaked
-
-    off()
-    ctx.systemPrompt.tools(() => ({ schemas: [{ name: 't', description: '', parameters: {} }] }))
-    expect((await ctx.systemPrompt.assemble()).tools.map(t => t.name)).toEqual(['t'])
-  })
-
   it('snapshots tool-provider membership before evaluating an assembly', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -436,23 +398,6 @@ describe('SystemPrompt', () => {
 
     expect((await ctx.systemPrompt.assemble()).tools.map(tool => tool.name)).toEqual(['first'])
     expect((await ctx.systemPrompt.assemble()).tools.map(tool => tool.name)).toEqual(['first', 'late'])
-  })
-
-  it('rolls back a variable when a system-prompt/change listener throws (P1-1)', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-
-    let threw = false
-    const off = ctx.on('system-prompt/change', () => {
-      if (!threw) { threw = true; throw new Error('boom change listener') }
-    })
-
-    expect(() => ctx.systemPrompt.variable('v', () => 'x')).toThrow('boom change listener')
-    expect((await ctx.systemPrompt.assemble()).variables).toEqual({}) // nothing leaked
-
-    off()
-    ctx.systemPrompt.variable('v', () => 'x')
-    expect((await ctx.systemPrompt.assemble()).variables).toEqual({ v: 'x' })
   })
 
   it('composes multiple system-prompt/assemble waterfall listeners in order, with the context', async () => {
@@ -576,33 +521,6 @@ describe('SystemPrompt', () => {
     })).toThrow('unknown prompt variable "{{missing}}" in context "policy"; registered variables: (none)')
   })
 
-  it('emits system-prompt/change when a tool provider is registered and disposed', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-
-    let changeCount = 0
-    ctx.on('system-prompt/change', () => void changeCount++)
-
-    const dispose = ctx.systemPrompt.tools(() => ({ schemas: [] }))
-    // registration emits change
-    expect(changeCount).toBe(1)
-
-    dispose()
-    // disposal emits change again
-    expect(changeCount).toBe(2)
-  })
-
-  it('emits system-prompt/change when a context is registered and disposed', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-    let changeCount = 0
-    ctx.on('system-prompt/change', () => void changeCount++)
-    const dispose = ctx.systemPrompt.context({ name: 'policy', order: 0, text: 'current' })
-    expect(changeCount).toBe(1)
-    dispose()
-    expect(changeCount).toBe(2)
-  })
-
   it('cleans up tool providers on fiber dispose', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -639,21 +557,17 @@ describe('SystemPrompt', () => {
   })
 
   describe('prompt variables', () => {
-    it('resolves each variable against the assemble context and emits change on register/unregister', async () => {
+    it('resolves each variable against the assemble context', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
-      let changeCount = 0
-      ctx.on('system-prompt/change', () => void changeCount++)
 
       const dispose = ctx.systemPrompt.variable('who', context => (context as { who?: string }).who)
-      expect(changeCount).toBe(1)
 
       expect((await ctx.systemPrompt.assemble({ who: 'alice' } as AssembleContext)).variables).toEqual({ who: 'alice' })
       // A provider returning undefined records "registered but no value here".
       expect((await ctx.systemPrompt.assemble()).variables).toEqual({ who: undefined })
 
       dispose()
-      expect(changeCount).toBe(2)
       expect((await ctx.systemPrompt.assemble()).variables).toEqual({})
     })
 

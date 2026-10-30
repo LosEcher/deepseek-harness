@@ -48,7 +48,7 @@ export class McpResourceRuntime extends Service {
   /** Tool registry required by the resource consumer. */
   static inject = ['tools']
 
-  private readonly layers = new ScopedLayers(() => new ResourceLayer(), () => undefined)
+  private readonly layers = new ScopedLayers(() => new ResourceLayer())
   /** Shared tool registrations outlive any one server's registering context. */
   private readonly selfCtx: Context
 

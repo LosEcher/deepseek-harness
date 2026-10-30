@@ -111,7 +111,7 @@ ctx.systemPrompt.variable('response_language', () => 'English')
 
 ### 作用域
 
-带作用域的段、变量与工具提供方会为单个 agent 遮蔽全局项，组装 waterfall 按作用域筛选分发。注册表变更通知（`system-prompt/change`）刻意不经过筛选，因为全局变更影响每个作用域。
+带作用域的段、变量与工具提供方会为单个 agent 遮蔽全局项，组装 waterfall 按作用域筛选分发。注册表**不发出变更事件**：每次读取都按需组装，缓存提示词的责任在消费方。
 
 </details>
 
