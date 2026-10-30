@@ -1,6 +1,6 @@
 # Agent Note: 精简未使用的流可见性辅助函数
 
-Status: proposed
+Status: implemented
 
 [English](2026-09-19-prune-stream-visibility-helpers.md) | 中文
 
@@ -10,13 +10,13 @@ Status: proposed
 
 保留的首 token 读取器已有 [Session Stats](../../../../packages/session/session-stats/src/projection.ts) 和 [Trajectory](../../../../packages/client/ui-trajectory/src/client/trajectory-assistant-definition.ts) 消费方。它们的计时要求不依赖单独区分空白文本的可见性分类。
 
-## 提案
+## 决定
 
-移除这五个导出的可见性查询及其专用私有辅助函数 `hasNonWhitespace` 和 `blockIsVisible`。这会删除约 77 行源码（含局部文档），无需新增替代机制。保留所有首 token、原始分片、文本拼接和组装读取器，以及累加器和带校验的展开操作。保留直接实现和基于库实现的两个 LLM（大语言模型）适配器及其扩展 API。
+五个导出的可见性查询及其专用私有辅助函数 `hasNonWhitespace` 与 `blockIsVisible` 已移除。实际删除 79 行源码（含局部文档），未新增替代机制。保留所有首 token、原始分片、文本拼接和组装读取器，以及累加器和带校验的展开操作。保留直接实现和基于库实现的两个 LLM（大语言模型）适配器及其扩展 API。
 
-移除专门的可见性测试；混合读取器测试只删除过时断言。保留验证首 token 计时、提前退出、原始分片、文本拼接和组装等价性的混合 fixture（测试前置数据）与断言。
+专门的可见性测试随查询一并移除；混合读取器测试只删除过时断言。保留验证首 token 计时、提前退出、原始分片、文本拼接和组装等价性的混合 fixture（测试前置数据）与断言。
 
-[包 README](../../../../packages/llm/llm/README.zh.md)负责紧凑读取器的行为：保留的读取器避免将逐成员展开结果实体化，持久化输入仍使用带校验的展开操作。保留这些约束和仍被使用的读取器。实施本提案时，更新该 README、[LLM 子系统页面](../../../../docs/subsystems/llm-streaming.zh.md)及其双语对侧；归档记录保持不变。
+[包 README](../../../../packages/llm/llm/README.zh.md)负责紧凑读取器的行为：保留的读取器避免将逐成员展开结果实体化，持久化输入仍使用带校验的展开操作。保留这些约束和仍被使用的读取器。该 README 与 [LLM 子系统页面](../../../../docs/subsystems/llm-streaming.zh.md)及其双语对侧已更新；归档记录保持不变。
 
 ## 备选方案
 
@@ -24,12 +24,12 @@ Status: proposed
 
 **用流展开替代可见性查询。** 当前没有需要迁移的生产调用方。新增替代实现会继续保留未使用的 API，并引入记录读取器原本避免的分配开销。
 
-## 验收标准
+## 验证
 
 - 源码导出和现行 API 文档中不再包含这五个名称；生产调用方不新增展开操作或替代可见性查询。
 - 针对流读取器、Session Stats 和 Trajectory 计时的检查通过；混合测试保留无关断言。
 - 类型检查、受影响发布入口的构建和文档检查通过。Session 格式、模型输入、transcript（文本记录）内容和首 token 计时保持不变。
 
-## 风险
+## 后果
 
 这会有意收缩导出的稳定前 API。即使仓库中没有消费方，外部导入仍可能失效。实施前重新核对消费方证据，并明确评估发现的外部需求；不得宣称整个生态均未使用这些函数。

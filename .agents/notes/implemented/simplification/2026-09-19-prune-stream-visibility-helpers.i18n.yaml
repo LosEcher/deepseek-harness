@@ -1,22 +1,22 @@
 # Bilingual-pair consistency record for 2026-09-19-prune-stream-visibility-helpers.md (docs/i18n/README.md): per heading
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
 # After editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-19-prune-stream-visibility-helpers.md
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-19-prune-stream-visibility-helpers.md
 /agent-note-prune-unused-stream-visibility-helpers:
-  en: 5d82ce82cac8a687
-  zh: 4cfc68fceb215e35
+  en: 20aee2e1cc15de06
+  zh: 1ad223c33f44a730
 /agent-note-prune-unused-stream-visibility-helpers/problem:
   en: 0665c67fb7460f1f
   zh: 28215a7a02e9262b
-/agent-note-prune-unused-stream-visibility-helpers/proposal:
-  en: b3f72cf66541614f
-  zh: cc214a5dc75ae6b7
+/agent-note-prune-unused-stream-visibility-helpers/decision:
+  en: 132c19f51a4db149
+  zh: 216685558c36da11
 /agent-note-prune-unused-stream-visibility-helpers/alternatives-considered:
   en: 1a190cf86a9f7ec9
   zh: 2a30aa235c69bdc7
-/agent-note-prune-unused-stream-visibility-helpers/acceptance-criteria:
-  en: ee2de1dbabc60983
-  zh: d01c9f1e399266af
-/agent-note-prune-unused-stream-visibility-helpers/risks:
-  en: 466ed8d1fb426011
-  zh: 1c0765622c9fdf32
+/agent-note-prune-unused-stream-visibility-helpers/testing:
+  en: 8ef68c8061e75c20
+  zh: 1638c635825b3d99
+/agent-note-prune-unused-stream-visibility-helpers/consequences:
+  en: 4740bc5437ae3326
+  zh: 243d55f7b6acf774
