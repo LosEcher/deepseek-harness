@@ -17,12 +17,6 @@ class Notification:
 
 
 @dataclass(slots=True)
-class IncomingRequest:
-    id: str | int
-    method: str
-    payload: JsonObject
-
-
 class ServerInfo(BaseModel):
     name: str | None = None
     version: str | None = None

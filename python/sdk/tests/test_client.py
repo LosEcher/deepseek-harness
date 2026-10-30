@@ -757,7 +757,12 @@ for line in sys.stdin:
             client.session_prompt("main", [{"type": "text", "text": "fix it"}])
 
 
-def test_client_routes_bridge_requests_and_sends_responses(tmp_path: Path) -> None:
+def test_client_ignores_server_request_frames(tmp_path: Path) -> None:
+    """Server-originated requests are outside this client's role (2026-09-19 proposal).
+
+    The frame shape `{id, method}` is unexpected: it must be dropped, and it must never
+    settle a pending client request that happens to reuse its id.
+    """
     script = tmp_path / "fake_bridge.py"
     script.write_text(
         """
@@ -768,10 +773,12 @@ for line in sys.stdin:
     msg = json.loads(line)
     method = msg.get("method")
     if method == "initialize":
+        print(json.dumps({"jsonrpc": "2.0", "id": msg["id"],
+                          "method": "llm.request",
+                          "params": {"requestId": "req-1", "sessionId": "main"}}), flush=True)
         print(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": {"serverInfo": {"name": "fake-dsh"}}}), flush=True)
-        print(json.dumps({"jsonrpc": "2.0", "id": "bridge-req-1", "method": "llm.request", "params": {"requestId": "req-1", "sessionId": "main", "model": "dsagent", "messages": []}}), flush=True)
-    elif "id" in msg and "method" not in msg:
-        print(json.dumps({"jsonrpc": "2.0", "method": "response/seen", "params": {"result": msg.get("result")}}), flush=True)
+    elif method == "session/prompt":
+        print(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": {"messageId": "msg-1"}}), flush=True)
     elif method == "shutdown":
         print(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": {}}), flush=True)
         break
@@ -779,17 +786,13 @@ for line in sys.stdin:
     )
 
     with HarnessClient(_launch_args=(sys.executable, str(script))) as client:
-        client.initialize(provider="deepseek-official", cwd="/workspace", model="dsagent")
-
-        request = client.next_request()
-        assert request.id == "bridge-req-1"
-        assert request.method == "llm.request"
-        assert request.payload["requestId"] == "req-1"
-
-        client.respond(request.id, {"content_blocks": [{"type": "text", "text": "done"}]})
-        notification = client.next_notification()
-        assert notification.method == "response/seen"
-        assert notification.payload["result"]["content_blocks"][0]["text"] == "done"
+        init = client.initialize(provider="deepseek-official", cwd="/workspace", model="dsagent")
+        # The bogus frame used the same wire id as initialize's request; initialize must still
+        # resolve with its own result, proving the frame did not settle that waiter.
+        assert init.serverInfo is not None and init.serverInfo.name == "fake-dsh"
+        assert client._notifications.empty(), "a server request must not be delivered as a notification"
+        # Transport still works after the guard dropped the frame.
+        assert client.session_prompt("main", [{"type": "text", "text": "go"}]) == "msg-1"
 
 
 def test_client_ignores_non_json_stdout_lines(tmp_path: Path) -> None:
