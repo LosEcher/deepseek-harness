@@ -1,6 +1,6 @@
 # Agent Note: Remove the Python SDK's unused reverse RPC direction
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-09-19-python-sdk-directional-client.zh.md)
 
@@ -10,9 +10,9 @@ The [Python client](../../../../python/sdk/src/deepseek_harness/client.py) keeps
 
 This proposal narrows only the Python client. The [SDK server](../../../../packages/sdk/server/README.md) retains its durable enqueue receipt and streamed Session events; prompt responses do not represent turn completion. The shared TypeScript transport remains bidirectional because the [Codex wire adapter](../../../../packages/subagent/subagent-codex/src/wire.ts) uses requests and notifications in both directions.
 
-## Proposal
+## Decision
 
-Remove the four Python methods, `_requests`, and `IncomingRequest` from the client, models, and exports. Retain an explicit guard for an unexpected frame containing both `id` and `method` before response matching, so a server request cannot settle an unrelated pending client request. Keep client requests, response validation, incoming notification subscriptions, and shutdown unchanged.
+The client, models, and exports no longer carry `next_request`, `respond`, `respond_error`, `notify`, the `_requests` queue, or `IncomingRequest`. Retain an explicit guard for an unexpected frame containing both `id` and `method` before response matching, so a server request cannot settle an unrelated pending client request. Keep client requests, response validation, incoming notification subscriptions, and shutdown unchanged.
 
 Remove the dedicated synthetic reverse-request test. Change tests that send client notifications only to trigger fixture behavior to use a request and response instead; retain their filter-exception and concurrent-write assertions. This removes one queue and its lifetime, four public methods, one public model, and roughly three dozen source lines without adding a replacement transport.
 
@@ -22,13 +22,13 @@ Remove the dedicated synthetic reverse-request test. Change tests that send clie
 
 **Narrow the shared TypeScript transport too.** Rejected because the Codex adapter is a current bidirectional consumer. The shared implementation and its tests remain.
 
-## Acceptance criteria
+## Testing
 
 - Python sources and examples have no reverse-direction API or request queue; documentation and exports describe the retained client role.
 - An unexpected server request reusing a pending client id cannot complete its waiter. Notification filtering, sibling delivery, final draining, malformed-frame handling, serialized writes, and shutdown still pass their existing tests.
 - Prompt submission still returns the durable enqueue receipt; no per-prompt completion promise or response-based turn result is introduced.
-- Run the Python client suite and installed-runtime SDK smoke and snapshot checks, plus documentation and lint checks. Preserve the TypeScript transport and released Session fixtures.
+- The Python client suite, the installed-runtime SDK smoke and snapshot checks, and the documentation and lint gates cover this change; the TypeScript transport and released Session fixtures are unchanged.
 
-## Risks
+## Consequences
 
-External Python callers using custom runtime plugins lose these methods. Ignoring an unsupported request does not fulfill a hypothetical server's response expectation; this is deliberate withdrawal of that direction, not protocol parity. Revisit the proposal if a supported server-originated method lands before implementation.
+External Python callers using custom runtime plugins lose these methods. Ignoring an unsupported request does not fulfill a hypothetical server's response expectation; this is deliberate withdrawal of that direction, not protocol parity. Revisit the decision if a supported server-originated method lands.
