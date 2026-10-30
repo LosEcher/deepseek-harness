@@ -511,13 +511,4 @@ describe('session event tracing', () => {
       .rejects.toThrow(expectCode('SESSION_QUERY_INVALID_SURFACE'))
   })
 
-  it('applies the same surface contract to listEvents', async () => {
-    const durable = header('list-regression')
-    TracePersistence.reset([{ meta: durable, events: [appendEvent(0), appendEvent(1, [0, 0])] }])
-    const ctx = await queryContext()
-    await ctx.plugin(TracePersistence)
-
-    await expect(ctx.sessionQuery.listEvents(durable.id))
-      .rejects.toThrow(expectCode('SESSION_QUERY_INVALID_SURFACE'))
-  })
 })

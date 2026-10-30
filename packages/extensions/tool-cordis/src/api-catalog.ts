@@ -2405,41 +2405,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'deterministic newest-first cloned session records.',
       },
       {
-        signature: 'async readSession(sessionId: SessionId): Promise<SessionLogSnapshot>',
-        description: 'Read and replay-validate one complete logical session log without making it live.',
-        parameters: [{ name: 'sessionId', description: 'live or persisted session id to read.' }],
-        returns: 'cloned header and complete raw event log from one observation.',
-        throws: ['when persistence, header compatibility, or replay validation fails.'],
-      },
-      {
         signature: 'async filterSessions( filters: readonly SessionResultFilter[], signal?: AbortSignal, ): Promise<SessionRecord[]>',
         description: 'Filter the complete logical corpus with provider-independent predicates.',
         parameters: [{ name: 'filters', description: 'ANDed session metadata and availability clauses.' }, { name: 'signal', description: 'optional cancellation for persistence listing.' }],
         returns: 'matching cloned records in deterministic newest-first order.',
       },
       {
-        signature: 'async readTitle( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionTitleSnapshot | undefined>',
-        description: 'Fold the latest log-backed title from one live-preferred logical session.',
-        parameters: [{ name: 'sessionId', description: 'live or persisted session id to read.' }, { name: 'signal', description: 'optional cancellation for source resolution and title folding.' }],
-        returns: 'latest title snapshot, or `undefined` when the log has no title event.',
-      },
-      {
-        signature: 'async readTitleSnapshot( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionTitleObservation>',
-        description: 'Fold the latest title and return its source header from one corpus observation.',
-        parameters: [{ name: 'sessionId', description: 'live or persisted session id to read.' }, { name: 'signal', description: 'optional cancellation for source resolution and title folding.' }],
-        returns: 'cloned source header and optional latest title snapshot.',
-      },
-      {
         signature: 'async readTitleSnapshots( sessionIds: readonly SessionId[], signal?: AbortSignal, ): Promise<SessionTitleObservationResult[]>',
         description: 'Fold titles for unique sessions from one cancellable corpus observation.\n\nResults preserve first-occurrence input order. Operational failures stay isolated per session, while cancellation rejects the complete operation.',
         parameters: [{ name: 'sessionIds', description: 'live or persisted session ids to observe.' }, { name: 'signal', description: 'optional cancellation shared by all source reads.' }],
         returns: 'one fulfilled or rejected result per unique requested id.',
-      },
-      {
-        signature: 'async listEvents(sessionId: SessionId): Promise<SessionEventRecord[]>',
-        description: 'List lightweight raw-log event records for one logical session.',
-        parameters: [{ name: 'sessionId', description: 'live-preferred session id to read.' }],
-        returns: 'event records in ascending seq order.',
       },
       {
         signature: 'async filterEvents( sessionId: SessionId, filters: readonly SessionEventResultFilter[], ): Promise<SessionEventSearchDocument[]>',
@@ -7246,10 +7221,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionLogReporter',
     declaration: 'export class SessionLogReporter {\n    constructor(options: SessionLogOptions);\n    reportSessionLog(record: SessionLogRecord): void;\n    stopPending(): void;\n    shutdown(): Promise<void>;\n}',
-  },
-  {
-    name: 'SessionLogSnapshot',
-    declaration: 'export interface SessionLogSnapshot {\n    session: SessionHeader;\n    inheritedEventCount: SessionLogOffset;\n    events: SessionEvent[];\n}',
   },
   {
     name: 'SessionMessage',

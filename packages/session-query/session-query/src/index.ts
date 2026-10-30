@@ -4,29 +4,24 @@
  * @module @deepseek-ai/dsh-session-query
  */
 
-import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { Context, Service } from '@deepseek-ai/cordis'
 import {
-  Session,
   SessionSeq,
   snapshotSessionEvent,
   type SessionId,
   type SessionSeq as SessionSeqType,
 } from '@deepseek-ai/dsh-session'
 import { foldSessionTitle } from '@deepseek-ai/dsh-session-title'
-import type { SessionTitleSnapshot } from '@deepseek-ai/dsh-session-title'
 import type {
   SessionEventResultFilter,
   SessionEventSearchPage,
   SessionEventReadRequest,
-  SessionEventRecord,
   SessionEventSearchDocument,
   SessionEventSearchRequest,
   SessionEventTraceObservation,
   SessionEventTraceRequest,
   SessionEventWindow,
   SessionLineageTrace,
-  SessionLogSnapshot,
   SessionRecord,
   SessionResultFilter,
   SessionSearchExecContext,
@@ -176,28 +171,6 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Read and replay-validate one complete logical session log without making it live.
-   * @param sessionId - live or persisted session id to read.
-   * @returns cloned header and complete raw event log from one observation.
-   * @throws when persistence, header compatibility, or replay validation fails.
-   */
-  async readSession(sessionId: SessionId): Promise<SessionLogSnapshot> {
-    const loaded = await this._corpus.load(sessionId)
-    Session.create(
-      sessionId,
-      loaded.events,
-      loaded.header,
-      loaded.inheritedEventCount,
-      currentSessionMessageProjections,
-    )
-    return {
-      session: structuredClone(loaded.header),
-      inheritedEventCount: loaded.inheritedEventCount,
-      events: loaded.events.map(snapshotSessionEvent),
-    }
-  }
-
-  /**
    * Filter the complete logical corpus with provider-independent predicates.
    * @param filters - ANDed session metadata and availability clauses.
    * @param signal - optional cancellation for persistence listing.
@@ -209,34 +182,6 @@ export abstract class SessionQueryEngine extends Service {
   ): Promise<SessionRecord[]> {
     const ownedFilters = materializeSessionResultFilters(filters)
     return this._filterSessions(ownedFilters, signal)
-  }
-
-  /**
-   * Fold the latest log-backed title from one live-preferred logical session.
-   * @param sessionId - live or persisted session id to read.
-   * @param signal - optional cancellation for source resolution and title folding.
-   * @returns latest title snapshot, or `undefined` when the log has no title event.
-   */
-  async readTitle(
-    sessionId: SessionId,
-    signal?: AbortSignal,
-  ): Promise<SessionTitleSnapshot | undefined> {
-    return (await this.readTitleSnapshot(sessionId, signal)).title
-  }
-
-  /**
-   * Fold the latest title and return its source header from one corpus observation.
-   * @param sessionId - live or persisted session id to read.
-   * @param signal - optional cancellation for source resolution and title folding.
-   * @returns cloned source header and optional latest title snapshot.
-   */
-  async readTitleSnapshot(
-    sessionId: SessionId,
-    signal?: AbortSignal,
-  ): Promise<SessionTitleObservation> {
-    const result = (await this.readTitleSnapshots([sessionId], signal))[0] as SessionTitleObservationResult
-    if (result.status === 'rejected') throw result.reason
-    return result.value
   }
 
   /**
@@ -259,16 +204,6 @@ export abstract class SessionQueryEngine extends Service {
         ...title === undefined ? {} : { title },
       }
     }, signal)
-  }
-
-  /**
-   * List lightweight raw-log event records for one logical session.
-   * @param sessionId - live-preferred session id to read.
-   * @returns event records in ascending seq order.
-   */
-  async listEvents(sessionId: SessionId): Promise<SessionEventRecord[]> {
-    const loaded = await this._corpus.load(sessionId)
-    return tracing.eventRecords(sessionId, loaded.events)
   }
 
   /**

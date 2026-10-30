@@ -47,16 +47,6 @@ export interface SessionSurfaceSnapshot {
   events: SurfaceEvent[]
 }
 
-/** One validated detached observation of a logical session's complete raw log. */
-export interface SessionLogSnapshot {
-  /** Cloned session header selected from the same observation as `events`. */
-  session: SessionHeader
-  /** Exact number of fork-inherited events in the observed log. */
-  inheritedEventCount: SessionLogOffset
-  /** Cloned contiguous raw events after in-memory interrupted-turn balancing and replay validation. */
-  events: SessionEvent[]
-}
-
 /** Lightweight metadata for one event within a logical session. */
 export interface SessionEventRecord {
   /** Session that owns the event. */

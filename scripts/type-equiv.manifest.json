@@ -758,11 +758,6 @@
     },
     {
       "doc": "docs/subsystems/session-query.md",
-      "symbol": "SessionLogSnapshot",
-      "source": "packages/session-query/session-query/src/types.ts"
-    },
-    {
-      "doc": "docs/subsystems/session-query.md",
       "symbol": "SessionSurfaceSnapshot",
       "source": "packages/session-query/session-query/src/types.ts"
     },

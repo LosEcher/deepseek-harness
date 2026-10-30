@@ -29,19 +29,7 @@ interface SessionRecord {
 }
 ```
 
-`SessionLogSnapshot` is the complete detached, replay-validated raw log used by resume preflight. `SessionSurfaceSnapshot` is one exact-read surface observation rather than a retained subscription.
-
-```ts type-equiv
-/** One validated detached observation of a logical session's complete raw log. */
-interface SessionLogSnapshot {
-  /** Cloned session header selected from the same observation as `events`. */
-  session: SessionHeader
-  /** Exact number of fork-inherited events in the observed log. */
-  inheritedEventCount: SessionLogOffset
-  /** Cloned contiguous raw events after in-memory interrupted-turn balancing and replay validation. */
-  events: SessionEvent[]
-}
-```
+`SessionSurfaceSnapshot` is one exact-read surface observation rather than a retained subscription.
 
 ```ts type-equiv
 /** One atomic live-preferred observation of a session's current model surface. */
@@ -413,36 +401,12 @@ abstract searchEvents( request: SessionEventSearchRequest, exec?: SessionSearchE
 listSessions(signal?: AbortSignal): Promise<SessionRecord[]>
 
 /**
- * Read and replay-validate one complete logical session log without making it live.
- * @param sessionId - live or persisted session id to read.
- * @returns cloned header and complete raw event log from one observation.
- * @throws when persistence, header compatibility, or replay validation fails.
- */
-async readSession(sessionId: SessionId): Promise<SessionLogSnapshot>
-
-/**
  * Filter the complete logical corpus with provider-independent predicates.
  * @param filters - ANDed session metadata and availability clauses.
  * @param signal - optional cancellation for persistence listing.
  * @returns matching cloned records in deterministic newest-first order.
  */
 async filterSessions( filters: readonly SessionResultFilter[], signal?: AbortSignal, ): Promise<SessionRecord[]>
-
-/**
- * Fold the latest log-backed title from one live-preferred logical session.
- * @param sessionId - live or persisted session id to read.
- * @param signal - optional cancellation for source resolution and title folding.
- * @returns latest title snapshot, or `undefined` when the log has no title event.
- */
-async readTitle( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionTitleSnapshot | undefined>
-
-/**
- * Fold the latest title and return its source header from one corpus observation.
- * @param sessionId - live or persisted session id to read.
- * @param signal - optional cancellation for source resolution and title folding.
- * @returns cloned source header and optional latest title snapshot.
- */
-async readTitleSnapshot( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionTitleObservation>
 
 /**
  * Fold titles for unique sessions from one cancellable corpus observation.
@@ -454,13 +418,6 @@ async readTitleSnapshot( sessionId: SessionId, signal?: AbortSignal, ): Promise<
  * @returns one fulfilled or rejected result per unique requested id.
  */
 async readTitleSnapshots( sessionIds: readonly SessionId[], signal?: AbortSignal, ): Promise<SessionTitleObservationResult[]>
-
-/**
- * List lightweight raw-log event records for one logical session.
- * @param sessionId - live-preferred session id to read.
- * @returns event records in ascending seq order.
- */
-async listEvents(sessionId: SessionId): Promise<SessionEventRecord[]>
 
 /**
  * Scan first-party semantic event documents with provider-independent filters.
@@ -505,7 +462,7 @@ async traceEvent(request: SessionEventTraceRequest, signal?: AbortSignal): Promi
 async readEvent(request: SessionEventReadRequest, signal?: AbortSignal): Promise<SessionEventWindow>
 ```
 
-Types: [SessionId](core.md) · [SessionTitleSnapshot](session-title.md)
+Types: [SessionId](core.md)
 
 Source: [`packages/session-query/session-query/src/index.ts`](../../packages/session-query/session-query/src/index.ts)
 <!-- END GENERATED cordis-surface -->
