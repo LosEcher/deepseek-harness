@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Inspect the public Codex provider composition without invoking the product. */
 
-import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolve } from 'node:path'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-tools'
 import { bootProductionProfile } from '../../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
@@ -16,7 +16,7 @@ const ctx = await bootProductionProfile({
   binName: 'subagent-codex-loader-composition',
   profile: 'headless',
   overlayPaths: [
-    resolveConfigPath(configPath, undefined),
+    resolve(configPath),
   ],
   prepare: (hostCtx) => {
     hostCtx.on('subagent/start', () => {
