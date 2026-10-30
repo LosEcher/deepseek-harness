@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-19-retire-prompt-registry-change-event.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-19-retire-prompt-registry-change-event.md
+/agent-note-retire-the-prompt-registry-change-event:
+  en: adcd16fd52d53931
+  zh: 70b252e0dfb093ae
+/agent-note-retire-the-prompt-registry-change-event/problem:
+  en: 1f2faffe1e12d8a8
+  zh: 9958c4657f905914
+/agent-note-retire-the-prompt-registry-change-event/decision:
+  en: 69b3f64b463a259c
+  zh: 59ac749aaa0b7a61
+/agent-note-retire-the-prompt-registry-change-event/alternatives-considered:
+  en: 768edcebf26d1af4
+  zh: 7c009a2f1513061e
+/agent-note-retire-the-prompt-registry-change-event/testing:
+  en: 62347ef073fe30b0
+  zh: 5e54a3bc86c8a52c
+/agent-note-retire-the-prompt-registry-change-event/consequences:
+  en: 12776ce2a02fc9ea
+  zh: 3654c749a42cb0f1
