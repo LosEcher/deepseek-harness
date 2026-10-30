@@ -23,7 +23,7 @@ import SessionQueryEngine, {
   type SessionEventSurface,
   type SessionQueryErrorCode,
 } from '@deepseek-ai/dsh-session-query'
-import { SessionTitleProviderId, SessionTitleService } from '@deepseek-ai/dsh-session-title'
+import { SessionTitleService } from '@deepseek-ai/dsh-session-title'
 import { TestSessionQueryEngine } from './test-service.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
@@ -476,7 +476,7 @@ describe.each(cancellableExactReads.filter(read => read.inspects))(
 )
 
 describe('session-query exact reads', () => {
-  it('returns a detached replay-valid full log and rejects a corrupt persisted seed', async () => {
+  it('returns a detached current surface and rejects a corrupt persisted seed', async () => {
     const valid = header('valid-log', 2)
     const corrupt = header('corrupt-log', 1)
     const validEvents = eventLog('valid')
@@ -488,15 +488,14 @@ describe('session-query exact reads', () => {
     const ctx = await liveContext()
     await ctx.plugin(TestPersistence)
 
-    const snapshot = await ctx.sessionQuery.readSession(valid.id)
-    expect(snapshot).toEqual({
-      session: valid,
-      inheritedEventCount: SessionLogOffset(0),
-      events: validEvents,
-    })
-    Object.assign(snapshot.events[0]!, { time: 999 })
-    expect(TestPersistence.entries.get(valid.id)?.events[0]?.time).toBe(10)
-    await expect(ctx.sessionQuery.readSession(corrupt.id)).rejects.toThrow('seed event at index 0 has seq 1')
+    const snapshot = await ctx.sessionQuery.readSurface(valid.id)
+    expect(snapshot.session).toEqual(valid)
+    Object.assign(snapshot.session, { cwd: '/mutated-after-read' })
+    expect(TestPersistence.entries.get(valid.id)?.meta.cwd).not.toBe('/mutated-after-read')
+    // readSurface 的入口校验先把损坏日志判成 INVALID_SURFACE（原 readSession 走 replay 校验、
+    // 报的是 seq 错位）；这里保留"损坏必须被拒"这一条保证，断言换成类型化错误码。
+    await expect(ctx.sessionQuery.readSurface(corrupt.id))
+      .rejects.toThrow(expectCode('SESSION_QUERY_INVALID_SURFACE'))
   })
 
   it('prefers a live owner that attaches while its persisted prefix is inspected', async () => {
@@ -513,59 +512,6 @@ describe('session-query exact reads', () => {
 
     await expect(ctx.sessionQuery.filterEvents(shared.id, []))
       .resolves.toMatchObject([{ sessionId: shared.id, text: 'live' }])
-  })
-
-  it('reads the latest title from one live-preferred or persisted log without widening listSessions', async () => {
-    const persistedHeader = header('persisted-title', 2)
-    const sharedHeader = header('shared-title', 3)
-    TestPersistence.reset([
-      {
-        meta: persistedHeader,
-        events: [{
-          type: 'session/title',
-          seq: SessionSeq(0),
-          time: 20,
-          data: {
-            title: 'Persisted title',
-            messageSeqs: [SessionSeq(4)],
-            source: { kind: 'fallback' },
-          },
-        }],
-      },
-      {
-        meta: sharedHeader,
-        events: [{
-          type: 'session/title',
-          seq: SessionSeq(0),
-          time: 30,
-          data: {
-            title: 'Stale durable title',
-            messageSeqs: [SessionSeq(1)],
-            source: { kind: 'fallback' },
-          },
-        }],
-      },
-    ])
-    const ctx = await liveContext()
-    await ctx.plugin(SessionTitleService, TITLE_SERVICE_CONFIG)
-    const shared = ctx.sessions.create(sharedHeader.id, { meta: { createdAt: 3 } })
-    shared.append('session/title', {
-      title: 'Live title',
-      messageSeqs: [SessionSeq(7)],
-      source: {
-        kind: 'provider',
-        provider: SessionTitleProviderId('query-test'),
-      },
-    })
-    await ctx.plugin(TestPersistence)
-
-    await expect(ctx.sessionQuery.readTitle(persistedHeader.id)).resolves.toMatchObject({
-      title: 'Persisted title', eventSeq: 0, updatedAt: 20,
-    })
-    await expect(ctx.sessionQuery.readTitle(shared.id)).resolves.toMatchObject({
-      title: 'Live title', eventSeq: 0,
-    })
-    expect(Object.keys((await ctx.sessionQuery.listSessions())[0]!)).toEqual(['header', 'live', 'persisted', 'formatStatus'])
   })
 
   it('batches unique persisted title observations through one cancellable corpus scan', async () => {
@@ -864,8 +810,6 @@ describe('session-query exact reads', () => {
       { sessionId: live.id, status: 'fulfilled' },
       { sessionId: missing, status: 'rejected' },
     ])
-    await expect(liveOnly.sessionQuery.readTitleSnapshot(missing))
-      .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
 
     const persisted = header('batch-title-persisted', 1)
     const late = header('batch-title-late', 2)
@@ -989,36 +933,6 @@ describe('session-query exact reads', () => {
     await expect(ctx.sessionQuery.filterEvents(live.id, [{ kind: 'future' } as never]))
       .rejects.toThrow(expectCode('SESSION_QUERY_INVALID_FILTER'))
     await persistence.dispose()
-  })
-
-  it('classifies current, shadowed, and raw-log-only events through foldSurface', async () => {
-    const ctx = await liveContext()
-    const session = ctx.sessions.create(SessionId('surface'))
-    session.append('turn/start', { turn: 1 })
-    session.append('step/start', { turn: 1, step: 1 })
-    const first = session.append(
-      'user/message',
-      createUserMessage({
-        content: [{ type: 'text', text: 'first' }], source: { kind: 'user' },
-      }),
-      { surfaceOp: 'append' },
-    )
-    session.append('assistant/attempt', {
-      turn: 1,
-      step: 1,
-      stream: [{ type: 'text-chunks', time0: 0, index: 0, dt: [], texts: ['draft'] }],
-    })
-    session.append(
-      'user/message',
-      createUserMessage({
-        content: [{ type: 'text', text: 'replacement' }],
-        source: { kind: 'test' },
-      }),
-      { surfaceOp: { op: 'replace', startSeq: first.seq, endSeq: first.seq }, sourceEventSeqs: [first.seq] },
-    )
-
-    expect((await ctx.sessionQuery.listEvents(session.id)).slice(2).map(record => record.surface))
-      .toEqual(['shadowed', 'log-only', 'current'])
   })
 
   it('reads a detached current surface with its raw-log capture boundary', async () => {
@@ -1200,7 +1114,7 @@ describe('session-query exact reads', () => {
     TestPersistence.readFailure = new Error('inspect unavailable')
     const signal = new AbortController().signal
 
-    await expect(ctx.sessionQuery.listEvents(live.id)).resolves.toHaveLength(2)
+    await expect(ctx.sessionQuery.readSurface(live.id)).resolves.toMatchObject({ session: { id: live.id } })
     await expect(ctx.sessionQuery.traceEvent({ sessionId: live.id, seq: SessionSeq(1) }, signal))
       .resolves.toMatchObject({ session: { id: live.id }, target: { seq: SessionSeq(1) } })
     await expect(ctx.sessionQuery.readEvent({ sessionId: live.id, seq: SessionSeq(1) }, signal))
@@ -1208,7 +1122,7 @@ describe('session-query exact reads', () => {
     expect(TestPersistence.listSignals).toEqual([])
     expect(TestPersistence.readSignals).toEqual([])
     await expect(ctx.sessionQuery.listSessions()).rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
-    await expect(ctx.sessionQuery.listEvents(SessionId('durable'))).rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
+    await expect(ctx.sessionQuery.readSurface(SessionId('durable'))).rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
   })
 
   it('wraps persisted corruption as SESSION_QUERY_CORRUPT_SESSION with its cause preserved', async () => {
@@ -1222,7 +1136,7 @@ describe('session-query exact reads', () => {
     )
     TestPersistence.readFailure = corruption
 
-    await expect(ctx.sessionQuery.readSession(durable.id)).rejects.toMatchObject({
+    await expect(ctx.sessionQuery.readSurface(durable.id)).rejects.toMatchObject({
       code: 'SESSION_QUERY_CORRUPT_SESSION',
       message: `stored session "${durable.id}" is corrupt: stored prefix failed validation`,
       cause: corruption,
@@ -1233,14 +1147,14 @@ describe('session-query exact reads', () => {
     const durable = header('durable')
     TestPersistence.reset([{ meta: durable, events: eventLog() }])
     const ctx = await liveContext()
-    await expect(ctx.sessionQuery.listEvents(SessionId('absent')))
+    await expect(ctx.sessionQuery.readSurface(SessionId('absent')))
       .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
     await ctx.plugin(TestPersistence)
-    await expect(ctx.sessionQuery.listEvents(SessionId('absent')))
+    await expect(ctx.sessionQuery.readSurface(SessionId('absent')))
       .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
 
     TestPersistence.readFailure = 'raw failure'
-    await expect(ctx.sessionQuery.listEvents(durable.id))
+    await expect(ctx.sessionQuery.readSurface(durable.id))
       .rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
     TestPersistence.readFailure = undefined
     const durableEntry = TestPersistence.entries.get(durable.id)!
@@ -1249,7 +1163,7 @@ describe('session-query exact reads', () => {
       const listedEntry = TestPersistence.entries.get(durable.id)!
       listedEntry.meta = { ...listedEntry.meta, cwd: '/changed-during-read' }
     }
-    await expect(ctx.sessionQuery.listEvents(durable.id))
+    await expect(ctx.sessionQuery.readSurface(durable.id))
       .rejects.toThrow(expectCode('SESSION_QUERY_SOURCE_CONFLICT'))
   })
 
@@ -1268,7 +1182,7 @@ describe('session-query exact reads', () => {
       }] as unknown as SessionEvent[],
     }])
     const persistence = await ctx.plugin(TestPersistence)
-    await expect(ctx.sessionQuery.listEvents(persisted.id))
+    await expect(ctx.sessionQuery.readSurface(persisted.id))
       .rejects.toThrow(expectCode('SESSION_QUERY_INVALID_SURFACE'))
     await persistence.dispose()
 

@@ -25,19 +25,6 @@ interface EventLogAnalysis {
 }
 
 /**
- * Classify a raw event log with one canonical surface fold.
- * @param sessionId - owner of the event log.
- * @param events - detached raw event log.
- * @returns lightweight records in ascending log order.
- */
-export function eventRecords(
-  sessionId: SessionId,
-  events: readonly SessionEvent[],
-): SessionEventRecord[] {
-  return analyzeEventLog(sessionId, events).records
-}
-
-/**
  * Fold and return the current model surface after validating the whole log.
  * @param sessionId - owner used in query diagnostics.
  * @param events - detached raw event log from one corpus observation.
