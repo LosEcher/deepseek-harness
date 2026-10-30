@@ -15,7 +15,7 @@ from typing import Callable, TypeAlias, TypeVar
 from pydantic import BaseModel
 
 from .errors import JsonRpcError, SdkProtocolError, TransportClosedError
-from .models import IncomingRequest, InitializeResponse, JsonObject, JsonValue, Notification
+from .models import InitializeResponse, JsonObject, JsonValue, Notification
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 NotificationFilter: TypeAlias = Callable[[Notification], bool]
@@ -56,7 +56,6 @@ class HarnessClient:
             str, tuple[queue.Queue[Notification | BaseException], NotificationFilter | None]
         ] = {}
         self._session_parents: dict[str, str] = {}
-        self._requests: queue.Queue[IncomingRequest | BaseException] = queue.Queue()
         self._stderr_lines: deque[str] = deque(maxlen=400)
         self._reader_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
@@ -263,28 +262,6 @@ class HarnessClient:
         """Subscribe to a session and descendants discovered from subagent lifecycle edges."""
         return self.subscribe_notifications(self._notification_belongs_to_session_tree(session_id))
 
-    def next_request(self) -> IncomingRequest:
-        item = self._requests.get()
-        if isinstance(item, BaseException):
-            raise item
-        return item
-
-    def respond(self, request_id: str | int, result: JsonValue) -> None:
-        self._write_message({"jsonrpc": "2.0", "id": request_id, "result": result})
-
-    def respond_error(
-        self,
-        request_id: str | int,
-        *,
-        code: int,
-        message: str,
-        data: JsonValue | None = None,
-    ) -> None:
-        error: JsonObject = {"code": code, "message": message}
-        if data is not None:
-            error["data"] = data
-        self._write_message({"jsonrpc": "2.0", "id": request_id, "error": error})
-
     def _request_raw(
         self,
         method: str,
@@ -406,8 +383,10 @@ class HarnessClient:
         msg_id = message.get("id")
         method = message.get("method")
         if isinstance(msg_id, (str, int)) and isinstance(method, str):
-            params = message.get("params")
-            self._requests.put(IncomingRequest(id=msg_id, method=method, payload=params if isinstance(params, dict) else {}))
+            # Server-originated requests are not part of this client's role: the SDK server
+            # declares no server->client request, so this shape is an unexpected frame.
+            # Guard (not dispatch): keep the frame away from the response waiter below, so a
+            # server request reusing a pending client id can never settle that waiter.
             return
         if isinstance(msg_id, (str, int)):
             with self._lock:
@@ -454,7 +433,6 @@ class HarnessClient:
         for subscriber, _predicate in subscribers:
             subscriber.put(exc)
         self._notifications.put(exc)
-        self._requests.put(exc)
 
     def _runtime_closed_error(self, reason: str) -> TransportClosedError:
         diagnostics = self._runtime_diagnostics()
